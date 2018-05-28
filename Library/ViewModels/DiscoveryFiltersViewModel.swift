@@ -16,13 +16,13 @@ public protocol DiscoveryFiltersViewModelInputs {
   /// Call when the view loads.
   func viewDidLoad()
 
-  /// Call when the view will appear.
-  func viewWillAppear()
+  /// Call when the view did appear.
+  func viewDidAppear()
 }
 
 public protocol DiscoveryFiltersViewModelOutputs {
-  /// Emits a category id to set the background gradient and animate in the view.
-  var animateInView: Signal<Int?, NoError> { get }
+  /// Emits when to animate in the view.
+  var animateInView: Signal<(), NoError> { get }
 
   /// Emits whether the categories are loading for the activity indicator view.
   var loadingIndicatorIsVisible: Signal<Bool, NoError> { get }
@@ -53,11 +53,9 @@ public protocol DiscoveryFiltersViewModelType {
 }
 
 public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
-  DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
+DiscoveryFiltersViewModelInputs, DiscoveryFiltersViewModelOutputs {
 
-  // swiftlint:disable function_body_length
   public init() {
-
     let initialTopFilters = self.viewDidLoadProperty.signal
       .take(first: 1)
       .map { topFilters(forUser: AppEnvironment.current.currentUser) }
@@ -81,7 +79,6 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
       .map { $0.params.category?.rootId }
 
     let loaderIsVisible = MutableProperty(false)
-    self.loadingIndicatorIsVisible = loaderIsVisible.signal
 
     let cachedCats = self.viewDidLoadProperty.signal
       .map(cachedCategories)
@@ -89,20 +86,27 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     let categoriesEvent = cachedCats
       .filter { $0?.isEmpty != .some(false) }
       .switchMap { _ in
-        AppEnvironment.current.apiService.fetchCategories()
+        AppEnvironment.current.apiService.fetchGraphCategories(query: rootCategoriesQuery)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .on(starting: { loaderIsVisible.value = true },
-              terminated: { loaderIsVisible.value = false })
-          .map { $0.categories }
+          .on(starting: {
+            loaderIsVisible.value = true
+          })
+          .map { (envelope: RootCategoriesEnvelope) in envelope.rootCategories }
           .materialize()
-      }
+    }
+
+    self.loadingIndicatorIsVisible = Signal.merge(
+      loaderIsVisible.signal,
+      categoriesEvent.values().mapConst(false)
+    )
 
     let cachedOrLoadedCategories = Signal.merge(
       cachedCats.skipNil(),
       categoriesEvent.values()
-    ).on(value: { cache(categories:) }())
+      ).on(value: { cache(categories:) }())
 
-    self.loadTopRows = Signal.combineLatest(topRows, categoryId).map { (rows: $0, categoryId: $1) }
+    self.loadTopRows = Signal.combineLatest(topRows, categoryId)
+      .map { (rows: $0, categoryId: $1) }
 
     let selectedRowWithCategories = Signal.combineLatest(initialSelectedRow, cachedOrLoadedCategories)
 
@@ -114,9 +118,9 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
       .map { (rows: $0, categoryId: $1) }
 
     let selectedRowId = Signal.merge(
-        categoryId,
-        self.tappedExpandableRowProperty.signal.skipNil().map { $0.params.category?.rootId }
-      )
+      categoryId,
+      self.tappedExpandableRowProperty.signal.skipNil().map { $0.params.category?.rootId }
+    )
 
     let initialRows = selectedRowWithCategories
       .map(expandableRows(selectedRow:categories:))
@@ -149,8 +153,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
         .mapConst(false)
     )
 
-    self.animateInView = categoryId
-      .takeWhen(self.viewWillAppearProperty.signal)
+    self.animateInView = self.viewDidAppearProperty.signal
 
     self.viewDidLoadProperty.signal
       .observeValues { AppEnvironment.current.koala.trackDiscoveryModal() }
@@ -161,7 +164,6 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     self.tappedExpandableRowProperty.signal.skipNil()
       .observeValues { AppEnvironment.current.koala.trackDiscoveryModalExpandedFilter(params: $0.params) }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let initialSelectedRowProperty = MutableProperty<SelectableRow?>(nil)
   public func configureWith(selectedRow: SelectableRow) {
@@ -175,13 +177,13 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
   public func tapped(selectableRow: SelectableRow) {
     self.tappedSelectableRowProperty.value = selectableRow
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
-  fileprivate let viewWillAppearProperty = MutableProperty()
-  public func viewWillAppear() {
-    self.viewWillAppearProperty.value = ()
+  fileprivate let viewDidAppearProperty = MutableProperty(())
+  public func viewDidAppear() {
+    self.viewDidAppearProperty.value = ()
   }
 
   fileprivate let shouldAnimateSelectableCellProperty = MutableProperty(false)
@@ -189,7 +191,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     return self.shouldAnimateSelectableCellProperty.value
   }
 
-  public let animateInView: Signal<Int?, NoError>
+  public let animateInView: Signal<(), NoError>
   public let loadingIndicatorIsVisible: Signal<Bool, NoError>
   public let loadCategoryRows: Signal<(rows: [ExpandableRow], categoryId: Int?, selectedRowId: Int?),
   NoError>
@@ -211,24 +213,22 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
 
  - returns: An array of expandable rows with one row expanded.
  */
+
 private func expandableRows(selectedRow: SelectableRow,
                             categories: [KsApi.Category]) -> [ExpandableRow] {
 
-  let expandableRows = categories
-    .sorted { lhs, _ in !lhs.isRoot }
-    .groupedBy { $0.parent ?? $0 }
-    .map { rootCategory, rootWithChildren in
-      ExpandableRow(
-        isExpanded: false,
-        params: .defaults |> DiscoveryParams.lens.category .~ rootCategory,
-        selectableRows: rootWithChildren
-          .sorted()
-          .map { childCategory in
-            SelectableRow(
-              isSelected: childCategory == selectedRow.params.category,
-              params: .defaults |> DiscoveryParams.lens.category .~ childCategory
-            )
-          }
+  let expandableRows = categories.filter { $0.isRoot }
+    .sorted { lhs, _ in lhs.isRoot }
+    .map { rootCategory in
+      return ExpandableRow(isExpanded: false,
+                           params: .defaults |> DiscoveryParams.lens.category .~ rootCategory,
+                           selectableRows: ([rootCategory] + (rootCategory.subcategories?.nodes ?? []))
+                            .sorted()
+                            .compactMap { node in
+                              return SelectableRow(isSelected: node == selectedRow.params.category,
+                                                   params: .defaults
+                                                    |> DiscoveryParams.lens.category .~ node)
+        }
       )
     }
     .sorted { lhs, rhs in
@@ -246,7 +246,7 @@ private func expandableRows(selectedRow: SelectableRow,
       expandableRow.selectableRows.sorted { lhs, rhs in
         guard let lhsName = lhs.params.category?.name, let rhsName = rhs.params.category?.name,
           lhs.params.category?.isRoot == rhs.params.category?.isRoot else {
-          return (lhs.params.category?.isRoot ?? false) && !(rhs.params.category?.isRoot ?? false)
+            return (lhs.params.category?.isRoot ?? false) && !(rhs.params.category?.isRoot ?? false)
         }
         return lhsName < rhsName
     }
@@ -283,15 +283,20 @@ private func topFilters(forUser user: User?) -> [DiscoveryParams] {
     filters.append(.defaults |> DiscoveryParams.lens.hasLiveStreams .~ true)
   }
 
-  if user != nil {
+  guard user != nil else {
+    return filters
+  }
+
     filters.append(.defaults |> DiscoveryParams.lens.starred .~ true)
-    filters.append(
-      .defaults
+
+    if user?.optedOutOfRecommendations != true {
+      filters.append(.defaults
         |> DiscoveryParams.lens.recommended .~ true
         |> DiscoveryParams.lens.backed .~ false
-    )
+      )
+    }
+
     filters.append(.defaults |> DiscoveryParams.lens.social .~ true)
-  }
 
   return filters
 }
@@ -299,26 +304,59 @@ private func topFilters(forUser user: User?) -> [DiscoveryParams] {
 private func favorites(selectedRow: SelectableRow, categories: [KsApi.Category])
   -> [SelectableRow]? {
 
-  let faves: [SelectableRow] = categories.flatMap { category in
-    if AppEnvironment.current.ubiquitousStore.favoriteCategoryIds.contains(category.id) ||
-      AppEnvironment.current.userDefaults.favoriteCategoryIds.contains(category.id) {
+    let subcategories = categories
+      .filter { $0.isRoot }
+      .flatMap { category in ([category] + (category.subcategories?.nodes ?? [])) }
 
-      return SelectableRow(
-        isSelected: category == selectedRow.params.category,
-        params: .defaults |> DiscoveryParams.lens.category .~ category
-      )
-    } else {
-      return nil
+    let faves: [SelectableRow] = subcategories
+      .compactMap { subcategory in
+        guard let id = subcategory.intID else {
+          return nil
+        }
+        if AppEnvironment.current.ubiquitousStore.favoriteCategoryIds.contains(id) ||
+          AppEnvironment.current.userDefaults.favoriteCategoryIds.contains(id) {
+          return SelectableRow(
+            isSelected: subcategory == selectedRow.params.category,
+            params: .defaults |> DiscoveryParams.lens.category .~ subcategory
+          )
+        } else {
+          return nil
+        }
     }
-  }
-
-  return faves.isEmpty ? nil : faves
+    return faves.isEmpty ? nil : faves
 }
 
 private func cachedCategories() -> [KsApi.Category]? {
-  return AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] as? [KsApi.Category]
+  return AppEnvironment.current
+    .cache[KSCache.ksr_discoveryFiltersCategories] as? [KsApi.Category]
 }
 
 private func cache(categories: [KsApi.Category]) {
   AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] = categories
+}
+
+public let rootCategoriesQuery = NonEmptySet(Query.rootCategories(categoryFields))
+
+public func categoryBy(id: String) -> NonEmptySet<Query> {
+  return NonEmptySet(Query.category(id: id, categoryFields))
+}
+
+private var categoryFields: NonEmptySet<Query.Category> {
+  return  .id +| [
+    .name,
+    .subcategories(
+      [],
+      .totalCount +| [
+        .nodes(
+          .id +| [
+            .name,
+            .parentCategory,
+            .parentId,
+            .totalProjectCount
+          ]
+        )
+      ]
+    ),
+    .totalProjectCount
+  ]
 }

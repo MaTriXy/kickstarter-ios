@@ -17,6 +17,12 @@ public protocol ProjectCreatorViewModelInputs {
 }
 
 public protocol ProjectCreatorViewModelOutputs {
+  /// Emits when we should return to project page.
+  var goBackToProject: Signal<(), NoError> { get }
+
+  /// Emits when the LoginToutViewController should be presented.
+  var goToLoginTout: Signal<LoginIntent, NoError> { get }
+
   /// Emits when we should navigate to the message dialog.
   var goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), NoError> { get }
 
@@ -54,14 +60,29 @@ ProjectCreatorViewModelOutputs {
     self.decidedPolicy <~ navigationAction
       .map { $0.navigationType == .other ? .allow : .cancel }
 
+    self.goToLoginTout = messageCreatorRequest.ignoreValues()
+      .filter { AppEnvironment.current.currentUser == nil }
+      .map { .messageCreator }
+
     self.goToMessageDialog = project
       .takeWhen(messageCreatorRequest)
+      .filter { _ in AppEnvironment.current.currentUser != nil }
       .map { (MessageSubject.project($0), .projectPage) }
 
-    self.goToSafariBrowser = navigationAction
-      .filter { $0.navigationType == .linkActivated }
-      .filter { !isMessageCreator(request: $0.request) }
-      .map { $0.request.url }
+    self.goBackToProject = Signal.combineLatest(project, navigationAction)
+      .filter { $1.navigationType == .linkActivated }
+      .filter { project, navigation in
+         project.urls.web.project == navigation.request.url?.absoluteString
+      }
+      .ignoreValues()
+
+    self.goToSafariBrowser = Signal.combineLatest(project, navigationAction)
+      .filter { $1.navigationType == .linkActivated }
+      .filter { !isMessageCreator(request: $1.request) }
+      .filter { project, navigation in
+        project.urls.web.project != navigation.request.url?.absoluteString
+      }
+      .map { $1.request.url }
       .skipNil()
 
     project
@@ -83,11 +104,12 @@ ProjectCreatorViewModelOutputs {
     return self.decidedPolicy.value
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
-
+  public let goBackToProject: Signal<(), NoError>
+  public let goToLoginTout: Signal<LoginIntent, NoError>
   public let goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), NoError>
   public let goToSafariBrowser: Signal<URL, NoError>
   public let loadWebViewRequest: Signal<URLRequest, NoError>

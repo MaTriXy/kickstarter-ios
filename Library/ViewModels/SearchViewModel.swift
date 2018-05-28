@@ -82,9 +82,8 @@ public protocol SearchViewModelType {
 
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
-    let viewWillAppearNotAnimated = self.viewWillAppearAnimatedProperty.signal.filter(isFalse).ignoreValues()
+    public init() {
+    let viewWillAppearNotAnimated = self.viewWillAppearAnimatedProperty.signal.filter(isTrue).ignoreValues()
 
     let query = Signal
       .merge(
@@ -111,7 +110,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .map { query, _ in query.isEmpty }
       .skipRepeats()
 
-    let requestFirstPageWith = query
+      let requestFirstPageWith: Signal<DiscoveryParams, NoError> = query
       .filter { !$0.isEmpty }
       .map { .defaults |> DiscoveryParams.lens.query .~ $0 }
 
@@ -126,12 +125,13 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .filter(isTrue)
       .ignoreValues()
 
-    let requestFromParamsWithDebounce = { params in
-      SignalProducer<(), ErrorEnvelope>(value: ())
-        .switchMap {
-          AppEnvironment.current.apiService.fetchDiscovery(params: params)
-            .ksr_debounce(
-              AppEnvironment.current.debounceInterval, on: AppEnvironment.current.scheduler)
+    let requestFromParamsWithDebounce: (DiscoveryParams)
+      -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> = { params in
+    SignalProducer<(), ErrorEnvelope>(value: ())
+      .switchMap {
+        AppEnvironment.current.apiService.fetchDiscovery(params: params)
+          .ksr_debounce(
+            AppEnvironment.current.debounceInterval, on: AppEnvironment.current.scheduler)
       }
     }
 
@@ -221,19 +221,18 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .filter { !$0.isEmpty }
       .observeValues { _ in AppEnvironment.current.koala.trackClearedSearchTerm() }
   }
-  // swiftlint:enable function_body_length
 
-  fileprivate let cancelButtonPressedProperty = MutableProperty()
+  fileprivate let cancelButtonPressedProperty = MutableProperty(())
   public func cancelButtonPressed() {
     self.cancelButtonPressedProperty.value = ()
   }
 
-  fileprivate let clearSearchTextProperty = MutableProperty()
+  fileprivate let clearSearchTextProperty = MutableProperty(())
   public func clearSearchText() {
     self.clearSearchTextProperty.value = ()
   }
 
-  fileprivate let searchFieldDidBeginEditingProperty = MutableProperty()
+  fileprivate let searchFieldDidBeginEditingProperty = MutableProperty(())
   public func searchFieldDidBeginEditing() {
     self.searchFieldDidBeginEditingProperty.value = ()
   }
@@ -243,7 +242,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.searchTextChangedProperty.value = searchText
   }
 
-  fileprivate let searchTextEditingDidEndProperty = MutableProperty()
+  fileprivate let searchTextEditingDidEndProperty = MutableProperty(())
   public func searchTextEditingDidEnd() {
     self.searchTextEditingDidEndProperty.value = ()
   }
@@ -258,7 +257,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.transitionedToProjectRowAndTotalProperty.value = (row, totalRows)
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -291,11 +290,11 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 /// Calculates a ref tag from the search query, the list of displayed projects, and the project
 /// tapped.
 private func refTag(query: String, projects: [Project], project: Project) -> RefTag {
-  if project == projects.first && query.characters.isEmpty {
+  if project == projects.first && query.isEmpty {
     return RefTag.searchPopularFeatured
-  } else if project == projects.first && !query.characters.isEmpty {
+  } else if project == projects.first && !query.isEmpty {
     return RefTag.searchFeatured
-  } else if query.characters.isEmpty {
+  } else if query.isEmpty {
     return RefTag.searchPopular
   } else {
     return RefTag.search

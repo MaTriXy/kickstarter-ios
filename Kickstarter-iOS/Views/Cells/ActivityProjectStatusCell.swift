@@ -10,6 +10,7 @@ internal final class ActivityProjectStatusCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: ActivityProjectStatusViewModelType = ActivityProjectStatusViewModel()
 
   @IBOutlet fileprivate weak var cardView: UIView!
+  @IBOutlet fileprivate weak var containerView: UIView!
   @IBOutlet fileprivate weak var fundingProgressBarView: UIView!
   @IBOutlet fileprivate weak var fundingProgressContainerView: UIView!
   @IBOutlet fileprivate weak var fundingProgressLabel: UILabel!
@@ -65,14 +66,15 @@ internal final class ActivityProjectStatusCell: UITableViewCell, ValueCell {
                   right: Styles.grid(2))
     }
 
-    _ = self.cardView
-      |> dropShadowStyle()
+    _ = self.containerView
+      |> cardStyle()
 
     _ = self.fundingProgressContainerView
       |> UIView.lens.backgroundColor .~ .ksr_navy_400
 
     _ = self.metadataBackgroundView
-      |> UIView.lens.layer.cornerRadius .~ 2.0
+      |> UIView.lens.layer.borderColor .~ UIColor.white.cgColor
+      |> UIView.lens.layer.borderWidth .~ 1.0
       |> UIView.lens.layoutMargins .~ .init(all: Styles.grid(1))
 
     _ = self.metadataLabel
@@ -81,7 +83,7 @@ internal final class ActivityProjectStatusCell: UITableViewCell, ValueCell {
 
     _ = self.projectNameLabel
       |> UILabel.lens.font .~ .ksr_title1(size: 18)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
 
     _ = self.textBackgroundView
       |> UIView.lens.alpha .~ 0.96

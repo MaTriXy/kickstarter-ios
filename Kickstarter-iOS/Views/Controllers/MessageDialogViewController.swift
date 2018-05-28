@@ -15,6 +15,7 @@ internal final class MessageDialogViewController: UIViewController {
 
   @IBOutlet private weak var bodyTextView: UITextView!
   @IBOutlet private weak var bottomConstraint: NSLayoutConstraint!
+  @IBOutlet private weak var cancelButton: UIBarButtonItem!
   @IBOutlet private weak var loadingView: UIView!
   @IBOutlet private weak var nameLabel: UILabel!
   @IBOutlet private weak var postButton: UIBarButtonItem!
@@ -31,6 +32,7 @@ internal final class MessageDialogViewController: UIViewController {
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
+
     self.viewModel.inputs.viewDidLoad()
   }
 
@@ -52,6 +54,7 @@ internal final class MessageDialogViewController: UIViewController {
     self.viewModel.outputs.notifyPresenterCommentWasPostedSuccesfully
       .observeValues { [weak self] message in
         guard let _self = self else { return }
+        _self.postNotification()
         _self.delegate?.messageDialog(_self, postedMessage: message)
     }
 
@@ -63,8 +66,11 @@ internal final class MessageDialogViewController: UIViewController {
   internal override func bindStyles() {
     super.bindStyles()
 
+    _ = self.cancelButton
+      |> UIBarButtonItem.lens.title %~ { _ in Strings.general_navigation_buttons_cancel() }
+
     _ = self.nameLabel
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
       |> UILabel.lens.font .~ UIFont.ksr_headline(size: 13.0)
 
     _ = self.postButton
@@ -87,6 +93,12 @@ internal final class MessageDialogViewController: UIViewController {
     self.present(UIAlertController.genericError(message),
                                animated: true,
                                completion: nil)
+  }
+
+  private func postNotification() {
+    NotificationCenter.default.post(name: Notification.Name.ksr_showNotificationsDialog,
+                                    object: nil,
+                                    userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.message])
   }
 }
 

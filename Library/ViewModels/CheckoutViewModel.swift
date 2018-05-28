@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Argo
 import Runes
 import KsApi
@@ -93,8 +92,6 @@ public final class CheckoutViewModel: CheckoutViewModelType {
 
   fileprivate let checkoutRacingViewModel: CheckoutRacingViewModelType = CheckoutRacingViewModel()
 
-  // swiftlint:disable function_body_length
-  // swiftlint:disable cyclomatic_complexity
   public init() {
     let configData = self.configDataProperty.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
@@ -327,10 +324,8 @@ public final class CheckoutViewModel: CheckoutViewModelType {
         )
     }
   }
-  // swiftlint:enable cyclomatic_complexity
-  // swiftlint:enable function_body_length
 
-  fileprivate let cancelButtonTappedProperty = MutableProperty()
+  fileprivate let cancelButtonTappedProperty = MutableProperty(())
   public func cancelButtonTapped() { self.cancelButtonTappedProperty.value = () }
 
   fileprivate let configDataProperty = MutableProperty<ConfigData?>(nil)
@@ -345,7 +340,7 @@ public final class CheckoutViewModel: CheckoutViewModelType {
                                                applePayCapable: applePayCapable)
   }
 
-  fileprivate let failureAlertButtonTappedProperty = MutableProperty()
+  fileprivate let failureAlertButtonTappedProperty = MutableProperty(())
   public func failureAlertButtonTapped() { self.failureAlertButtonTappedProperty.value = () }
 
   fileprivate let didAuthorizePaymentProperty = MutableProperty<PaymentData?>(nil)
@@ -353,12 +348,12 @@ public final class CheckoutViewModel: CheckoutViewModelType {
     self.didAuthorizePaymentProperty.value = payment
   }
 
-  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty()
+  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty(())
   public func paymentAuthorizationDidFinish() {
     self.paymentAuthorizationFinishedProperty.value = ()
   }
 
-  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty()
+  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty(())
   public func paymentAuthorizationWillAuthorizePayment() {
     self.paymentAuthorizationWillAuthorizeProperty.value = ()
   }
@@ -371,7 +366,7 @@ public final class CheckoutViewModel: CheckoutViewModelType {
     return self.shouldStartLoadResponseProperty.value
   }
 
-  fileprivate let stripeTokenAndErrorProperty = MutableProperty(String?.none, Error?.none)
+  fileprivate let stripeTokenAndErrorProperty = MutableProperty((String?.none, Error?.none))
   fileprivate let paymentAuthorizationStatusProperty = MutableProperty(PKPaymentAuthorizationStatus.failure)
   public func stripeCreatedToken(stripeToken: String?, error: Error?)
     -> PKPaymentAuthorizationStatus {
@@ -380,10 +375,10 @@ public final class CheckoutViewModel: CheckoutViewModelType {
       return self.paymentAuthorizationStatusProperty.value
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() { self.userSessionStartedProperty.value = () }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -448,7 +443,7 @@ private func applePayCheckoutNextJS(forPaymentData paymentData: PaymentData, str
 
     let tokenData = paymentData.tokenData
 
-    var json: [String:[String:String]] = [:]
+    var json: [String: [String: String]] = [:]
 
     json["apple_pay_token"] = [:]
     json["apple_pay_token"]?["transaction_identifier"] = tokenData.transactionIdentifier
@@ -472,7 +467,7 @@ private func paymentRequest(fromBase64Payload payload: String) -> PKPaymentReque
 
 private func prepared(request baseRequest: URLRequest, applePayCapable: Bool) -> URLRequest {
 
-  var applePayHeader: [String:String] = [:]
+  var applePayHeader: [String: String] = [:]
   applePayHeader["Kickstarter-Apple-Pay"] = applePayCapable ? "1" : nil
 
   var request = AppEnvironment.current.apiService.preparedRequest(forRequest: baseRequest)

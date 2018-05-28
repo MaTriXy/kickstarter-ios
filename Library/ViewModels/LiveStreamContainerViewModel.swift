@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import KsApi
 import LiveStream
 import ReactiveSwift
@@ -81,12 +80,10 @@ public protocol LiveStreamContainerViewModelOutputs {
   var videoViewControllerHidden: Signal<Bool, NoError> { get }
 }
 
-//swiftlint:disable:next type_body_length
 public final class LiveStreamContainerViewModel: LiveStreamContainerViewModelType,
 LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
 
-  //swiftlint:disable function_body_length
-  //swiftlint:disable cyclomatic_complexity
+  // swiftlint:disable cyclomatic_complexity
   public init() {
     let configData = Signal.combineLatest(
       self.configData.signal.skipNil(),
@@ -100,8 +97,8 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
       initialEvent,
       initialEvent.takeWhen(self.userSessionStartedProperty.signal)
       )
-      .switchMap { initialEvent -> SignalProducer<Event<LiveStreamEvent, LiveApiError>, NoError> in
-        timer(interval: .seconds(5), on: AppEnvironment.current.scheduler)
+      .switchMap { initialEvent -> SignalProducer<Signal<LiveStreamEvent, LiveApiError>.Event, NoError> in
+        SignalProducer.timer(interval: .seconds(5), on: AppEnvironment.current.scheduler)
           .prefix(value: Date())
           .flatMap { _ in
             AppEnvironment.current.liveStreamService
@@ -192,7 +189,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
 
     let numberOfPeopleWatchingTimeOutSignal = startNumberOfPeopleWatchingProducer
       .flatMap { _ in
-        timer(interval: .seconds(10), on: AppEnvironment.current.scheduler)
+        SignalProducer.timer(interval: .seconds(10), on: AppEnvironment.current.scheduler)
       }
       .take(until: numberOfPeopleWatchingEvent.values().ignoreValues())
 
@@ -214,7 +211,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
         return (hlsUrl, firebase.hlsUrlPath)
       }
       .skipNil()
-      .flatMap { hlsUrl, hlsUrlPath -> SignalProducer<Event<String, LiveApiError>, NoError> in
+      .flatMap { hlsUrl, hlsUrlPath -> SignalProducer<Signal<String, LiveApiError>.Event, NoError> in
         guard let hlsUrlPath = hlsUrlPath else { return SignalProducer(value: hlsUrl).materialize() }
 
         return AppEnvironment.current.liveStreamService.hlsUrl(withPath: hlsUrlPath)
@@ -226,7 +223,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
       self.numberOfPeopleWatching,
       maxOpenTokViewers
       )
-      .map { $0 > $1 }
+      .map { $0.description > $1.description }
       .take(first: 1)
 
     let useHlsStream = Signal.merge(
@@ -389,7 +386,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
 
     let numberOfMinutesWatched = isPlaying
       .filter(isTrue)
-      .flatMap { _ in timer(interval: .seconds(60), on: AppEnvironment.current.scheduler) }
+      .flatMap { _ in SignalProducer.timer(interval: .seconds(60), on: AppEnvironment.current.scheduler) }
       .mapConst(1)
 
     self.videoViewControllerHidden = Signal.merge(
@@ -479,8 +476,8 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
                                                            refTag: refTag)
     }
   }
-  //swiftlint:enable function_body_length
-  //swiftlint:enable cyclomatic_complexity
+  // swiftlint:enable function_body_length
+  // swiftlint:enable cyclomatic_complexity
 
   private typealias ConfigData = (Project, LiveStreamEvent, RefTag, Bool)
   private let configData = MutableProperty<ConfigData?>(nil)
@@ -491,7 +488,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
     self.configData.value = (project, liveStreamEvent, refTag, presentedFromProject)
   }
 
-  private let closeButtonTappedProperty = MutableProperty()
+  private let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     self.closeButtonTappedProperty.value = ()
   }
@@ -501,7 +498,7 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
     self.deviceOrientationDidChangeProperty.value = orientation
   }
 
-  private let userSessionStartedProperty = MutableProperty()
+  private let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
@@ -511,12 +508,12 @@ LiveStreamContainerViewModelInputs, LiveStreamContainerViewModelOutputs {
     self.videoPlaybackStateChangedProperty.value = state
   }
 
-  private let viewDidDisappearProperty = MutableProperty()
+  private let viewDidDisappearProperty = MutableProperty(())
   public func viewDidDisappear() {
     self.viewDidDisappearProperty.value = ()
   }
 
-  private let viewDidLoadProperty = MutableProperty()
+  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

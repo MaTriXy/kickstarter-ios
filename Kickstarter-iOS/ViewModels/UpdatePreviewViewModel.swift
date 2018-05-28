@@ -46,8 +46,7 @@ internal protocol UpdatePreviewViewModelType {
 internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
   UpdatePreviewViewModelOutputs, UpdatePreviewViewModelType {
 
-  // swiftlint:disable function_body_length
-  internal init() {
+    internal init() {
     let draft = self.draftProperty.signal.skipNil()
 
     let initialRequest = draft
@@ -130,7 +129,6 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
         AppEnvironment.current.koala.trackPublishedUpdate(forProject: $0, isPublic: $1.isPublic)
     }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
   fileprivate let policyDecisionProperty = MutableProperty(WKNavigationActionPolicy.allow)
@@ -140,17 +138,17 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
       return self.policyDecisionProperty.value
   }
 
-  fileprivate let publishButtonTappedProperty = MutableProperty()
+  fileprivate let publishButtonTappedProperty = MutableProperty(())
   internal func publishButtonTapped() {
     self.publishButtonTappedProperty.value = ()
   }
 
-  fileprivate let publishCancelButtonTappedProperty = MutableProperty()
+  fileprivate let publishCancelButtonTappedProperty = MutableProperty(())
   internal func publishCancelButtonTapped() {
     self.publishCancelButtonTappedProperty.value = ()
   }
 
-  fileprivate let publishConfirmationButtonTappedProperty = MutableProperty()
+  fileprivate let publishConfirmationButtonTappedProperty = MutableProperty(())
   internal func publishConfirmationButtonTapped() {
     self.publishConfirmationButtonTappedProperty.value = ()
   }
@@ -160,7 +158,7 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
     self.draftProperty.value = draft
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   internal func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

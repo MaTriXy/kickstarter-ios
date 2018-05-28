@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Argo
 import KsApi
 import Library
@@ -6,6 +5,7 @@ import LiveStream
 import Prelude
 import ReactiveSwift
 import Result
+import UserNotifications
 
 public struct HockeyConfigData {
   public let appIdentifier: String
@@ -20,6 +20,12 @@ public func == (lhs: HockeyConfigData, rhs: HockeyConfigData) -> Bool {
     && lhs.disableUpdates == rhs.disableUpdates
     && lhs.userId == rhs.userId
     && lhs.userName == rhs.userName
+}
+
+public enum NotificationAuthorizationStatus {
+  case authorized
+  case denied
+  case notDetermined
 }
 
 public protocol AppDelegateViewModelInputs {
@@ -47,8 +53,14 @@ public protocol AppDelegateViewModelInputs {
   /// Call when the application receives a request to perform a shortcut action.
   func applicationPerformActionForShortcutItem(_ item: UIApplicationShortcutItem)
 
+  /// Call when the app has crashed
+  func crashManagerDidFinishSendingCrashReport()
+
   /// Call after having invoked AppEnvironemt.updateCurrentUser with a fresh user.
   func currentUserUpdatedInEnvironment()
+
+  /// Call when the user taps "OK" from the contextual alert.
+  func didAcceptReceivingRemoteNotifications()
 
   /// Call when the app delegate receives a remote notification.
   func didReceive(remoteNotification notification: [AnyHashable: Any], applicationIsActive: Bool)
@@ -59,22 +71,32 @@ public protocol AppDelegateViewModelInputs {
   /// Call when the redirect URL has been found, see `findRedirectUrl` for more information.
   func foundRedirectUrl(_ url: URL)
 
+  /// Call when notification authorization is completed with user permission or denial.
+  func notificationAuthorizationCompleted(isGranted: Bool)
+
+  /// Call when notification authorization status received.
+  @available(iOS 10.0, *)
+  func notificationAuthorizationStatusReceived(_ authorizationStatus: UNAuthorizationStatus)
+
   /// Call when the user taps "OK" from the notification alert.
   func openRemoteNotificationTappedOk()
+
+  /// Call when the contextual PushNotification dialog should be presented.
+  func showNotificationDialog(notification: Notification)
 
   /// Call when the controller has received a user session ended notification.
   func userSessionEnded()
 
   /// Call when the controller has received a user session started notification.
   func userSessionStarted()
-
-  /// Call when the app has crashed
-  func crashManagerDidFinishSendingCrashReport()
 }
 
 public protocol AppDelegateViewModelOutputs {
   /// The value to return from the delegate's `application:didFinishLaunchingWithOptions:` method.
   var applicationDidFinishLaunchingReturnValue: Bool { get }
+
+  /// Emits when application should request authorizatoin for notifications.
+  var authorizeForRemoteNotifications: Signal<(), NoError> { get }
 
   /// Emits an app identifier that should be used to configure the hockey app manager.
   var configureHockey: Signal<HockeyConfigData, NoError> { get }
@@ -91,8 +113,14 @@ public protocol AppDelegateViewModelOutputs {
   /// Emits when opening the app with an invalid access token.
   var forceLogout: Signal<(), NoError> { get }
 
+  /// Emits when application should call getNotificationSettings() to obtain authorization status.
+  var getNotificationAuthorizationStatus: Signal<(), NoError> { get }
+
   /// Emits when the root view controller should navigate to activity.
   var goToActivity: Signal<(), NoError> { get }
+
+  /// Emits when application should navigate to the creator's message thread
+  var goToCreatorMessageThread: Signal<(Param, MessageThread), NoError> { get }
 
   /// Emits when the root view controller should navigate to the creator dashboard.
   var goToDashboard: Signal<Param?, NoError> { get }
@@ -111,6 +139,9 @@ public protocol AppDelegateViewModelOutputs {
 
   /// Emits when the root view controller should navigate to the user's profile.
   var goToProfile: Signal<(), NoError> { get }
+
+  /// Emits when should navigate to the project activities view
+  var goToProjectActivities: Signal<Param, NoError> { get }
 
   /// Emits a URL when we should open it in the safari browser.
   var goToMobileSafari: Signal<URL, NoError> { get }
@@ -131,10 +162,13 @@ public protocol AppDelegateViewModelOutputs {
   var pushTokenSuccessfullyRegistered: Signal<(), NoError> { get }
 
   /// Emits when we should attempt registering the user for notifications.
-  var registerUserNotificationSettings: Signal<(), NoError> { get }
+  var registerForRemoteNotifications: Signal<(), NoError> { get }
 
   /// Emits an array of short cut items to put into the shared application.
   var setApplicationShortcutItems: Signal<[ShortcutItem], NoError> { get }
+
+  /// Emits when an alert should be shown.
+  var showAlert: Signal<Notification, NoError> { get }
 
   /// Emits to synchronize iCloud on app launch.
   var synchronizeUbiquitousStore: Signal<(), NoError> { get }
@@ -154,11 +188,9 @@ public protocol AppDelegateViewModelType {
   var outputs: AppDelegateViewModelOutputs { get }
 }
 
-// swiftlint:disable:next type_body_length
 public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateViewModelInputs,
 AppDelegateViewModelOutputs {
 
-  // swiftlint:disable function_body_length
   // swiftlint:disable cyclomatic_complexity
   public init() {
     let currentUserEvent = Signal
@@ -169,7 +201,7 @@ AppDelegateViewModelOutputs {
         self.userSessionStartedProperty.signal
       )
       .ksr_debounce(.seconds(5), on: AppEnvironment.current.scheduler)
-      .switchMap { _ -> SignalProducer<Event<User?, ErrorEnvelope>, NoError> in
+      .switchMap { _ -> SignalProducer<Signal<User?, ErrorEnvelope>.Event, NoError> in
         AppEnvironment.current.apiService.isAuthenticated || AppEnvironment.current.currentUser != nil
           ? AppEnvironment.current.apiService.fetchUserSelf().wrapInOptional().materialize()
           : SignalProducer(value: .value(nil))
@@ -216,12 +248,44 @@ AppDelegateViewModelOutputs {
 
     // Push notifications
 
-    self.registerUserNotificationSettings = Signal.merge(
+    let applicationIsReadyForRegisteringNotifications = Signal.merge(
       self.applicationWillEnterForegroundProperty.signal,
       self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-      self.userSessionStartedProperty.signal
+      self.showNotificationDialogProperty.signal.ignoreValues()
       )
       .filter { AppEnvironment.current.currentUser != nil }
+
+    if #available(iOS 10.0, *) {
+      self.getNotificationAuthorizationStatus = applicationIsReadyForRegisteringNotifications
+
+      self.registerForRemoteNotifications = self.notificationAuthorizationCompletedProperty.signal
+        .filter(isTrue)
+        .ignoreValues()
+    } else {
+      //Never firing signal in ios 9
+      self.getNotificationAuthorizationStatus = .empty
+
+      self.registerForRemoteNotifications = applicationIsReadyForRegisteringNotifications
+    }
+
+    let authorize = applicationIsReadyForRegisteringNotifications
+        .takeWhen(
+          self.notificationAuthorizationStatusProperty.signal
+          .skipNil()
+          .filter { $0 == .notDetermined }
+          .ignoreValues()
+      )
+
+    self.showAlert = self.showNotificationDialogProperty.signal.skipNil()
+      .takeWhen(authorize)
+      .filter {
+        if let context = $0.userInfo?.values.first as? PushNotificationDialog.Context {
+          return PushNotificationDialog.canShowDialog(for: context)
+        }
+        return false
+    }
+
+    self.authorizeForRemoteNotifications = self.didAcceptReceivingRemoteNotificationsProperty.signal
 
     self.unregisterForRemoteNotifications = self.userSessionEndedProperty.signal
 
@@ -250,10 +314,11 @@ AppDelegateViewModelOutputs {
     )
 
     let pushEnvelopeAndIsActive = notificationAndIsActive
-      .flatMap { (notification, isActive) -> SignalProducer<(PushEnvelope, Bool), NoError> in
-        guard let envelope = (decode(notification) as Decoded<PushEnvelope>).value else { return .empty }
-        return SignalProducer(value: (envelope, isActive))
-    }
+      .map { (notification, isActive) -> (PushEnvelope, Bool)? in
+        guard let envelope = (decode(notification) as Decoded<PushEnvelope>).value else { return nil }
+        return (envelope, isActive)
+      }
+      .skipNil()
 
     self.presentRemoteNotificationAlert = pushEnvelopeAndIsActive
       .filter(second)
@@ -319,8 +384,8 @@ AppDelegateViewModelOutputs {
     self.findRedirectUrl = deepLinkUrl
       .filter {
         switch Navigation.match($0) {
-        case .some(.emailClick(_)), .some(.emailLink):  return true
-        default:                                        return false
+        case .some(.emailClick), .some(.emailLink): return true
+        default:                                    return false
         }
     }
 
@@ -340,11 +405,12 @@ AppDelegateViewModelOutputs {
           let rawCategoryParam = rawParams["category_id"],
           let categoryParam = Param.decode(.string(rawCategoryParam)).value
           else { return .init(value: params) }
-
-        return AppEnvironment.current.apiService.fetchCategory(param: categoryParam)
+        // We will replace `fetchGraph(query: rootCategoriesQuery)` by a call to get a category by ID
+        return AppEnvironment.current.apiService.fetchGraphCategories(query: rootCategoriesQuery)
+          .map { $0.rootCategories.filter { $0.name.lowercased() == categoryParam.slug } }
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .demoteErrors()
-          .map { params |> DiscoveryParams.lens.category .~ $0 }
+          .map { params |> DiscoveryParams.lens.category .~ $0.first }
     }
 
     self.goToLiveStream = deepLink
@@ -362,6 +428,18 @@ AppDelegateViewModelOutputs {
       .filter { $0 == .tab(.login) }
       .ignoreValues()
 
+    self.goToCreatorMessageThread = deepLink
+      .map { navigation -> (Param, Int)? in
+        guard case let .creatorMessages(projectId, messageThreadId) = navigation else { return nil }
+        return .some((projectId, messageThreadId: messageThreadId))
+      }
+      .skipNil()
+      .switchMap { projectId, messageThreadId in
+        AppEnvironment.current.apiService.fetchMessageThread(messageThreadId: messageThreadId)
+          .demoteErrors()
+          .map { (projectId, $0.messageThread) }
+      }
+
     self.goToMessageThread = deepLink
       .map { navigation -> Int? in
         guard case let .messages(messageThreadId) = navigation else { return nil }
@@ -371,15 +449,22 @@ AppDelegateViewModelOutputs {
       .switchMap {
         AppEnvironment.current.apiService.fetchMessageThread(messageThreadId: $0)
           .demoteErrors()
-          .map { env in env.messageThread }
-    }
+          .map { $0.messageThread }
+     }
+
+    self.goToProjectActivities = deepLink
+      .map { navigation -> Param? in
+        guard case let .projectActivity(projectId) = navigation else { return nil }
+        return .some(projectId)
+      }
+      .skipNil()
 
     self.goToProfile = deepLink
       .filter { $0 == .tab(.me) }
       .ignoreValues()
 
     self.goToMobileSafari = self.foundRedirectUrlProperty.signal.skipNil()
-      .filter { Navigation.match($0) == nil }
+      .filter { Navigation.deepLinkMatch($0) == nil }
 
     let projectLink = deepLink
       .filter { link in
@@ -420,8 +505,9 @@ AppDelegateViewModelOutputs {
 
     let surveyResponseLink = deepLink
       .map { link -> Int? in
-        guard case let .user(_, .survey(surveyResponseId)) = link else { return nil }
-        return surveyResponseId
+        if case let .user(_, .survey(surveyResponseId)) = link { return surveyResponseId }
+        if case let .project(_, .survey(surveyResponseId), _) = link { return surveyResponseId }
+        return nil
       }
       .skipNil()
       .switchMap { surveyResponseId in
@@ -432,6 +518,10 @@ AppDelegateViewModelOutputs {
             [SurveyResponseViewController.configuredWith(surveyResponse: surveyResponse)]
         }
     }
+
+    let campaignFaqLink = projectLink
+      .filter { _, subpage, _ in subpage == .faqs }
+      .map { project, _, vcs in vcs + [ProjectDescriptionViewController.configuredWith(project: project)] }
 
     let updatesLink = projectLink
       .filter { _, subpage, _ in subpage == .updates }
@@ -465,9 +555,9 @@ AppDelegateViewModelOutputs {
 
     let updateCommentsLink = updateLink
       .observeForUI()
-      .map { project, update, subpage, vcs -> [UIViewController]? in
+      .map { _, update, subpage, vcs -> [UIViewController]? in
         guard case .comments = subpage else { return nil }
-        return vcs + [CommentsViewController.configuredWith(project: project, update: update)]
+        return vcs + [CommentsViewController.configuredWith(update: update)]
       }
       .skipNil()
 
@@ -478,7 +568,8 @@ AppDelegateViewModelOutputs {
         surveyResponseLink,
         updatesLink,
         updateRootLink,
-        updateCommentsLink
+        updateCommentsLink,
+        campaignFaqLink
       )
       .map { UINavigationController() |> UINavigationController.lens.viewControllers .~ $0 }
 
@@ -510,6 +601,20 @@ AppDelegateViewModelOutputs {
       .map { _, options in options?[UIApplicationLaunchOptionsKey.shortcutItem] == nil }
 
     // Koala
+
+    self.notificationAuthorizationStatusProperty.signal
+      .skipNil()
+      .skip(until: self.notificationAuthorizationCompletedProperty.signal.ignoreValues())
+      .take(first: 1)
+      .observeValues { status in
+        switch status {
+        case .authorized:
+          AppEnvironment.current.koala.trackPushPermissionOptIn()
+        case .denied:
+          AppEnvironment.current.koala.trackPushPermissionOptOut()
+        case .notDetermined: ()
+        }
+      }
 
     Signal.merge(
       self.applicationLaunchOptionsProperty.signal.ignoreValues(),
@@ -558,7 +663,6 @@ AppDelegateViewModelOutputs {
     deepLinkFromNotification
       .observeValues { _ in AppEnvironment.current.koala.trackNotificationOpened() }
   }
-  // swiftlint:enable function_body_length
   // swiftlint:enable cyclomatic_complexity
 
   public var inputs: AppDelegateViewModelInputs { return self }
@@ -577,17 +681,17 @@ AppDelegateViewModelOutputs {
     self.applicationLaunchOptionsProperty.value = (application, launchOptions)
   }
 
-  fileprivate let applicationWillEnterForegroundProperty = MutableProperty()
+  fileprivate let applicationWillEnterForegroundProperty = MutableProperty(())
   public func applicationWillEnterForeground() {
     self.applicationWillEnterForegroundProperty.value = ()
   }
 
-  fileprivate let applicationDidEnterBackgroundProperty = MutableProperty()
+  fileprivate let applicationDidEnterBackgroundProperty = MutableProperty(())
   public func applicationDidEnterBackground() {
     self.applicationDidEnterBackgroundProperty.value = ()
   }
 
-  fileprivate let applicationDidReceiveMemoryWarningProperty = MutableProperty()
+  fileprivate let applicationDidReceiveMemoryWarningProperty = MutableProperty(())
   public func applicationDidReceiveMemoryWarning() {
     self.applicationDidReceiveMemoryWarningProperty.value = ()
   }
@@ -597,12 +701,12 @@ AppDelegateViewModelOutputs {
     self.performActionForShortcutItemProperty.value = item
   }
 
-  fileprivate let currentUserUpdatedInEnvironmentProperty = MutableProperty()
+  fileprivate let currentUserUpdatedInEnvironmentProperty = MutableProperty(())
   public func currentUserUpdatedInEnvironment() {
     self.currentUserUpdatedInEnvironmentProperty.value = ()
   }
 
-  fileprivate let configUpdatedInEnvironmentProperty = MutableProperty()
+  fileprivate let configUpdatedInEnvironmentProperty = MutableProperty(())
   public func configUpdatedInEnvironment() {
     self.configUpdatedInEnvironmentProperty.value = ()
   }
@@ -617,12 +721,17 @@ AppDelegateViewModelOutputs {
     self.deviceTokenDataProperty.value = data
   }
 
+  fileprivate let didAcceptReceivingRemoteNotificationsProperty = MutableProperty(())
+  public func didAcceptReceivingRemoteNotifications() {
+    self.didAcceptReceivingRemoteNotificationsProperty.value = ()
+  }
+
   private let foundRedirectUrlProperty = MutableProperty<URL?>(nil)
   public func foundRedirectUrl(_ url: URL) {
     self.foundRedirectUrlProperty.value = url
   }
 
-  fileprivate let crashManagerDidFinishSendingCrashReportProperty = MutableProperty()
+  fileprivate let crashManagerDidFinishSendingCrashReportProperty = MutableProperty(())
   public func crashManagerDidFinishSendingCrashReport() {
     self.crashManagerDidFinishSendingCrashReportProperty.value = ()
   }
@@ -642,17 +751,22 @@ AppDelegateViewModelOutputs {
     return self.facebookOpenURLReturnValue.value
   }
 
-  fileprivate let openRemoteNotificationTappedOkProperty = MutableProperty()
+  fileprivate let openRemoteNotificationTappedOkProperty = MutableProperty(())
   public func openRemoteNotificationTappedOk() {
     self.openRemoteNotificationTappedOkProperty.value = ()
   }
 
-  fileprivate let userSessionEndedProperty = MutableProperty()
+  fileprivate let showNotificationDialogProperty = MutableProperty<Notification?>(nil)
+  public func showNotificationDialog(notification: Notification) {
+    self.showNotificationDialogProperty.value = notification
+  }
+
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
@@ -661,26 +775,44 @@ AppDelegateViewModelOutputs {
   public var applicationDidFinishLaunchingReturnValue: Bool {
     return applicationDidFinishLaunchingReturnValueProperty.value
   }
+
+  fileprivate let notificationAuthorizationCompletedProperty = MutableProperty(false)
+  public func notificationAuthorizationCompleted(isGranted: Bool) {
+    self.notificationAuthorizationCompletedProperty.value = isGranted
+  }
+
+  fileprivate let notificationAuthorizationStatusProperty =
+    MutableProperty<NotificationAuthorizationStatus?>(nil)
+  @available(iOS 10.0, *)
+  public func notificationAuthorizationStatusReceived(_ authorizationStatus: UNAuthorizationStatus) {
+    return self.notificationAuthorizationStatusProperty.value = authStatusType(for: authorizationStatus)
+  }
+
+  public let authorizeForRemoteNotifications: Signal<(), NoError>
   public let configureHockey: Signal<HockeyConfigData, NoError>
   public let continueUserActivityReturnValue = MutableProperty(false)
   public let facebookOpenURLReturnValue = MutableProperty(false)
   public let findRedirectUrl: Signal<URL, NoError>
   public let forceLogout: Signal<(), NoError>
+  public let getNotificationAuthorizationStatus: Signal<(), NoError>
   public let goToActivity: Signal<(), NoError>
+  public let goToCreatorMessageThread: Signal<(Param, MessageThread), NoError>
   public let goToDashboard: Signal<Param?, NoError>
   public let goToDiscovery: Signal<DiscoveryParams?, NoError>
   public let goToLiveStream: Signal<(Project, LiveStreamEvent, RefTag?), NoError>
   public let goToLogin: Signal<(), NoError>
   public let goToMessageThread: Signal<MessageThread, NoError>
   public let goToProfile: Signal<(), NoError>
+  public let goToProjectActivities: Signal<Param, NoError>
   public let goToMobileSafari: Signal<URL, NoError>
   public let goToSearch: Signal<(), NoError>
   public let postNotification: Signal<Notification, NoError>
   public let presentRemoteNotificationAlert: Signal<String, NoError>
   public let presentViewController: Signal<UIViewController, NoError>
   public let pushTokenSuccessfullyRegistered: Signal<(), NoError>
-  public let registerUserNotificationSettings: Signal<(), NoError>
+  public let registerForRemoteNotifications: Signal<(), NoError>
   public let setApplicationShortcutItems: Signal<[ShortcutItem], NoError>
+  public let showAlert: Signal<Notification, NoError>
   public let synchronizeUbiquitousStore: Signal<(), NoError>
   public let unregisterForRemoteNotifications: Signal<(), NoError>
   public let updateCurrentUserInEnvironment: Signal<User, NoError>
@@ -699,9 +831,15 @@ private func navigation(fromPushEnvelope envelope: PushEnvelope) -> Navigation? 
 
   if let activity = envelope.activity {
     switch activity.category {
-    case .backing, .failure, .launch, .success, .cancellation, .suspension:
+    case .backing:
       guard let projectId = activity.projectId else { return nil }
       if envelope.forCreator == true {
+        return .projectActivity(.id(projectId))
+      }
+      return .project(.id(projectId), .root, refTag: .push)
+    case .failure, .launch, .success, .cancellation, .suspension:
+      guard let projectId = activity.projectId else { return nil }
+      if envelope.forCreator == .some(true) {
         return .tab(.dashboard(project: .id(projectId)))
       }
       return .project(.id(projectId), .root, refTag: .push)
@@ -735,14 +873,18 @@ private func navigation(fromPushEnvelope envelope: PushEnvelope) -> Navigation? 
   }
 
   if let project = envelope.project {
-    if envelope.forCreator == true {
+    if envelope.forCreator == .some(true) {
       return .tab(.dashboard(project: .id(project.id)))
     }
     return .project(.id(project.id), .root, refTag: .push)
   }
 
   if let message = envelope.message {
-    return .messages(messageThreadId: message.messageThreadId)
+    if envelope.forCreator == .some(true) {
+      return .creatorMessages(.id(message.projectId), messageThreadId: message.messageThreadId)
+    } else {
+      return .messages(messageThreadId: message.messageThreadId)
+    }
   }
 
   if let survey = envelope.survey {
@@ -768,19 +910,6 @@ private func navigation(fromShortcutItem shortcutItem: ShortcutItem) -> SignalPr
       |> DiscoveryParams.lens.recommended .~ true
       |> DiscoveryParams.lens.sort .~ .magic
     return SignalProducer(value: .tab(.discovery(params.queryParams)))
-
-  case .projectOfTheDay:
-    let params = .defaults
-      |> DiscoveryParams.lens.includePOTD .~ true
-      |> DiscoveryParams.lens.perPage .~ 1
-      |> DiscoveryParams.lens.sort .~ .magic
-    return AppEnvironment.current.apiService.fetchDiscovery(params: params)
-      .demoteErrors()
-      .map { env -> Navigation? in
-        guard let project = env.projects.first, project.isPotdToday(
-          today: AppEnvironment.current.dateType.init().date) else { return nil }
-        return .project(.id(project.id), .root, refTag: RefTag.unrecognized("shortcut"))
-    }
 
   case .projectsWeLove:
     let params = .defaults
@@ -830,8 +959,6 @@ private func shortcutItems(isProjectMember: Bool, hasRecommendations: Bool)
       items.append(.creatorDashboard)
     }
 
-    items.append(.projectOfTheDay)
-
     if hasRecommendations {
       items.append(.recommendedForYou)
     }
@@ -845,7 +972,7 @@ private func shortcutItems(isProjectMember: Bool, hasRecommendations: Bool)
     return items
 }
 
-private func dictionary(fromUrlComponents urlComponents: URLComponents) -> [String:String] {
+private func dictionary(fromUrlComponents urlComponents: URLComponents) -> [String: String] {
 
   let queryItems = urlComponents.queryItems ?? []
   return [String: String?].keyValuePairs(queryItems.map { ($0.name, $0.value) }).compact()
@@ -862,14 +989,6 @@ extension ShortcutItem {
         icon: UIApplicationShortcutIcon(templateImageName: "shortcut-icon-bars"),
         userInfo: nil
       )
-    case .projectOfTheDay:
-      return .init(
-        type: self.typeString,
-        localizedTitle: Strings.discovery_baseball_card_metadata_project_of_the_Day(),
-        localizedSubtitle: nil,
-        icon: UIApplicationShortcutIcon(templateImageName: "shortcut-icon-potd"),
-        userInfo: nil
-      )
     case .projectsWeLove:
       return .init(
         type: self.typeString,
@@ -883,7 +1002,7 @@ extension ShortcutItem {
         type: self.typeString,
         localizedTitle: Strings.Recommended(),
         localizedSubtitle: nil,
-        icon: UIApplicationShortcutIcon(templateImageName: "shortcut-icon-heart"),
+        icon: UIApplicationShortcutIcon(templateImageName: "shortcut-icon-star"),
         userInfo: nil
       )
     case .search:
@@ -948,4 +1067,13 @@ private func visitorCookies() -> [HTTPCookie] {
     )
   )
   .compact()
+}
+
+@available(iOS 10.0, *)
+private func authStatusType(for status: UNAuthorizationStatus) -> NotificationAuthorizationStatus {
+  switch status {
+  case .authorized: return .authorized
+  case .denied: return .denied
+  case .notDetermined: return .notDetermined
+  }
 }

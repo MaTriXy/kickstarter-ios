@@ -8,18 +8,18 @@ import Prelude
 import FBSDKLoginKit
 
 internal final class LoginToutViewController: UIViewController, MFMailComposeViewControllerDelegate {
-  @IBOutlet fileprivate weak var fbDisclaimer: UILabel!
   @IBOutlet fileprivate weak var contextLabel: UILabel!
   @IBOutlet fileprivate weak var bringCreativeProjectsToLifeLabel: UILabel!
   @IBOutlet fileprivate weak var fbLoginButton: UIButton!
-  @IBOutlet fileprivate weak var helpButton: UIButton!
+  @IBOutlet fileprivate weak var disclaimerButton: UIButton!
   @IBOutlet fileprivate weak var loginButton: UIButton!
   @IBOutlet fileprivate weak var signupButton: UIButton!
   @IBOutlet fileprivate weak var loginContextStackView: UIStackView!
   @IBOutlet fileprivate weak var rootStackView: UIStackView!
 
-  fileprivate let viewModel: LoginToutViewModelType = LoginToutViewModel()
   fileprivate let helpViewModel = HelpViewModel()
+  private var sessionStartedObserver: Any?
+  fileprivate let viewModel: LoginToutViewModelType = LoginToutViewModel()
 
   fileprivate lazy var fbLoginManager: FBSDKLoginManager = {
     let manager = FBSDKLoginManager()
@@ -41,8 +41,8 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
 
     self.fbLoginManager.logOut()
 
-    NotificationCenter.default
-      .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+    self.sessionStartedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
@@ -50,6 +50,12 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
       self.navigationItem.leftBarButtonItem = .close(self, selector: #selector(closeButtonPressed))
     }
     self.navigationItem.rightBarButtonItem = .help(self, selector: #selector(helpButtonPressed))
+
+    self.disclaimerButton.addTarget(self, action: #selector(helpButtonPressed), for: .touchUpInside)
+  }
+
+  deinit {
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -62,9 +68,9 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
     super.bindStyles()
 
     _ = self |> baseControllerStyle()
-    _ = self.fbDisclaimer |> fbDisclaimerLabelStyle
     _ = self.fbLoginButton |> fbLoginButtonStyle
-    _ = self.helpButton |> disclaimerButtonStyle
+    _ = self.disclaimerButton
+      |> disclaimerButtonStyle
     _ = self.loginButton |> loginWithEmailButtonStyle
     _ = self.rootStackView
       |> loginRootStackViewStyle
@@ -92,11 +98,10 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
           ? .init(topBottom: Styles.grid(10), leftRight: 0)
           : .init(top: Styles.grid(10), left: 0, bottom: Styles.grid(5), right: 0)
       }
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
     }
 
-  // swiftlint:disable function_body_length
-  override func bindViewModel() {
+    override func bindViewModel() {
     self.viewModel.outputs.startLogin
       .observeForControllerAction()
       .observeValues { [weak self] _ in
@@ -117,7 +122,10 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
 
     self.viewModel.outputs.postNotification
       .observeForUI()
-      .observeValues(NotificationCenter.default.post)
+      .observeValues {
+        NotificationCenter.default.post($0.0)
+        NotificationCenter.default.post($0.1)
+      }
 
     self.viewModel.outputs.startFacebookConfirmation
       .observeForControllerAction()
@@ -181,7 +189,6 @@ internal final class LoginToutViewController: UIViewController, MFMailComposeVie
     self.contextLabel.rac.text = self.viewModel.outputs.logInContextText
     self.bringCreativeProjectsToLifeLabel.rac.hidden = self.viewModel.outputs.headlineLabelHidden
   }
-  // swiftlint:enable function_body_length
 
   @objc internal func mailComposeController(_ controller: MFMailComposeViewController,
                                             didFinishWith result: MFMailComposeResult,

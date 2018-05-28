@@ -1,5 +1,4 @@
 // swiftlint:disable force_unwrapping
-// swiftlint:disable force_cast
 @testable import Library
 @testable import Kickstarter_Framework
 @testable import KsApi
@@ -38,7 +37,7 @@ final class UpdatePreviewViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     let previewUrl = "https://\(Secrets.Api.Endpoint.production)/projects/2/updates/1/preview"
-    let query = "client_id=\(self.apiService.serverConfig.apiClientAuth.clientId)"
+    let query = "client_id=\(self.apiService.serverConfig.apiClientAuth.clientId)&currency=USD"
     self.webViewLoadRequest.assertValues(
       ["\(previewUrl)?\(query)"]
     )
@@ -76,7 +75,7 @@ final class UpdatePreviewViewModelTests: TestCase {
       self.vm.inputs.configureWith(draft: draft)
       self.vm.inputs.viewDidLoad()
 
-      self.showPublishConfirmation.assertValues([])
+      self.showPublishConfirmation.assertValueCount(0)
       self.vm.inputs.publishButtonTapped()
       let confirmation =
       "This will notify 1,024 backers that a new update is available. Are you sure you want to post?"
@@ -115,7 +114,7 @@ final class UpdatePreviewViewModelTests: TestCase {
       self.vm.inputs.configureWith(draft: draft)
       self.vm.inputs.viewDidLoad()
 
-      self.showPublishConfirmation.assertValues([])
+      self.showPublishConfirmation.assertValueCount(0)
       self.vm.inputs.publishButtonTapped()
       let confirmation =
       "This will notify 1,024 backers that a new update is available. Are you sure you want to post?"

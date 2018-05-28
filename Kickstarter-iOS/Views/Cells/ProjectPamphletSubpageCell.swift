@@ -10,7 +10,7 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
   @IBOutlet private weak var rootStackView: UIStackView!
   @IBOutlet private weak var separatorView: UIView!
   @IBOutlet private weak var subpageLabel: UILabel!
-  @IBOutlet private weak var topGradientView: GradientView!
+  @IBOutlet private weak var topSeparatorView: UIView!
 
   private let viewModel: ProjectPamphletSubpageCellViewModelType = ProjectPamphletSubpageCellViewModel()
 
@@ -34,13 +34,12 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
 
     _ = self.countContainerView
       |> UIView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: Styles.grid(2))
-      |> roundedStyle()
       |> UIView.lens.layer.borderWidth .~ 1
 
     _ = self.countLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 13)
-      |> UIView.lens.contentHuggingPriorityForAxis(.horizontal) .~ UILayoutPriorityRequired
-      |> UIView.lens.contentCompressionResistancePriorityForAxis(.horizontal) .~ UILayoutPriorityRequired
+      |> UIView.lens.contentHuggingPriority(for: .horizontal) .~ UILayoutPriority.required
+      |> UIView.lens.contentCompressionResistancePriority(for: .horizontal) .~ UILayoutPriority.required
 
     _ = self.rootStackView
       |> UIStackView.lens.spacing .~ Styles.grid(1)
@@ -49,24 +48,17 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
 
     _ = self.liveNowImageView
       |> UIImageView.lens.tintColor .~ .ksr_green_500
-      |> UIImageView.lens.contentHuggingPriorityForAxis(.horizontal) .~ UILayoutPriorityRequired
-      |> UIImageView.lens.contentCompressionResistancePriorityForAxis(.horizontal) .~ UILayoutPriorityRequired
+      |> UIImageView.lens.contentHuggingPriority(for: .horizontal) .~ UILayoutPriority.required
+      |> UIImageView.lens.contentCompressionResistancePriority(for: .horizontal) .~ UILayoutPriority.required
 
-    _ = self.separatorView
-      |> separatorStyle
+    _ = [self.separatorView, self.topSeparatorView]
+      ||> separatorStyle
 
     _ = self.subpageLabel
       |> UILabel.lens.numberOfLines .~ 2
       |> UILabel.lens.font .~ .ksr_body(size: 14)
-      |> UIView.lens.contentHuggingPriorityForAxis(.horizontal) .~ UILayoutPriorityDefaultLow
-      |> UIView.lens.contentCompressionResistancePriorityForAxis(.horizontal) .~ UILayoutPriorityDefaultLow
-
-    self.topGradientView.startPoint = CGPoint(x: 0, y: 0)
-    self.topGradientView.endPoint = CGPoint(x: 0, y: 1)
-    self.topGradientView.setGradient([
-      (UIColor.init(white: 0, alpha: 0.1), 0),
-      (UIColor.init(white: 0, alpha: 0), 1)
-    ])
+      |> UIView.lens.contentHuggingPriority(for: .horizontal) .~ UILayoutPriority.defaultLow
+      |> UIView.lens.contentCompressionResistancePriority(for: .horizontal) .~ UILayoutPriority.defaultLow
 
     self.setNeedsLayout()
   }
@@ -85,7 +77,7 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
     }
 
     self.liveNowImageView.rac.hidden = self.viewModel.outputs.liveNowImageViewHidden
-    self.topGradientView.rac.hidden = self.viewModel.outputs.topGradientViewHidden
+    self.topSeparatorView.rac.hidden = self.viewModel.outputs.topSeparatorViewHidden
     self.separatorView.rac.hidden = self.viewModel.outputs.separatorViewHidden
 
     self.subpageLabel.rac.text = self.viewModel.outputs.labelText
@@ -94,6 +86,5 @@ internal final class ProjectPamphletSubpageCell: UITableViewCell, ValueCell {
 
   internal override func layoutSubviews() {
     super.layoutSubviews()
-    self.countContainerView.layer.cornerRadius = min(14.0, round(self.countContainerView.bounds.height / 2.0))
   }
 }

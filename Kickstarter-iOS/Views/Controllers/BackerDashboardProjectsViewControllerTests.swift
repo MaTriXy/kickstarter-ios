@@ -5,11 +5,9 @@ import XCTest
 @testable import KsApi
 @testable import Library
 
-// swiftlint:disable:next type_name
 internal final class BackerDashboardProjectsViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-
     AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }

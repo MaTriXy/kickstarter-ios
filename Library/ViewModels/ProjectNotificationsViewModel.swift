@@ -23,6 +23,7 @@ public protocol ProjectNotificationsViewModelType {
 public final class ProjectNotificationsViewModel: ProjectNotificationsViewModelType,
   ProjectNotificationsViewModelInputs, ProjectNotificationsViewModelOutputs {
   public init() {
+
     self.projectNotifications = self.viewDidLoadProperty.signal
       .flatMap {
         AppEnvironment.current.apiService.fetchProjectNotifications()
@@ -30,7 +31,7 @@ public final class ProjectNotificationsViewModel: ProjectNotificationsViewModelT
     }
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

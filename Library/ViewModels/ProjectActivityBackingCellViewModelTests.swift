@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 // swiftlint:disable force_unwrapping
 import XCTest
 @testable import KsApi
@@ -126,7 +123,7 @@ internal final class ProjectActivityBackingCellViewModelTests: TestCase {
     self.vm.inputs.configureWith(activity: activity, project: project)
     let expected = Strings.Amount_previous_amount(
       amount: Format.currency(newAmount, country: project.country),
-                                 previous_amount:  Format.currency(oldAmount,
+                                 previous_amount: Format.currency(oldAmount,
                                          country: project.country))
     self.cellAccessibilityValue.assertValues([expected], "Emits accessibility value")
   }

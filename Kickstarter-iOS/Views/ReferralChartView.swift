@@ -24,8 +24,7 @@ public final class ReferralChartView: UIView {
     }
   }
 
-  // swiftlint:disable function_body_length
-  public override func draw(_ rect: CGRect) {
+    public override func draw(_ rect: CGRect) {
     super.draw(rect)
 
     guard let context = UIGraphicsGetCurrentContext() else { return }
@@ -78,5 +77,4 @@ public final class ReferralChartView: UIView {
     context.closePath()
     context.fillPath()
   }
-  // swiftlint:enable function_body_length
 }

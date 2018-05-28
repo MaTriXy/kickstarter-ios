@@ -38,12 +38,15 @@ private let stores = [
   ],
   "es": [
     "placeholder_password": "el secreto",
+  ],
+  "ja": [
+    "dates.time_days.two": "2日"
   ]
 ]
 
 internal struct MockBundle: NSBundleType {
   internal let bundleIdentifier: String?
-  fileprivate let store: [String:String]
+  fileprivate let store: [String: String]
 
   internal func path(forResource name: String?, ofType ext: String?) -> String? {
     return name
@@ -63,8 +66,8 @@ internal struct MockBundle: NSBundleType {
     return self.store[key] ?? value ?? key
   }
 
-  internal var infoDictionary: [String : Any]? {
-    var result: [String:Any] = [:]
+  internal var infoDictionary: [String: Any]? {
+    var result: [String: Any] = [:]
     result["CFBundleIdentifier"] = self.bundleIdentifier
     result["CFBundleVersion"] = "1234567890"
     result["CFBundleShortVersionString"] = "1.2.3.4.5.6.7.8.9.0"

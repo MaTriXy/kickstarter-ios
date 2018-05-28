@@ -15,6 +15,8 @@ public final class ProjectPamphletViewController: UIViewController {
   fileprivate var navBarController: ProjectNavBarViewController!
   fileprivate var contentController: ProjectPamphletContentViewController!
 
+  @IBOutlet weak private var navBarTopConstraint: NSLayoutConstraint!
+
   public static func configuredWith(projectOrParam: Either<Project, Param>,
                                     refTag: RefTag?) -> ProjectPamphletViewController {
 
@@ -24,23 +26,21 @@ public final class ProjectPamphletViewController: UIViewController {
   }
 
   public override var prefersStatusBarHidden: Bool {
-    return self.viewModel.outputs.prefersStatusBarHidden
-  }
-
-  public override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation {
-    return .fade
+    return UIApplication.shared.statusBarOrientation.isLandscape
   }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
 
     self.navBarController = self.childViewControllers
-      .flatMap { $0 as? ProjectNavBarViewController }.first
+      .compactMap { $0 as? ProjectNavBarViewController }.first
     self.navBarController.delegate = self
 
     self.contentController = self.childViewControllers
-      .flatMap { $0 as? ProjectPamphletContentViewController }.first
+      .compactMap { $0 as? ProjectPamphletContentViewController }.first
     self.contentController.delegate = self
+
+    self.viewModel.inputs.initial(topConstraint: initialTopConstraint)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -50,9 +50,23 @@ public final class ProjectPamphletViewController: UIViewController {
     self.viewModel.inputs.viewWillAppear(animated: animated)
   }
 
+  public override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    self.setInitial(constraints: [navBarTopConstraint],
+                    constant: initialTopConstraint)
+  }
+
   public override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     self.viewModel.inputs.viewDidAppear(animated: animated)
+  }
+
+  private var initialTopConstraint: CGFloat {
+    if #available(iOS 11.0, *) {
+      return parent?.view.safeAreaInsets.top ?? 0.0
+    } else {
+      return UIApplication.shared.statusBarFrame.size.height
+    }
   }
 
   public override func bindViewModel() {
@@ -74,10 +88,33 @@ public final class ProjectPamphletViewController: UIViewController {
       .observeValues { [weak self] in
         UIView.animate(withDuration: 0.3) { self?.setNeedsStatusBarAppearanceUpdate() }
     }
+
+    self.viewModel.outputs.topLayoutConstraintConstant
+      .observeForUI()
+      .observeValues { [weak self] value in
+        self?.navBarTopConstraint.constant = value
+    }
+  }
+
+  public override func willTransition(to newCollection: UITraitCollection,
+                                      with coordinator: UIViewControllerTransitionCoordinator) {
+    self.viewModel.inputs.willTransition(toNewCollection: newCollection)
+  }
+
+  private func setInitial(constraints: [NSLayoutConstraint?], constant: CGFloat) {
+
+    constraints.forEach {
+      $0?.constant = constant
+    }
   }
 }
 
 extension ProjectPamphletViewController: ProjectPamphletContentViewControllerDelegate {
+  public func projectPamphletContent(_ controller: ProjectPamphletContentViewController,
+                                     didScrollToTop: Bool) {
+    self.navBarController.setDidScrollToTop(didScrollToTop)
+  }
+
   public func projectPamphletContent(_ controller: ProjectPamphletContentViewController,
                                      imageIsVisible: Bool) {
     self.navBarController.setProjectImageIsVisible(imageIsVisible)

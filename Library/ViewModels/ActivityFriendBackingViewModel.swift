@@ -42,7 +42,6 @@ public protocol ActivityFriendBackingViewModelType {
 public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewModelType,
 ActivityFriendBackingViewModelInputs, ActivityFriendBackingViewModelOutputs {
 
-  // swiftlint:disable:next function_body_length
   public init() {
     let activity = self.activityProperty.signal.skipNil()
     let project = activity.map { $0.project }.skipNil()
@@ -52,25 +51,25 @@ ActivityFriendBackingViewModelInputs, ActivityFriendBackingViewModelOutputs {
 
     self.friendTitle = activity
       .map { activity in
-        guard let categoryId = activity.project?.category.rootId else {
+        guard let categoryId = activity.project?.category.parentId ?? activity.project?.category.id else {
           return NSAttributedString(string: "")
         }
 
         let title = string(forCategoryId: categoryId, friendName: activity.user?.name ?? "")
         return title.simpleHtmlAttributedString(
           base: [
-            NSFontAttributeName: UIFont.ksr_subhead(size: 14),
-            NSForegroundColorAttributeName: UIColor.ksr_text_navy_500
+            NSAttributedStringKey.font: UIFont.ksr_subhead(size: 12),
+            NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_500
           ],
           bold: [
-            NSFontAttributeName: UIFont.ksr_subhead(size: 14),
-            NSForegroundColorAttributeName: UIColor.ksr_text_navy_700
+            NSAttributedStringKey.font: UIFont.ksr_subhead(size: 12),
+            NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_900
           ],
           italic: [
-            NSFontAttributeName: UIFont.ksr_subhead(size: 14),
-            NSForegroundColorAttributeName: color(forCategoryId: categoryId)
+            NSAttributedStringKey.font: UIFont.ksr_subhead(size: 12),
+            NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_900
           ])
-          ?? NSAttributedString(string: "")
+          ?? .init()
     }
 
     self.fundingBarColor = activity.map { progressBarColor(forActivityCategory: $0.category) }
@@ -110,31 +109,17 @@ ActivityFriendBackingViewModelInputs, ActivityFriendBackingViewModelOutputs {
 private func progressBarColor(forActivityCategory category: Activity.Category) -> UIColor {
   switch category {
   case .cancellation, .failure, .suspension:
-    return .ksr_navy_500
+    return .ksr_dark_grey_400
   case .launch, .success:
-    return .ksr_green_400
+    return .ksr_green_700
   default:
-    return .ksr_green_400
-  }
-}
-
-public func color(forCategoryId id: Int?) -> UIColor {
-  let group = CategoryGroup(categoryId: id)
-  switch group {
-  case .none:
-    return .ksr_navy_700
-  case .culture:
-    return .ksr_red_400
-  case .entertainment:
-    return .ksr_violet_500
-  case .story:
-    return .ksr_forest_600
+    return .ksr_green_700
   }
 }
 
 // swiftlint:disable cyclomatic_complexity
-private func string(forCategoryId id: Int, friendName: String) -> String {
-  let root = RootCategory(categoryId: id)
+private func string(forCategoryId id: String, friendName: String) -> String {
+  let root = RootCategory(categoryId: Int(id) ?? -1)
   switch root {
   case .art:          return Strings.Friend_backed_art_project(friend_name: friendName)
   case .comics:       return Strings.Friend_backed_comics_project(friend_name: friendName)
@@ -155,29 +140,13 @@ private func string(forCategoryId id: Int, friendName: String) -> String {
   }
 }
 // swiftlint:enable cyclomatic_complexity
-
 private func percentFundedString(forActivity activity: Activity) -> NSAttributedString {
   guard let project = activity.project else { return NSAttributedString(string: "") }
 
   let percentage = Format.percentage(project.stats.percentFunded)
-  let funded = Strings.percentage_funded(percentage: percentage)
 
-  let mutableString = NSMutableAttributedString(string: funded, attributes: [
-    NSFontAttributeName: UIFont.ksr_caption1(),
-    NSForegroundColorAttributeName: UIColor.ksr_navy_500
-    ])
-
-  if let percentRange = mutableString.string.range(of: percentage) {
-    let percentStartIndex = mutableString.string
-      .distance(from: mutableString.string.startIndex, to: percentRange.lowerBound)
-    mutableString.addAttributes([
-      NSFontAttributeName: UIFont.ksr_headline(size: 12.0),
-      NSForegroundColorAttributeName:
-        (activity.category == .cancellation
-          || activity.category == .failure
-          || activity.category == .suspension) ? UIColor.ksr_text_navy_500 : UIColor.ksr_green_500
-      ], range: NSRange(location: percentStartIndex, length: percentage.characters.count))
-  }
-
-  return mutableString
+    return NSAttributedString(string: percentage, attributes: [
+      NSAttributedStringKey.font: UIFont.ksr_caption1(size: 10),
+      NSAttributedStringKey.foregroundColor: UIColor.ksr_green_700
+      ])
 }

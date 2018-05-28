@@ -44,7 +44,7 @@ public protocol TwoFactorViewModelOutputs {
   var logIntoEnvironment: Signal<AccessTokenEnvelope, NoError> { get }
 
   /// Emits when a login success notification should be posted.
-  var postNotification: Signal<Notification, NoError> { get }
+  var postNotification: Signal<(Notification, Notification), NoError> { get }
 
   /// Emits when code was resent successfully
   var resendSuccess: Signal<(), NoError> { get }
@@ -68,8 +68,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     fileprivate let facebookToken: String?
     fileprivate let code: String?
 
-    // swiftlint:disable type_name
-    fileprivate enum lens {
+        fileprivate enum lens {
       fileprivate static let code = Lens<TfaData, String?>(
         view: { $0.code },
         set: { TfaData(email: $1.email, password: $1.password, facebookToken: $1.facebookToken, code: $0) }
@@ -78,8 +77,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     // swiftlint:enable type_name
   }
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let isLoading = MutableProperty(false)
 
     let loginData = SignalProducer.combineLatest(
@@ -116,7 +114,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.isLoading = isLoading.signal
 
     self.isFormValid = Signal.merge([
-      codeProperty.signal.map { code in code?.characters.count == 6 },
+      codeProperty.signal.map { code in code?.count == 6 },
       viewWillAppearProperty.signal.mapConst(false)
       ])
       .skipRepeats()
@@ -132,7 +130,9 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.showError = Signal.merge([codeMismatch, genericFail])
 
     self.postNotification = self.environmentLoggedInProperty.signal
-      .mapConst(Notification(name: .ksr_sessionStarted))
+      .mapConst((Notification(name: .ksr_sessionStarted),
+                 Notification(name: .ksr_showNotificationsDialog,
+                              userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login])))
 
     self.viewWillAppearProperty.signal
       .observeValues { AppEnvironment.current.koala.trackTfa() }
@@ -156,7 +156,6 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
       .takeWhen(self.showError)
       .observeValues { _ in AppEnvironment.current.koala.trackLoginError(authType: Koala.AuthType.email) }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let codeProperty = MutableProperty<String?>(nil)
   public func codeChanged(_ code: String?) {
@@ -190,12 +189,12 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.submitPressedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
-  fileprivate let viewWillAppearProperty = MutableProperty()
+  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }
@@ -204,7 +203,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
   public let isFormValid: Signal<Bool, NoError>
   public let isLoading: Signal<Bool, NoError>
   public let logIntoEnvironment: Signal<AccessTokenEnvelope, NoError>
-  public let postNotification: Signal<Notification, NoError>
+  public let postNotification: Signal<(Notification, Notification), NoError>
   public let resendSuccess: Signal<(), NoError>
   public let showError: Signal<String, NoError>
 

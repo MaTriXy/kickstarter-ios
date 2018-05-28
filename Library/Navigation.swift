@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Argo
 import Runes
 import Curry
@@ -7,6 +6,8 @@ import KsApi
 
 public enum Navigation {
   case checkout(Int, Navigation.Checkout)
+  case creatorMessages(Param, messageThreadId: Int)
+  case projectActivity(Param)
   case emailClick(qs: String)
   case emailLink
   case messages(messageThreadId: Int)
@@ -40,6 +41,7 @@ public enum Navigation {
     case root
     case comments
     case creatorBio
+    case faqs
     case friends
     case messageCreator
     case liveStream(eventId: Int)
@@ -128,6 +130,8 @@ public func == (lhs: Navigation.Project, rhs: Navigation.Project) -> Bool {
     return true
   case (.creatorBio, .creatorBio):
     return true
+  case (.faqs, .faqs):
+    return true
   case (.friends, .friends):
     return true
   case (.messageCreator, .messageCreator):
@@ -211,7 +215,14 @@ public func == (lhs: Navigation.User, rhs: Navigation.User) -> Bool {
 
 extension Navigation {
   public static func match(_ url: URL) -> Navigation? {
-    return routes.reduce(nil) { accum, templateAndRoute in
+    return allRoutes.reduce(nil) { accum, templateAndRoute in
+      let (template, route) = templateAndRoute
+      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)?.value
+    }
+  }
+
+  public static func deepLinkMatch(_ url: URL) -> Navigation? {
+    return deepLinkRoutes.reduce(nil) { accum, templateAndRoute in
       let (template, route) = templateAndRoute
       return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)?.value
     }
@@ -222,7 +233,7 @@ extension Navigation {
   }
 }
 
-private let routes: [String:(RouteParams) -> Decoded<Navigation>] = [
+private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
   "/": emailClick,
   "/mpss/:a/:b/:c/:d/:e/:f/:g": emailLink,
   "/activity": activity,
@@ -245,6 +256,7 @@ private let routes: [String:(RouteParams) -> Decoded<Navigation>] = [
   "/projects/:creator_param/:project_param/creator_bio": creatorBio,
   "/projects/:creator_param/:project_param/dashboard": dashboard,
   "/projects/:creator_param/:project_param/description": project,
+  "/projects/:creator_param/:project_param/faqs": faqs,
   "/projects/:creator_param/:project_param/friends": friends,
   "/projects/:creator_param/:project_param/messages/new": messageCreator,
   "/projects/:creator_param/:project_param/pledge": pledgeRoot,
@@ -255,10 +267,32 @@ private let routes: [String:(RouteParams) -> Decoded<Navigation>] = [
   "/projects/:creator_param/:project_param/pledge/new": pledgeNew,
   "/projects/:creator_param/:project_param/posts": posts,
   "/projects/:creator_param/:project_param/posts/:update_param": update,
+  "/projects/:creator_param/:project_param/updates": updates,
   "/projects/:creator_param/:project_param/posts/:update_param/comments": updateComments,
   "/projects/:creator_param/:project_param/surveys/:survey_param": projectSurvey,
   "/users/:user_param/surveys/:survey_response_id": userSurvey
 ]
+
+private let deepLinkRoutes: [String: (RouteParams) -> Decoded<Navigation>] = allRoutes.restrict(
+  keys: [
+    "/",
+    "/mpss/:a/:b/:c/:d/:e/:f/:g",
+    "/activity",
+    "/discover",
+    "/discover/advanced",
+    "/discover/categories/:category_id",
+    "/discover/categories/:parent_category_id/:category_id",
+    "/messages/:message_thread_id",
+    "/projects/:creator_param/:project_param",
+    "/projects/:creator_param/:project_param/comments",
+    "/projects/:creator_param/:project_param/dashboard",
+    "/projects/:creator_param/:project_param/posts",
+    "/projects/:creator_param/:project_param/posts/:update_param",
+    "/projects/:creator_param/:project_param/posts/:update_param/comments",
+    "/projects/:creator_param/:project_param/surveys/:survey_param",
+    "/users/:user_param/surveys/:survey_response_id"
+  ]
+)
 
 extension Navigation.Project {
   // swiftlint:disable conditional_binding_cascade
@@ -340,7 +374,7 @@ private func discovery(_ params: RouteParams) -> Decoded<Navigation> {
   guard case let .object(object) = params
     else { return .failure(.custom("Failed to extact discovery params")) }
 
-  var discoveryParams: [String:String] = [:]
+  var discoveryParams: [String: String] = [:]
   for (key, value) in object {
     guard case let .string(stringValue) = value
       else { return .failure(.custom("Failed to extact discovery params")) }
@@ -406,6 +440,13 @@ private func dashboard(_ params: RouteParams) -> Decoded<Navigation> {
     else { return .failure(.custom("Failed to extract project param")) }
 
   return .success(.tab(dashboard))
+}
+
+private func faqs(_ params: RouteParams) -> Decoded<Navigation> {
+  return curry(Navigation.project)
+    <^> params <| "project_param"
+    <*> .success(.faqs)
+    <*> params <|? "ref"
 }
 
 private func friends(_ params: RouteParams) -> Decoded<Navigation> {
@@ -479,12 +520,9 @@ private func projectSurvey(_ params: RouteParams) -> Decoded<Navigation> {
 }
 
 private func update(_ params: RouteParams) -> Decoded<Navigation> {
-  let createProject = curry(Navigation.project)
-  let createUpdate = curry(Navigation.Project.update)
-
-  return createProject
+  return curry(Navigation.project)
     <^> params <| "project_param"
-    <*> (createUpdate
+    <*> (curry(Navigation.Project.update)
       <^> (params <| "update_param" >>- stringToInt)
       <*> .success(.root))
     <*> params <|? "ref"
@@ -496,6 +534,13 @@ private func updateComments(_ params: RouteParams) -> Decoded<Navigation> {
     <*> (curry(Navigation.Project.update)
       <^> (params <| "update_param" >>- stringToInt)
       <*> .success(.comments))
+    <*> params <|? "ref"
+}
+
+private func updates(_ params: RouteParams) -> Decoded<Navigation> {
+  return curry(Navigation.project)
+    <^> params <| "project_param"
+    <*> .success(Navigation.Project.updates)
     <*> params <|? "ref"
 }
 
@@ -537,12 +582,12 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
 
   guard templateComponents.count == urlComponents.count else { return nil }
 
-  var params: [String:String] = [:]
+  var params: [String: String] = [:]
 
   for (templateComponent, urlComponent) in zip(templateComponents, urlComponents) {
     if templateComponent.hasPrefix(":") {
       // matched a token
-      let paramName = String(templateComponent.characters.dropFirst())
+      let paramName = String(templateComponent.dropFirst())
       params[paramName] = urlComponent
     } else if templateComponent != urlComponent {
       return nil
@@ -555,7 +600,7 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
       params[item.name] = item.value
   }
 
-  var object: [String:RouteParams] = [:]
+  var object: [String: RouteParams] = [:]
   params.forEach { key, value in
     object[key] = .string(value)
   }
@@ -569,4 +614,16 @@ private func oneToBool(_ string: String?) -> Decoded<Bool?> {
 
 private func stringToInt(_ string: String) -> Decoded<Int> {
   return Int(string).map(Decoded.success) ?? .failure(.custom("Could not parse string into int."))
+}
+
+extension Dictionary {
+  fileprivate func restrict(keys: Set<Key>) -> Dictionary {
+    var result = Dictionary()
+    self.forEach { key, value in
+      if keys.contains(key) {
+        result[key] = value
+      }
+    }
+    return result
+  }
 }

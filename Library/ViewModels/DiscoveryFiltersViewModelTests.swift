@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 @testable import ReactiveExtensions_TestHelpers
 @testable import KsApi
 @testable import Library
@@ -41,12 +40,14 @@ private let filmExpandableRow = expandableRowTemplate
     selectableRowTemplate |> SelectableRow.lens.params.category .~ .documentary
 ]
 
-private let categories = [ Category.art, .illustration, .filmAndVideo, .documentary ]
+private let categories =
+  [ Category.art,
+    Category.filmAndVideo ]
 
 internal final class DiscoveryFiltersViewModelTests: TestCase {
-  private let vm = DiscoveryFiltersViewModel()
+  private let vm: DiscoveryFiltersViewModelType = DiscoveryFiltersViewModel()
 
-  private let animateInView = TestObserver<Int?, NoError>()
+  private let animateInView = TestObserver<(), NoError>()
   private let loadCategoryRows = TestObserver<[ExpandableRow], NoError>()
   private let loadCategoryRowsInitialId = TestObserver<Int?, NoError>()
   private let loadCategoryRowsSelectedId = TestObserver<Int?, NoError>()
@@ -57,7 +58,8 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   private let loadFavoriteRows = TestObserver<[SelectableRow], NoError>()
   private let loadFavoriteRowsId = TestObserver<Int?, NoError>()
 
-  private let categoriesResponse = .template |> CategoriesEnvelope.lens.categories .~ categories
+  private let categoriesResponse = RootCategoriesEnvelope.template
+    |> RootCategoriesEnvelope.lens.categories .~ categories
 
   override func setUp() {
     super.setUp()
@@ -74,48 +76,23 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.vm.outputs.loadFavoriteRows.map(second).observe(self.loadFavoriteRowsId.observer)
   }
 
-  func testAnimateIn_Default() {
-    self.vm.configureWith(selectedRow: allProjectsRow)
+  func testAnimateIn() {
+    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
     self.animateInView.assertValueCount(0)
 
-    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
 
-    self.animateInView.assertValues([nil])
-  }
-
-  func testAnimateIn_Category() {
-    self.vm.configureWith(selectedRow: artSelectableRow)
-    self.vm.inputs.viewDidLoad()
-
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
-
-    self.animateInView.assertValueCount(0)
-
-    self.vm.inputs.viewWillAppear()
-
-    self.animateInView.assertValues([1])
-  }
-
-  func testAnimateIn_Subcategory() {
-    self.vm.configureWith(selectedRow: documentarySelectableRow)
-    self.vm.inputs.viewDidLoad()
-
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
-
-    self.animateInView.assertValueCount(0)
-
-    self.vm.inputs.viewWillAppear()
-
-    self.animateInView.assertValues([11])
+    self.animateInView.assertValueCount(1)
   }
 
   func testKoalaEventsTrack() {
-    self.vm.configureWith(selectedRow: allProjectsRow)
+    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -131,7 +108,11 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     XCTAssertEqual(["Viewed Discovery Filters", "Discover Switch Modal", "Expanded Discovery Filter",
       "Selected Discovery Filter", "Discover Modal Selected Filter"], self.trackingClient.events)
 
-    XCTAssertEqual([nil, nil, Category.filmAndVideo.id, Category.documentary.id, Category.documentary.id],
+    XCTAssertEqual([nil,
+                    nil,
+                    Category.filmAndVideo.intID,
+                    Category.documentary.intID,
+                    Category.documentary.intID],
                    self.trackingClient.properties(forKey: "discover_category_id", as: Int.self))
   }
 
@@ -141,6 +122,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadTopRows.assertValueCount(0)
 
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -166,6 +148,8 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     withEnvironment(config: config) {
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
       self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
+
       self.scheduler.advance()
 
       self.loadTopRows.assertValues(
@@ -189,6 +173,8 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     withEnvironment(config: config) {
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
       self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
+
       self.scheduler.advance()
 
       self.loadTopRows.assertValues(
@@ -211,6 +197,8 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     withEnvironment(config: config) {
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
       self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
+
       self.scheduler.advance()
 
       self.loadTopRows.assertValues(
@@ -232,6 +220,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -259,6 +248,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -271,7 +261,35 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
           liveStreamRow,
           starredRow,
           recommendedRow,
-          socialRow,
+          socialRow
+        ]
+      ],
+      "The top filter rows load immediately with the first one selected."
+    )
+    self.loadTopRowsInitialId.assertValues([nil])
+  }
+
+  func testTopFilters_Logged_In_OptedOutOfRecommendations() {
+    AppEnvironment.login(
+      AccessTokenEnvelope(accessToken: "deadbeef", user: .template
+        |> User.lens.optedOutOfRecommendations .~ true)
+    )
+
+    self.vm.inputs.configureWith(selectedRow: allProjectsRow)
+    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
+
+    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+
+    self.loadTopRows.assertValues(
+      [
+        [
+          allProjectsRow
+            |> SelectableRow.lens.isSelected .~ true,
+          staffPicksRow,
+          liveStreamRow,
+          starredRow,
+          socialRow
         ]
       ],
       "The top filter rows load immediately with the first one selected."
@@ -282,6 +300,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   func testTopFilters_Category_Selected() {
     self.vm.inputs.configureWith(selectedRow: artSelectableRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -298,13 +317,15 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testExpandingCategoryFilters() {
-    withEnvironment(apiService: MockService(fetchCategoriesResponse: categoriesResponse)) {
+
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResponse: categoriesResponse)) {
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
 
       self.loadCategoryRows.assertValueCount(0)
       self.loadingIndicatorisVisible.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
 
       self.loadingIndicatorisVisible.assertValues([true])
 
@@ -362,13 +383,12 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testConfigureWithSelectedRow() {
-    let artSelectedExpandedRow = artExpandableRow
+    let artSelectedExpandedRow = expandableRowTemplate
+      |> ExpandableRow.lens.params.category .~ .art
       |> ExpandableRow.lens.isExpanded .~ true
       |> ExpandableRow.lens.selectableRows .~ [
         artSelectableRow |> SelectableRow.lens.isSelected .~ true,
-        selectableRowTemplate
-          |> SelectableRow.lens.isSelected .~ false
-          |> SelectableRow.lens.params.category .~ .illustration
+        selectableRowTemplate |> SelectableRow.lens.params.category .~ .illustration
     ]
 
     self.vm.inputs.configureWith(selectedRow: artSelectableRow)
@@ -376,6 +396,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadCategoryRows.assertValueCount(0)
 
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.loadingIndicatorisVisible.assertValues([true])
 
@@ -396,6 +417,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   func testTappingSelectableRow() {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -405,46 +427,10 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
                                                   "The tapped row emits.")
   }
 
-  /**
-   This tests an implementation detail of our API. The API returns counts only for the root categories
-   when they are not embedded as the `parent` of another category. This means if we naively group the
-   categories by the parent, we might accidentally get a mapping of root -> children where root does not
-   have the projects count. We get around this by sorting the categories first.
-
-   We can test this by making the categories load in an order that causes the bug.
-   */
-  func testGroupingAndCounts() {
-    let illustrationWithParentHavingNoCount = .illustration
-      |> Category.lens.parent .~ (.art |> Category.lens.projectsCount .~ nil)
-
-    let particularOrderOfCategories = [
-      .documentary,
-      .filmAndVideo,
-      .art,
-      illustrationWithParentHavingNoCount // <-- important for the subcategory to go after the root category
-    ]
-
-    let specialCategoriesResponse = .template
-      |> CategoriesEnvelope.lens.categories .~ particularOrderOfCategories
-
-    withEnvironment(apiService: MockService(fetchCategoriesResponse: specialCategoriesResponse)) {
-      self.vm.inputs.configureWith(selectedRow: allProjectsRow)
-      self.vm.inputs.viewDidLoad()
-
-      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
-
-      let counts = self.loadCategoryRows.values
-        .joined()
-        .map { $0.params.category?.projectsCount }
-
-      XCTAssertEqual([Category.art.projectsCount, Category.filmAndVideo.projectsCount], counts,
-                     "Root counts are preserved in expandable rows.")
-    }
-  }
-
   func testFavoriteRows_Without_Favorites() {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -452,7 +438,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testFavoriteRows_With_Favorites() {
-    withEnvironment(apiService: MockService(fetchCategoriesResponse: categoriesResponse)) {
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResponse: categoriesResponse)) {
       self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
@@ -460,6 +446,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       self.loadFavoriteRows.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
 
       self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -476,6 +463,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.loadFavoriteRows.assertValueCount(0)
 
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
@@ -491,6 +479,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewDidAppear()
 
     self.loadingIndicatorisVisible.assertValueCount(0)
 

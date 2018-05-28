@@ -1,4 +1,3 @@
-// swiftlint:disable function_body_length
 import XCTest
 import Argo
 @testable import LiveStream
@@ -10,7 +9,7 @@ private struct TestFirebaseDataSnapshotType: FirebaseDataSnapshotType {
 
 final class LiveStreamChatMessageTests: XCTestCase {
   func testParseJson() {
-    let json: [String:Any] = [
+    let json: [String: Any] = [
       "id": "KDeCy9vvd7ZCRwHc8Ca",
       "creator": false,
       "message": "Test chat message",

@@ -33,7 +33,7 @@ public final class VideoViewController: UIViewController {
   public override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.playerController = self.childViewControllers.flatMap { $0 as? AVPlayerViewController }.first
+    self.playerController = self.childViewControllers.compactMap { $0 as? AVPlayerViewController }.first
 
     self.playButton.addTarget(self, action: #selector(playButtonTapped), for: .touchUpInside)
 
@@ -59,7 +59,9 @@ public final class VideoViewController: UIViewController {
     super.bindStyles()
 
     _ = self.playButton
-      |> UIButton.lens.accessibilityLabel %~ { _ in Strings.accessibility_projects_buttons_play_video() }
+      |> UIButton.lens.image(for: .normal) .~ image(named: "play-arrow-icon")
+      <> UIButton.lens.backgroundColor(for: .highlighted) .~ UIColor.white.withAlphaComponent(0.5)
+      <> UIButton.lens.accessibilityLabel %~ { _ in Strings.accessibility_projects_buttons_play_video() }
 
     _ = self.projectImageView
       |> UIImageView.lens.accessibilityElementsHidden .~ true
@@ -68,8 +70,7 @@ public final class VideoViewController: UIViewController {
       |> UIView.lens.backgroundColor .~ .black
   }
 
-  // swiftlint:disable function_body_length
-  public override func bindViewModel() {
+    public override func bindViewModel() {
     super.bindViewModel()
 
     self.playButton.rac.hidden = self.viewModel.outputs.playButtonHidden
@@ -150,14 +151,13 @@ public final class VideoViewController: UIViewController {
         self?.playerController.player?.seek(to: kCMTimeZero)
     }
   }
-  // swiftlint:enable function_body_length
 
   func addCompletionObserver(atTime time: CMTime) {
     guard let player = self.playerController.player else { return }
 
     self.timeObserver = player.addBoundaryTimeObserver(
       forTimes: [NSValue(time: time)],
-      queue: DispatchQueue.main) { [weak self] _ in
+      queue: DispatchQueue.main) { [weak self] in
         self?.viewModel.inputs.crossedCompletionThreshold()
     }
   }
@@ -177,7 +177,7 @@ public final class VideoViewController: UIViewController {
   }
 
   public override func observeValue(forKeyPath keyPath: String?, of object: Any?,
-                                    change: [NSKeyValueChangeKey : Any]?,
+                                    change: [NSKeyValueChangeKey: Any]?,
                                     context: UnsafeMutableRawPointer?) {
 
     guard let player = self.playerController.player else { return }

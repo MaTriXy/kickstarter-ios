@@ -5,31 +5,41 @@ import Prelude
 import UIKit
 
 public final class RootTabBarViewController: UITabBarController {
+  private var sessionEndedObserver: Any?
+  private var sessionStartedObserver: Any?
+  private var userUpdatedObserver: Any?
+
   fileprivate let viewModel: RootViewModelType = RootViewModel()
 
   override public func viewDidLoad() {
     super.viewDidLoad()
     self.delegate = self
 
-    NotificationCenter
+    self.sessionStartedObserver = NotificationCenter
       .default
       .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
-    NotificationCenter
+    self.sessionEndedObserver = NotificationCenter
       .default
       .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
 
-    NotificationCenter
+    self.userUpdatedObserver = NotificationCenter
       .default
       .addObserver(forName: Notification.Name.ksr_userUpdated, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.currentUserUpdated()
     }
 
     self.viewModel.inputs.viewDidLoad()
+  }
+
+  deinit {
+    self.sessionEndedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.userUpdatedObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   override public func bindStyles() {
@@ -95,17 +105,45 @@ public final class RootTabBarViewController: UITabBarController {
   public func switchToMessageThread(_ messageThread: MessageThread) {
     self.switchToProfile()
 
-    guard let profileNav = self.selectedViewController as? UINavigationController,
+    guard
+      let profileNav = self.selectedViewController as? UINavigationController,
       let profileVC = profileNav.viewControllers.first
-      else { return }
+    else { return }
 
-    let threadsVC = MessageThreadsViewController.configuredWith(project: nil)
+    let threadsVC = MessageThreadsViewController.configuredWith(project: nil, refTag: nil)
     let messageThreadVC = MessagesViewController.configuredWith(messageThread: messageThread)
+
+    self.presentedViewController?.dismiss(animated: false, completion: nil)
 
     profileNav.setViewControllers([profileVC, threadsVC, messageThreadVC], animated: true)
   }
 
-  // swiftlint:disable:next cyclomatic_complexity
+  public func switchToCreatorMessageThread(projectId: Param, messageThread: MessageThread) {
+    self.switchToDashboard(project: nil)
+
+    guard
+      let dashboardNav = self.selectedViewController as? UINavigationController,
+      let dashboardVC = dashboardNav.viewControllers.first as? DashboardViewController
+    else { return }
+
+    self.presentedViewController?.dismiss(animated: false, completion: nil)
+
+     dashboardVC.navigateToProjectMessageThread(projectId: projectId, messageThread: messageThread)
+  }
+
+  public func switchToProjectActivities(projectId: Param) {
+    self.switchToDashboard(project: nil)
+
+    guard
+      let dashboardNav = self.selectedViewController as? UINavigationController,
+      let dashboardVC = dashboardNav.viewControllers.first as? DashboardViewController
+    else { return }
+
+    self.presentedViewController?.dismiss(animated: false, completion: nil)
+
+    dashboardVC.navigateToProjectActivities(projectId: projectId)
+  }
+
   // swiftlint:disable:next function_body_length
   fileprivate func setTabBarItemStyles(withData data: TabBarItemsData) {
     data.items.forEach { item in
@@ -173,6 +211,13 @@ extension RootTabBarViewController: UITabBarControllerDelegate {
                                didSelect viewController: UIViewController) {
     self.viewModel.inputs.didSelectIndex(tabBarController.selectedIndex)
   }
+
+  public func tabBarController(_ tabBarController: UITabBarController,
+                               animationControllerForTransitionFrom fromVC: UIViewController,
+                               to toVC: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+
+    return CrossDissolveTransitionAnimator()
+  }
 }
 
 private func scrollToTop(_ viewController: UIViewController) {
@@ -204,7 +249,7 @@ private func tabbarAvatarImageFromData(_ data: Data) -> (defaultImage: UIImage?,
 private func strokedRoundImage(fromImage image: UIImage?,
                                size: CGSize,
                                color: UIColor,
-                               lineWidth: CGFloat = 1.0) -> UIImage? {
+                               lineWidth: CGFloat = 2.0) -> UIImage? {
 
   UIGraphicsBeginImageContextWithOptions(size, false, 0.0)
   defer { UIGraphicsEndImageContext() }

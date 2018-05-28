@@ -1,5 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
 import Prelude
 import ReactiveSwift
 import ReactiveExtensions
@@ -13,9 +11,6 @@ final class RewardCellViewModelTests: TestCase {
   fileprivate let vm: RewardCellViewModelType = RewardCellViewModel()
 
   fileprivate let allGoneHidden = TestObserver<Bool, NoError>()
-  fileprivate let cardViewBackgroundColor = TestObserver<UIColor, NoError>()
-  fileprivate let cardViewDropShadowHidden = TestObserver<Bool, NoError>()
-  fileprivate let contentViewBackgroundColor = TestObserver<UIColor, NoError>()
   fileprivate let conversionLabelHidden = TestObserver<Bool, NoError>()
   fileprivate let conversionLabelText = TestObserver<String, NoError>()
   fileprivate let descriptionLabelHidden = TestObserver<Bool, NoError>()
@@ -34,6 +29,8 @@ final class RewardCellViewModelTests: TestCase {
   fileprivate let titleLabelHidden = TestObserver<Bool, NoError>()
   fileprivate let titleLabelText = TestObserver<String, NoError>()
   fileprivate let titleLabelTextColor = TestObserver<UIColor, NoError>()
+  fileprivate let shippingLocationsStackViewHidden = TestObserver<Bool, NoError>()
+  fileprivate let shippingLocationsSummaryLabelText = TestObserver<String, NoError>()
   fileprivate let updateTopMarginsForIsBacking = TestObserver<Bool, NoError>() // todo
   fileprivate let viewPledgeButtonHidden = TestObserver<Bool, NoError>() // todo
   fileprivate let youreABackerViewHidden = TestObserver<Bool, NoError>() // todo
@@ -42,9 +39,6 @@ final class RewardCellViewModelTests: TestCase {
     super.setUp()
 
     self.vm.outputs.allGoneHidden.observe(self.allGoneHidden.observer)
-    self.vm.outputs.cardViewBackgroundColor.observe(self.cardViewBackgroundColor.observer)
-    self.vm.outputs.cardViewDropShadowHidden.observe(self.cardViewDropShadowHidden.observer)
-    self.vm.outputs.contentViewBackgroundColor.observe(self.contentViewBackgroundColor.observer)
     self.vm.outputs.conversionLabelHidden.observe(self.conversionLabelHidden.observer)
     self.vm.outputs.conversionLabelText.observe(self.conversionLabelText.observer)
     self.vm.outputs.descriptionLabelHidden.observe(self.descriptionLabelHidden.observer)
@@ -64,6 +58,8 @@ final class RewardCellViewModelTests: TestCase {
     self.vm.outputs.titleLabelHidden.observe(self.titleLabelHidden.observer)
     self.vm.outputs.titleLabelText.observe(self.titleLabelText.observer)
     self.vm.outputs.titleLabelTextColor.observe(self.titleLabelTextColor.observer)
+    self.vm.outputs.shippingLocationsStackViewHidden.observe(self.shippingLocationsStackViewHidden.observer)
+    self.vm.outputs.shippingLocationsSummaryLabelText.observe(self.shippingLocationsSummaryLabelText.observer)
     self.vm.outputs.updateTopMarginsForIsBacking.observe(self.updateTopMarginsForIsBacking.observer)
     self.vm.outputs.viewPledgeButtonHidden.observe(self.viewPledgeButtonHidden.observer)
     self.vm.outputs.youreABackerViewHidden.observe(self.youreABackerViewHidden.observer)
@@ -98,87 +94,6 @@ final class RewardCellViewModelTests: TestCase {
 
     self.allGoneHidden.assertValues([true, false, true, false],
                                     "All gone indicator visible when none remaining and project over.")
-  }
-
-  func testCardViewBackgroundColor() {
-    self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(.template))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewBackgroundColor.assertValues([UIColor.white])
-
-    self.vm.inputs.configureWith(project: .template,
-                                 rewardOrBacking: .left(.template |> Reward.lens.remaining .~ 0))
-    self.cardViewBackgroundColor.assertValues([UIColor.white, UIColor.ksr_grey_100])
-  }
-
-  func testCardViewDropShadowHidden_LiveProject_NonBacker_NotAllGone() {
-    self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(.template))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([false])
-  }
-
-  func testCardViewDropShadowHidden_SuccessfulProject_NonBacker_NotAllGone() {
-    self.vm.inputs.configureWith(project: .template |> Project.lens.state .~ .successful,
-                                 rewardOrBacking: .left(.template))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([true])
-  }
-
-  func testCardViewDropShadowHidden_LiveProject_Backer_NotAllGone() {
-    let reward = Reward.template
-    let project = .template
-      |> Project.lens.rewards .~ [reward]
-      |> Project.lens.personalization.backing .~ (
-        .template
-          |> Backing.lens.reward .~ reward
-    )
-
-    self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([false])
-  }
-
-  func testCardViewDropShadowHidden_LiveProject_NonBacker_AllGone() {
-    self.vm.inputs.configureWith(project: .template,
-                                 rewardOrBacking: .left(.template |> Reward.lens.remaining .~ 0))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([true])
-  }
-
-  func testCardViewDropShadowHidden_SuccessfulProject_Backer_NotAllGone() {
-    let reward = Reward.template
-    let project = .template
-      |> Project.lens.state .~ .successful
-      |> Project.lens.rewards .~ [reward]
-      |> Project.lens.personalization.backing .~ (
-        .template
-          |> Backing.lens.reward .~ reward
-    )
-
-    self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([false])
-  }
-
-  func testCardViewDropShadowHidden_LiveProject_Backer_AllGone() {
-    let reward = Reward.template
-      |> Reward.lens.remaining .~ 0
-    let project = .template
-      |> Project.lens.rewards .~ [reward]
-      |> Project.lens.personalization.backing .~ (
-        .template
-          |> Backing.lens.reward .~ reward
-    )
-
-    self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
-    self.vm.inputs.boundStyles()
-
-    self.cardViewDropShadowHidden.assertValues([false])
   }
 
   func testConfiguredWithBacking() {
@@ -217,50 +132,20 @@ final class RewardCellViewModelTests: TestCase {
     self.titleLabelText.assertValues(["The goods"])
   }
 
-  func testContentViewBackgroundColor() {
-    self.vm.inputs.configureWith(
-      project: .template |> Project.lens.category .~ .art,
-      rewardOrBacking: .left(.template)
-    )
-
-    self.contentViewBackgroundColor.assertValues([UIColor.ksr_red_100.withAlphaComponent(0.65)])
-
-    self.vm.inputs.configureWith(
-      project: .template |> Project.lens.category .~ .filmAndVideo,
-      rewardOrBacking: .left(.template)
-    )
-
-    self.contentViewBackgroundColor.assertValues([
-      UIColor.ksr_red_100.withAlphaComponent(0.65),
-      UIColor.ksr_beige_400.withAlphaComponent(0.65),
-      ])
-
-    self.vm.inputs.configureWith(
-      project: .template |> Project.lens.category .~ .games,
-      rewardOrBacking: .left(.template)
-    )
-
-    self.contentViewBackgroundColor.assertValues([
-      UIColor.ksr_red_100.withAlphaComponent(0.65),
-      UIColor.ksr_beige_400.withAlphaComponent(0.65),
-      UIColor.ksr_violet_200.withAlphaComponent(0.65),
-      ])
-  }
-
   func testConversionLabel_US_User_US_Project_ConfiguredWithReward() {
-    let project = .template |> Project.lens.country .~ .US
+    let project = .template |> Project.lens.country .~ .us
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
       self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
 
       self.conversionLabelHidden.assertValues([true], "US user viewing US project does not see conversion.")
-      self.conversionLabelText.assertValues([])
+      self.conversionLabelText.assertValueCount(0)
     }
   }
 
   func testConversionLabel_US_User_US_Project_ConfiguredWithBacking() {
-    let project = .template |> Project.lens.country .~ .US
+    let project = .template |> Project.lens.country .~ .us
     let reward = .template |> Reward.lens.minimum .~ 30
     let backing = .template
       |> Backing.lens.amount .~ 42
@@ -271,14 +156,36 @@ final class RewardCellViewModelTests: TestCase {
 
       self.conversionLabelHidden.assertValues([true],
                                               "US user viewing US project does not see conversion.")
-      self.conversionLabelText.assertValues([])
+      self.conversionLabelText.assertValueCount(0)
     }
   }
 
   func testConversionLabel_US_User_NonUS_Project_ConfiguredWithReward() {
     let project = .template
-      |> Project.lens.country .~ .CA
+      |> Project.lens.country .~ .ca
       |> Project.lens.stats.staticUsdRate .~ 0.76
+      |> Project.lens.stats.currentCurrency .~ "MXN"
+      |> Project.lens.stats.currentCurrencyRate .~ 2.0
+    let reward = .template |> Reward.lens.minimum .~ 1
+
+    withEnvironment(
+      apiService: MockService(currency: "MXN"),
+      config: .template |> Config.lens.countryCode .~ "MX") {
+
+        self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
+
+        self.conversionLabelHidden.assertValues([false],
+                                                "Mexican user viewing non-Mexican project sees conversion.")
+        self.conversionLabelText.assertValues(["About MX$ 2"], "Conversion label rounds up.")
+    }
+  }
+
+  func testConversionLabel_US_User_NonUS_Project_ConfiguredWithReward_WithoutCurrentCurrency() {
+    let project = .template
+      |> Project.lens.country .~ .ca
+      |> Project.lens.stats.staticUsdRate .~ 0.76
+      |> Project.lens.stats.currentCurrency .~ nil
+      |> Project.lens.stats.currentCurrencyRate .~ nil
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
@@ -291,8 +198,33 @@ final class RewardCellViewModelTests: TestCase {
 
   func testConversionLabel_US_User_NonUS_Project_ConfiguredWithBacking() {
     let project = .template
-      |> Project.lens.country .~ .CA
+      |> Project.lens.country .~ .ca
       |> Project.lens.stats.staticUsdRate .~ 0.76
+      |> Project.lens.stats.currentCurrency .~ "MXN"
+      |> Project.lens.stats.currentCurrencyRate .~ 2.0
+    let reward = .template |> Reward.lens.minimum .~ 1
+    let backing = .template
+      |> Backing.lens.amount .~ 2
+      |> Backing.lens.reward .~ reward
+
+    withEnvironment(
+      apiService: MockService(currency: "MXN"),
+      config: .template |> Config.lens.countryCode .~ "MX") {
+
+        self.vm.inputs.configureWith(project: project, rewardOrBacking: .right(backing))
+
+        self.conversionLabelHidden.assertValues([false],
+                                                "Mexican user viewing non-Mexican project sees conversion.")
+        self.conversionLabelText.assertValues(["About MX$ 4"], "Conversion label rounds up.")
+    }
+  }
+
+  func testConversionLabel_US_User_NonUS_Project_ConfiguredWithBacking_WithoutCurrentCurrency() {
+    let project = .template
+      |> Project.lens.country .~ .ca
+      |> Project.lens.stats.staticUsdRate .~ 0.76
+      |> Project.lens.stats.currentCurrency .~ nil
+      |> Project.lens.stats.currentCurrencyRate .~ nil
     let reward = .template |> Reward.lens.minimum .~ 1
     let backing = .template
       |> Backing.lens.amount .~ 2
@@ -308,7 +240,7 @@ final class RewardCellViewModelTests: TestCase {
   }
 
   func testConversionLabel_NonUS_User_US_Project() {
-    let project = .template |> Project.lens.country .~ .US
+    let project = .template |> Project.lens.country .~ .us
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "GB") {
@@ -316,12 +248,16 @@ final class RewardCellViewModelTests: TestCase {
 
       self.conversionLabelHidden.assertValues([true],
                                               "Non-US user viewing US project does not see conversion.")
-      self.conversionLabelText.assertValues([])
+      self.conversionLabelText.assertValueCount(0)
     }
   }
 
   func testConversionLabel_NonUS_User_NonUS_Project() {
-    let project = .template |> Project.lens.country .~ .GB |> Project.lens.stats.staticUsdRate .~ 2
+    let project = .template
+      |> Project.lens.country .~ .gb
+      |> Project.lens.stats.staticUsdRate .~ 2
+      |> Project.lens.stats.currentCurrency .~ nil
+      |> Project.lens.stats.currentCurrencyRate .~ nil
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "GB") {
@@ -329,7 +265,7 @@ final class RewardCellViewModelTests: TestCase {
 
       self.conversionLabelHidden.assertValues([true],
                                               "Non-US user viewing non-US project does not see conversion.")
-      self.conversionLabelText.assertValues([])
+      self.conversionLabelText.assertValueCount(0)
     }
   }
 
@@ -377,7 +313,7 @@ final class RewardCellViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(reward))
     self.estimatedDeliveryDateLabelText.assertValues([Format.date(
       secondsInUTC: estimatedDelivery,
-      dateFormat: "MMMM yyyy",
+      template: "MMMMyyyy",
       timeZone: UTCTimeZone)], "Emits the estimated delivery date")
   }
 
@@ -448,24 +384,33 @@ final class RewardCellViewModelTests: TestCase {
     self.footerLabelText.assertValues(["42\u{00a0}backers"])
   }
 
-  func testFooterViewHidden() {
+  func testFooterViewHidden_WithRewards() {
     self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(.template))
 
     self.footerStackViewHidden.assertValues([false])
+  }
 
-    self.vm.inputs.configureWith(project: .template,
-                                 rewardOrBacking: .left(.template |> Reward.lens.remaining .~ 0))
+  func testFooterViewHidden_SoldOut_WithRewards_OnTap() {
+    let reward = .template
+      |> Reward.lens.remaining .~ 0
 
-    self.footerStackViewHidden.assertValues([false, true])
+    self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(reward))
 
-    let reward = .template |> Reward.lens.remaining .~ 0
-    self.vm.inputs.configureWith(
-      project: .template
-        |> Project.lens.personalization.backing .~ (.template |> Backing.lens.reward .~ reward),
-      rewardOrBacking: .left(reward)
-    )
+    self.footerStackViewHidden.assertValues([true])
 
-    self.footerStackViewHidden.assertValues([false, true, false])
+    self.vm.inputs.tapped()
+
+    self.footerStackViewHidden.assertValues([true, false])
+  }
+
+  func testFooterViewHidden_WithNoRewards_OnTap() {
+    self.vm.inputs.configureWith(project: .template, rewardOrBacking: .left(.noReward))
+
+    self.footerStackViewHidden.assertValues([true])
+
+    self.vm.inputs.tapped()
+
+    self.footerStackViewHidden.assertValues([true, true])
   }
 
   func testItems() {
@@ -571,7 +516,7 @@ final class RewardCellViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
 
     self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
-    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_green_700])
+    self.minimumAndConversionLabelsColor.assertValues([.ksr_green_700])
   }
 
   func testMinimumLabel_AllGone() {
@@ -583,7 +528,7 @@ final class RewardCellViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: project, rewardOrBacking: .left(reward))
 
     self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
-    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_navy_500])
+    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_dark_grey_400])
   }
 
   func testMinimumLabel_NoReward() {
@@ -631,7 +576,7 @@ final class RewardCellViewModelTests: TestCase {
 
     self.titleLabelHidden.assertValues([true])
     self.titleLabelText.assertValues([""])
-    self.titleLabelTextColor.assertValues([.ksr_text_navy_700])
+    self.titleLabelTextColor.assertValues([.ksr_text_dark_grey_900])
   }
 
   func testTitleLabel_WithTitle_NotAllGone() {
@@ -646,7 +591,7 @@ final class RewardCellViewModelTests: TestCase {
 
     self.titleLabelHidden.assertValues([false])
     self.titleLabelText.assertValues(["The thing"])
-    self.titleLabelTextColor.assertValues([.ksr_text_navy_700])
+    self.titleLabelTextColor.assertValues([.ksr_text_dark_grey_900])
   }
 
   func testTitleLabel_WithTitle_AllGone() {
@@ -661,7 +606,7 @@ final class RewardCellViewModelTests: TestCase {
 
     self.titleLabelHidden.assertValues([false])
     self.titleLabelText.assertValues(["The thing"])
-    self.titleLabelTextColor.assertValues([.ksr_text_navy_500])
+    self.titleLabelTextColor.assertValues([.ksr_text_dark_grey_500])
   }
 
   func testTitleLabelColor_WithTitle_AllGone_NonLive() {
@@ -674,7 +619,33 @@ final class RewardCellViewModelTests: TestCase {
       rewardOrBacking: .left(reward)
     )
 
-    self.titleLabelTextColor.assertValues([.ksr_text_navy_700])
+    self.titleLabelTextColor.assertValues([.ksr_text_dark_grey_900])
+  }
+
+  func testShippingLocationsSummaryLabelText_WhenRewardDoesNotHaveShippingSummary() {
+    let reward = .template
+      |> Reward.lens.shipping.summary .~ nil
+
+    self.vm.inputs.configureWith(
+      project: .template,
+      rewardOrBacking: .left(reward)
+    )
+
+    self.shippingLocationsSummaryLabelText.assertValues([""])
+    self.shippingLocationsStackViewHidden.assertValues([true])
+  }
+
+  func testShippingLocationsSummaryLabelText_WhenRewardHasShippingSummary() {
+    let reward = .template
+      |> Reward.lens.shipping.summary .~ "Anywhere in the world."
+
+    self.vm.inputs.configureWith(
+      project: .template,
+      rewardOrBacking: .left(reward)
+    )
+
+    self.shippingLocationsSummaryLabelText.assertValues(["Anywhere in the world."])
+    self.shippingLocationsStackViewHidden.assertValues([false])
   }
 
   func testYoureABacker_WhenYoureABacker() {
@@ -731,7 +702,7 @@ final class RewardCellViewModelTests: TestCase {
 
       self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_navy_500])
+      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_dark_grey_400])
     }
   }
 
@@ -747,7 +718,7 @@ final class RewardCellViewModelTests: TestCase {
 
       self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_navy_500])
+      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_dark_grey_400])
     }
   }
 
@@ -768,7 +739,7 @@ final class RewardCellViewModelTests: TestCase {
 
       self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_green_700])
+      self.minimumAndConversionLabelsColor.assertValues([.ksr_green_700])
     }
   }
 
@@ -789,7 +760,7 @@ final class RewardCellViewModelTests: TestCase {
 
       self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_navy_700])
+      self.minimumAndConversionLabelsColor.assertValues([.ksr_text_dark_grey_500])
     }
   }
 
@@ -802,7 +773,7 @@ final class RewardCellViewModelTests: TestCase {
 
     self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_green_700])
+    self.minimumAndConversionLabelsColor.assertValues([.ksr_green_700])
   }
 
   func testMinimumLabel_NonLiveProject() {
@@ -814,6 +785,6 @@ final class RewardCellViewModelTests: TestCase {
 
     self.minimumLabelText.assertValues([Format.currency(reward.minimum, country: project.country)])
 
-    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_navy_700])
+    self.minimumAndConversionLabelsColor.assertValues([.ksr_text_dark_grey_900])
   }
 }

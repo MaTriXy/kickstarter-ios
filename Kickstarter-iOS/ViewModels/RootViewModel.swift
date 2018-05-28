@@ -82,7 +82,6 @@ internal protocol RootViewModelType {
 
 internal final class RootViewModel: RootViewModelType, RootViewModelInputs, RootViewModelOutputs {
 
-  // swiftlint:disable function_body_length
   internal init() {
     let currentUser = Signal.merge(
       self.viewDidLoadProperty.signal,
@@ -126,7 +125,7 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
 
     let switchToLogin = Signal.combineLatest(vcCount, loginState)
       .takeWhen(self.switchToLoginProperty.signal)
-      .filter { isFalse($1) }
+      .filter(second >>> isFalse)
       .map(first)
 
     let switchToProfile = Signal.combineLatest(vcCount, loginState)
@@ -182,7 +181,6 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
       .map(first)
       .map(tabData(forUser:))
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let currentUserUpdatedProperty = MutableProperty(())
   internal func currentUserUpdated() {
@@ -192,7 +190,7 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
   internal func didSelectIndex(_ index: Int) {
     self.didSelectIndexProperty.value = index
   }
-  fileprivate let switchToActivitiesProperty = MutableProperty()
+  fileprivate let switchToActivitiesProperty = MutableProperty(())
   internal func switchToActivities() {
     self.switchToActivitiesProperty.value = ()
   }
@@ -204,28 +202,28 @@ internal final class RootViewModel: RootViewModelType, RootViewModelInputs, Root
   internal func switchToDiscovery(params: DiscoveryParams?) {
     self.switchToDiscoveryProperty.value = params
   }
-  fileprivate let switchToLoginProperty = MutableProperty()
+  fileprivate let switchToLoginProperty = MutableProperty(())
   internal func switchToLogin() {
     self.switchToLoginProperty.value = ()
   }
-  fileprivate let switchToProfileProperty = MutableProperty()
+  fileprivate let switchToProfileProperty = MutableProperty(())
   internal func switchToProfile() {
     self.switchToProfileProperty.value = ()
   }
-  fileprivate let switchToSearchProperty = MutableProperty()
+  fileprivate let switchToSearchProperty = MutableProperty(())
   internal func switchToSearch() {
     self.switchToSearchProperty.value = ()
   }
-  fileprivate let userSessionStartedProperty = MutableProperty<()>()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   internal func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
-  fileprivate let userSessionEndedProperty = MutableProperty<()>()
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   internal func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty<()>()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   internal func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -255,31 +253,31 @@ private func tabData(forUser user: User?) -> TabBarItemsData {
                          isMember: isMember)
 }
 
-extension TabBarItemsData: Equatable {}
-func == (lhs: TabBarItemsData, rhs: TabBarItemsData) -> Bool {
-  return lhs.items == rhs.items &&
-         lhs.isLoggedIn == rhs.isLoggedIn &&
-         lhs.isMember == rhs.isMember
-}
-
-// swiftlint:disable cyclomatic_complexity
-extension TabBarItem: Equatable {}
-func == (lhs: TabBarItem, rhs: TabBarItem) -> Bool {
-  switch (lhs, rhs) {
-  case let (.activity(lhs), .activity(rhs)):
-    return lhs == rhs
-  case let (.dashboard(lhs), .dashboard(rhs)):
-    return lhs == rhs
-  case let (.home(lhs), .home(rhs)):
-    return lhs == rhs
-  case let (.profile(lhs), .profile(rhs)):
-    return lhs.avatarUrl == rhs.avatarUrl && lhs.index == rhs.index
-  case let (.search(lhs), .search(rhs)):
-    return lhs == rhs
-  default: return false
+extension TabBarItemsData: Equatable {
+  static func == (lhs: TabBarItemsData, rhs: TabBarItemsData) -> Bool {
+    return lhs.items == rhs.items
+      && lhs.isLoggedIn == rhs.isLoggedIn
+      && lhs.isMember == rhs.isMember
   }
 }
-// swiftlint:enable cyclomatic_complexity
+
+extension TabBarItem: Equatable {
+  static func == (lhs: TabBarItem, rhs: TabBarItem) -> Bool {
+    switch (lhs, rhs) {
+    case let (.activity(lhs), .activity(rhs)):
+      return lhs == rhs
+    case let (.dashboard(lhs), .dashboard(rhs)):
+      return lhs == rhs
+    case let (.home(lhs), .home(rhs)):
+      return lhs == rhs
+    case let (.profile(lhs), .profile(rhs)):
+      return lhs.avatarUrl == rhs.avatarUrl && lhs.index == rhs.index
+    case let (.search(lhs), .search(rhs)):
+      return lhs == rhs
+    default: return false
+    }
+  }
+}
 
 private func first<VC: UIViewController>(_ viewController: VC.Type) -> ([UIViewController]) -> VC? {
 

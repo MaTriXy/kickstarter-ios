@@ -24,7 +24,8 @@ public protocol ProjectPamphletContentViewModelOutputs {
   var goToRewardPledge: Signal<(Project, Reward), NoError> { get }
   var goToUpdates: Signal<Project, NoError> { get }
   var loadMinimalProjectIntoDataSource: Signal<Project, NoError> { get }
-  var loadProjectAndLiveStreamsIntoDataSource: Signal<(Project, [LiveStreamEvent]), NoError> { get }
+  var loadProjectAndLiveStreamsIntoDataSource: Signal<(Project, [LiveStreamEvent], Bool), NoError> { get }
+  var rewardTitleCellVisible: Signal<Bool, NoError> { get }
 }
 
 public protocol ProjectPamphletContentViewModelType {
@@ -35,7 +36,6 @@ public protocol ProjectPamphletContentViewModelType {
 public final class ProjectPamphletContentViewModel: ProjectPamphletContentViewModelType,
 ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
 
-  //swiftlint:disable:next function_body_length
   public init() {
     let projectAndLiveStreamEvents = Signal.combineLatest(
       self.configDataProperty.signal.skipNil(),
@@ -63,11 +63,15 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
       )
       .take(first: 1)
 
+    self.rewardTitleCellVisible = project
+      .map { $0.state == .live && $0.personalization.isBacking == true }
+
     self.loadProjectAndLiveStreamsIntoDataSource = Signal.combineLatest(
       projectAndLiveStreamEvents,
-      timeToLoadDataSource
+      timeToLoadDataSource,
+      self.rewardTitleCellVisible
       )
-      .map { projectAndLive, _ in (projectAndLive.0, projectAndLive.1) }
+      .map { projectAndLive, _, rewardVisible in (projectAndLive.0, projectAndLive.1, rewardVisible) }
 
     self.loadMinimalProjectIntoDataSource = project
       .takePairWhen(self.viewWillAppearAnimatedProperty.signal)
@@ -105,7 +109,7 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
     self.goToLiveStreamCountdown = project
       .takePairWhen(
         self.tappedLiveStreamProperty.signal.skipNil()
-          .filter({ !shouldGoToLiveStream(withLiveStreamEvent:$0) })
+          .filter({ !shouldGoToLiveStream(withLiveStreamEvent: $0) })
     )
   }
 
@@ -114,7 +118,7 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
     self.configDataProperty.value = (project, liveStreamEvents)
   }
 
-  fileprivate let tappedCommentsProperty = MutableProperty()
+  fileprivate let tappedCommentsProperty = MutableProperty(())
   public func tappedComments() {
     self.tappedCommentsProperty.value = ()
   }
@@ -124,7 +128,7 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
     self.tappedLiveStreamProperty.value = liveStreamEvent
   }
 
-  fileprivate let tappedPledgeAnyAmountProperty = MutableProperty()
+  fileprivate let tappedPledgeAnyAmountProperty = MutableProperty(())
   public func tappedPledgeAnyAmount() {
     self.tappedPledgeAnyAmountProperty.value = ()
   }
@@ -134,7 +138,7 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
     self.tappedRewardOrBackingProperty.value = rewardOrBacking
   }
 
-  fileprivate let tappedUpdatesProperty = MutableProperty()
+  fileprivate let tappedUpdatesProperty = MutableProperty(())
   public func tappedUpdates() {
     self.tappedUpdatesProperty.value = ()
   }
@@ -144,7 +148,7 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
     self.viewDidAppearAnimatedProperty.value = animated
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -161,7 +165,8 @@ ProjectPamphletContentViewModelInputs, ProjectPamphletContentViewModelOutputs {
   public let goToRewardPledge: Signal<(Project, Reward), NoError>
   public let goToUpdates: Signal<Project, NoError>
   public let loadMinimalProjectIntoDataSource: Signal<Project, NoError>
-  public let loadProjectAndLiveStreamsIntoDataSource: Signal<(Project, [LiveStreamEvent]), NoError>
+  public let loadProjectAndLiveStreamsIntoDataSource: Signal<(Project, [LiveStreamEvent], Bool), NoError>
+  public let rewardTitleCellVisible: Signal<Bool, NoError>
 
   public var inputs: ProjectPamphletContentViewModelInputs { return self }
   public var outputs: ProjectPamphletContentViewModelOutputs { return self }

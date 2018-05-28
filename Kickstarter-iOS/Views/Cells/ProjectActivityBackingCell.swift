@@ -47,8 +47,7 @@ internal final class ProjectActivityBackingCell: UITableViewCell, ValueCell {
                                         project: activityAndProject.1)
   }
 
-  // swiftlint:disable function_body_length
-  internal override func bindViewModel() {
+    internal override func bindViewModel() {
     super.bindViewModel()
 
     self.rac.accessibilityLabel = self.viewModel.outputs.cellAccessibilityLabel
@@ -115,15 +114,20 @@ internal final class ProjectActivityBackingCell: UITableViewCell, ValueCell {
       .observeValues { [weak titleLabel] title in
         guard let titleLabel = titleLabel else { return }
 
-        titleLabel.attributedText = title.simpleHtmlAttributedString(font: .ksr_title3(size: 14),
-          bold: UIFont.ksr_title3(size: 14).bolded,
+        titleLabel.attributedText = title.simpleHtmlAttributedString(
+          base: [
+            NSAttributedStringKey.font: UIFont.ksr_title3(size: 14),
+            NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_400
+          ],
+          bold: [
+            NSAttributedStringKey.font: UIFont.ksr_title3(size: 14),
+            NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_900
+          ],
           italic: nil
-        )
-
-        _ = titleLabel |> projectActivityTitleLabelStyle
+          )
+          ?? .init()
     }
   }
-  // swiftlint:enable function_body_length
 
   internal override func bindStyles() {
     super.bindStyles()
@@ -139,13 +143,13 @@ internal final class ProjectActivityBackingCell: UITableViewCell, ValueCell {
 
     _ = self.backingButton
       |> projectActivityFooterButton
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_activity_pledge_info() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_activity_pledge_info() }
 
     _ = self.bulletSeparatorView
       |> projectActivityBulletSeparatorViewStyle
 
     _ = self.cardView
-      |> dropShadowStyle()
+      |> dropShadowStyleMedium()
 
     _ = self.footerDividerView
       |> projectActivityDividerViewStyle
@@ -169,18 +173,18 @@ internal final class ProjectActivityBackingCell: UITableViewCell, ValueCell {
 
     _ = self.pledgeDetailsStackView
       |> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.previousPledgeAmountLabel
       |> UILabel.lens.font .~ .ksr_callout(size: 24)
-      |> UILabel.lens.textColor .~ .ksr_navy_500
+      |> UILabel.lens.textColor .~ .ksr_dark_grey_400
 
     _ = self.previousPledgeStrikethroughView
-      |> UIView.lens.backgroundColor .~ .ksr_navy_500
+      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_400
 
     _ = self.sendMessageButton
       |> projectActivityFooterButton
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_activity_send_message() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_activity_send_message() }
   }
 
   @objc fileprivate func backingButtonPressed(_ button: UIButton) {

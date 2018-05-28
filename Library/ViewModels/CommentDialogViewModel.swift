@@ -76,7 +76,7 @@ CommentDialogViewModelOutputs, CommentDialogViewModelErrors {
     self.viewWillAppearProperty.value = ()
   }
 
-  fileprivate let viewWillDisappearProperty = MutableProperty()
+  fileprivate let viewWillDisappearProperty = MutableProperty(())
   public func viewWillDisappear() {
     self.viewWillDisappearProperty.value = ()
   }
@@ -118,8 +118,7 @@ CommentDialogViewModelOutputs, CommentDialogViewModelErrors {
   public var outputs: CommentDialogViewModelOutputs { return self }
   public var errors: CommentDialogViewModelErrors { return self }
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let isLoading = MutableProperty(false)
 
     let configurationData = self.configurationDataProperty.signal.skipNil()
@@ -216,7 +215,6 @@ CommentDialogViewModelOutputs, CommentDialogViewModelErrors {
         )
     }
   }
-  // swiftlint:enable function_body_length
 }
 
 private func postComment(_ body: String, toUpdateOrComment updateOrComment: Either<Update, Project>)

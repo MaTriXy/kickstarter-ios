@@ -51,7 +51,7 @@ internal final class CommentsEmptyStateCell: UITableViewCell, ValueCell {
 
     _ = self.leaveACommentButton
       |> borderButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in
+      |> UIButton.lens.title(for: .normal) %~ { _ in
         Strings.project_comments_empty_state_backer_button()
       }
       |> UIButton.lens.accessibilityLabel %~ { _ in Strings.general_navigation_buttons_comment() }
@@ -61,11 +61,11 @@ internal final class CommentsEmptyStateCell: UITableViewCell, ValueCell {
 
     _ = self.backProjectButton
       |> borderButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.project_back_button() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.project_back_button() }
 
     _ = self.loginButton
       |> borderButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.login_buttons_log_in() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.login_buttons_log_in() }
 
     _ = self.rootStackView
       |> UIStackView.lens.alignment .~ .center
@@ -73,12 +73,12 @@ internal final class CommentsEmptyStateCell: UITableViewCell, ValueCell {
 
     _ = self.subtitleLabel
       |> UILabel.lens.font .~ .ksr_body(size: 16.0)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
       |> UILabel.lens.textAlignment .~ .center
 
     _ = self.titleLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 18.0)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
       |> UILabel.lens.text %~ { _ in Strings.No_comments_yet() }
   }
 

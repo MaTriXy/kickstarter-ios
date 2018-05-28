@@ -19,7 +19,6 @@ public protocol ProjectActivityNegativeStateChangeCellViewModelType {
   var outputs: ProjectActivityNegativeStateChangeCellViewModelOutputs { get }
 }
 
-// swiftlint:disable type_name
 public final class ProjectActivityNegativeStateChangeCellViewModel:
 ProjectActivityNegativeStateChangeCellViewModelType, ProjectActivityNegativeStateChangeCellViewModelInputs,
 ProjectActivityNegativeStateChangeCellViewModelOutputs {
@@ -64,4 +63,3 @@ ProjectActivityNegativeStateChangeCellViewModelOutputs {
   public var inputs: ProjectActivityNegativeStateChangeCellViewModelInputs { return self }
   public var outputs: ProjectActivityNegativeStateChangeCellViewModelOutputs { return self }
 }
-// swiftlint:enable type_name

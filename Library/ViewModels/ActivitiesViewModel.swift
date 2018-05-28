@@ -107,8 +107,7 @@ public protocol ActivitiesViewModelType {
 
 public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewModelInputs,
 ActivitiesViewModelOutputs {
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
       .map { row, total in total > 3 && row >= total - 2 }
       .skipRepeats()
@@ -118,7 +117,7 @@ ActivitiesViewModelOutputs {
     let requestFirstPage = Signal
       .merge(
         self.userSessionStartedProperty.signal,
-        self.viewWillAppearProperty.signal.skipNil().filter(isFalse).ignoreValues(),
+        self.viewWillAppearProperty.signal.skipNil().filter(isTrue).ignoreValues(),
         self.refreshProperty.signal
       )
         .filter { AppEnvironment.current.currentUser != nil }
@@ -281,16 +280,15 @@ ActivitiesViewModelOutputs {
       .observeValues { AppEnvironment.current.koala.trackLoadedOlderActivity(page: $0) }
   }
 
-  // swiftlint:enable function_body_length
-  fileprivate let dismissFacebookConnectSectionProperty = MutableProperty()
+  fileprivate let dismissFacebookConnectSectionProperty = MutableProperty(())
   public func findFriendsFacebookConnectCellDidDismissHeader() {
     dismissFacebookConnectSectionProperty.value = ()
   }
-  fileprivate let dismissFindFriendsSectionProperty = MutableProperty()
+  fileprivate let dismissFindFriendsSectionProperty = MutableProperty(())
   public func findFriendsHeaderCellDismissHeader() {
     dismissFindFriendsSectionProperty.value = ()
   }
-  fileprivate let goToFriendsProperty = MutableProperty()
+  fileprivate let goToFriendsProperty = MutableProperty(())
   public func findFriendsHeaderCellGoToFriends() {
     goToFriendsProperty.value = ()
   }
@@ -302,11 +300,11 @@ ActivitiesViewModelOutputs {
   public func viewWillAppear(animated: Bool) {
     self.viewWillAppearProperty.value = animated
   }
-  fileprivate let refreshProperty = MutableProperty()
+  fileprivate let refreshProperty = MutableProperty(())
   public func refresh() {
     self.refreshProperty.value = ()
   }
-  fileprivate let surveyResponseViewControllerDismissedProperty = MutableProperty()
+  fileprivate let surveyResponseViewControllerDismissedProperty = MutableProperty(())
   public func surveyResponseViewControllerDismissed() {
     self.surveyResponseViewControllerDismissedProperty.value = ()
   }
@@ -322,7 +320,7 @@ ActivitiesViewModelOutputs {
   public func tappedActivity(_ activity: Activity) {
     self.tappedActivityProperty.value = activity
   }
-  fileprivate let userFacebookConnectedProperty = MutableProperty()
+  fileprivate let userFacebookConnectedProperty = MutableProperty(())
   public func findFriendsFacebookConnectCellDidFacebookConnectUser() {
     userFacebookConnectedProperty.value = ()
   }
@@ -334,7 +332,7 @@ ActivitiesViewModelOutputs {
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

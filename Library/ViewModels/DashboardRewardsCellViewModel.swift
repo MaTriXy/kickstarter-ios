@@ -53,8 +53,7 @@ public protocol DashboardRewardsCellViewModelType {
 
 public final class DashboardRewardsCellViewModel: DashboardRewardsCellViewModelType,
   DashboardRewardsCellViewModelInputs, DashboardRewardsCellViewModelOutputs {
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let statsProject = self.statsProjectProperty.signal.skipNil()
 
     let rewards = statsProject
@@ -116,7 +115,6 @@ public final class DashboardRewardsCellViewModel: DashboardRewardsCellViewModelT
       .takeWhen(self.seeAllTiersButtonTappedProperty.signal)
       .observeValues { AppEnvironment.current.koala.trackDashboardSeeAllRewards(project: $0) }
   }
-  // swiftlint:enable function_body_length
 
   public var inputs: DashboardRewardsCellViewModelInputs { return self }
   public var outputs: DashboardRewardsCellViewModelOutputs { return self }
@@ -125,7 +123,7 @@ public final class DashboardRewardsCellViewModel: DashboardRewardsCellViewModelT
   public let notifyDelegateAddedRewardRows: Signal<Void, NoError>
   public let rewardsRowData: Signal<RewardsRowData, NoError>
 
-  fileprivate let backersButtonTappedProperty = MutableProperty()
+  fileprivate let backersButtonTappedProperty = MutableProperty(())
   public func backersButtonTapped() {
     backersButtonTappedProperty.value = ()
   }
@@ -134,15 +132,15 @@ public final class DashboardRewardsCellViewModel: DashboardRewardsCellViewModelT
   public func configureWith(rewardStats: [ProjectStatsEnvelope.RewardStats], project: Project) {
     self.statsProjectProperty.value = (rewardStats, project)
   }
-  fileprivate let pledgedButtonTappedProperty = MutableProperty()
+  fileprivate let pledgedButtonTappedProperty = MutableProperty(())
   public func pledgedButtonTapped() {
     pledgedButtonTappedProperty.value = ()
   }
-  fileprivate let seeAllTiersButtonTappedProperty = MutableProperty()
+  fileprivate let seeAllTiersButtonTappedProperty = MutableProperty(())
   public func seeAllTiersButtonTapped() {
     seeAllTiersButtonTappedProperty.value = ()
   }
-  fileprivate let topRewardsButtonTappedProperty = MutableProperty()
+  fileprivate let topRewardsButtonTappedProperty = MutableProperty(())
   public func topRewardsButtonTapped() {
     topRewardsButtonTappedProperty.value = ()
   }

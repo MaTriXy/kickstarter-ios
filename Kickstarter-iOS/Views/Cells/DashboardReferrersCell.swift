@@ -22,7 +22,6 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate weak var customPercentIndicatorLabel: UILabel!
   @IBOutlet fileprivate weak var customPledgedAmountSubtitleLabel: UILabel!
   @IBOutlet fileprivate weak var customPledgedAmountTitleLabel: UILabel!
-  @IBOutlet fileprivate weak var customStackView: UIStackView!
   @IBOutlet fileprivate weak var externalPercentLabel: UILabel!
   @IBOutlet fileprivate weak var externalPercentIndicatorLabel: UILabel!
   @IBOutlet fileprivate weak var externalPledgedAmountSubtitleLabel: UILabel!
@@ -66,10 +65,11 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
       action: #selector(sourceButtonTapped),
       for: .touchUpInside
     )
+
+    self.viewModel.inputs.awakeFromNib()
   }
 
-  // swiftlint:disable function_body_length
-  internal override func bindStyles() {
+    internal override func bindStyles() {
     _ = self |> baseTableViewCellStyle()
 
     _ = self.averagePledgeAmountSubtitleLabel
@@ -81,7 +81,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.backersColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_backers() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_backers() }
 
     _ = self.customPercentLabel
       |> dashboardReferrersPledgePercentLabelStyle
@@ -124,7 +124,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.pledgedColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_pledged() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_pledged() }
 
     _ = self.referrersTitleLabel
       |> dashboardReferrersTitleLabelStyle
@@ -137,7 +137,7 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     _ = self.sourceColumnTitleButton
       |> dashboardColumnTitleButtonStyle
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_graphs_referrers_source() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_graphs_referrers_source() }
 
     _ = self.chartCardView
       |> dashboardChartCardViewStyle
@@ -150,13 +150,11 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
 
     self.separatorViews.forEach { _ = $0 |> separatorStyle }
   }
-  // swiftlint:enable function_body_length
 
   internal override func bindViewModel() {
     self.averagePledgeAmountTitleLabel.rac.text = self.viewModel.outputs.averagePledgeText
     self.customPercentLabel.rac.text = self.viewModel.outputs.customPercentText
     self.customPledgedAmountTitleLabel.rac.text = self.viewModel.outputs.customPledgedText
-    self.customStackView.rac.hidden = self.viewModel.outputs.customStackViewHidden
     self.externalPercentLabel.rac.text = self.viewModel.outputs.externalPercentText
     self.externalPledgedAmountTitleLabel.rac.text = self.viewModel.outputs.externalPledgedText
     self.internalPercentLabel.rac.text = self.viewModel.outputs.internalPercentText
@@ -209,10 +207,10 @@ internal final class DashboardReferrersCell: UITableViewCell, ValueCell {
     }
   }
 
-  internal func configureWith(value: (ProjectStatsEnvelope.CumulativeStats,
-                                            Project,
-                                            [ProjectStatsEnvelope.ReferrerStats])) {
-    self.viewModel.inputs.configureWith(cumulative: value.0, project: value.1, referrers: value.2)
+  internal func configureWith(value: (ProjectStatsEnvelope.CumulativeStats, Project,
+    ProjectStatsEnvelope.ReferralAggregateStats, [ProjectStatsEnvelope.ReferrerStats])) {
+    self.viewModel.inputs.configureWith(cumulative: value.0, project: value.1,
+                                        referralAggregates: value.2, referrers: value.3 )
   }
 
   @objc fileprivate func backersButtonTapped() {

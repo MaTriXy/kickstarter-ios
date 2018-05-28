@@ -96,7 +96,7 @@ RewardShippingPickerViewModelInputs, RewardShippingPickerViewModelOutputs {
     }
   }
 
-  fileprivate let cancelButtonTappedProperty = MutableProperty()
+  fileprivate let cancelButtonTappedProperty = MutableProperty(())
   public func cancelButtonTapped() {
     self.cancelButtonTappedProperty.value = ()
   }
@@ -110,7 +110,7 @@ RewardShippingPickerViewModelInputs, RewardShippingPickerViewModelOutputs {
       = (project, shippingRules, selectedShippingRule)
   }
 
-  fileprivate let doneButtonTappedProperty = MutableProperty()
+  fileprivate let doneButtonTappedProperty = MutableProperty(())
   public func doneButtonTapped() {
     self.doneButtonTappedProperty.value = ()
   }
@@ -120,12 +120,12 @@ RewardShippingPickerViewModelInputs, RewardShippingPickerViewModelOutputs {
     self.pickerSelectedRowProperty.value = row
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
-  fileprivate let viewWillAppearProperty = MutableProperty()
+  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }
@@ -143,6 +143,6 @@ RewardShippingPickerViewModelInputs, RewardShippingPickerViewModelOutputs {
 private func shippingRuleTitles(forProject project: Project, shippingRules: [ShippingRule]) -> [String] {
   return shippingRules
     .map {
-      "\($0.location.displayableName) +\(Format.currency(Int($0.cost), country: project.country))"
+      "\($0.location.localizedName) +\(Format.currency(Int($0.cost), country: project.country))"
   }
 }

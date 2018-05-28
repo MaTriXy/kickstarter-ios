@@ -28,8 +28,8 @@ internal final class DashboardTitleView: UIView {
       |> UIButton.lens.targets .~ [(self, #selector(titleButtonTapped), .touchUpInside)]
 
     _ = self.arrowImageView
-      |> UIImageView.lens.hidden .~ true
-      |> UIImageView.lens.tintColor .~ .ksr_navy_700
+      |> UIImageView.lens.isHidden .~ true
+      |> UIImageView.lens.tintColor .~ .ksr_dark_grey_900
 
     _ = self.titleLabel |> dashboardTitleViewTextDisabledStyle
 

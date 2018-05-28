@@ -72,7 +72,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
     )
 
     let nonUSProject = project
-      |> Project.lens.country .~ .GB
+      |> Project.lens.country .~ .gb
       |> Project.lens.stats.staticUsdRate .~ 1.2
     self.vm.inputs.configureWith(project: nonUSProject)
 
@@ -174,7 +174,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testConversionLabel_WhenConversionNotNeeded_US_Project_US_User() {
     let project = .template
-      |> Project.lens.country .~ .US
+      |> Project.lens.country .~ .us
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
       self.vm.inputs.configureWith(project: project)
@@ -186,7 +186,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testConversionLabel_WhenConversionNotNeeded_US_Project_NonUS_User() {
     let project = .template
-      |> Project.lens.country .~ .US
+      |> Project.lens.country .~ .us
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "FR") {
       self.vm.inputs.configureWith(project: project)
@@ -198,7 +198,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testConversionLabel_WhenConversionNeeded_NonUS_Project_US_User() {
     let project = .template
-      |> Project.lens.country .~ .GB
+      |> Project.lens.country .~ .gb
       |> Project.lens.stats.goal .~ 2
       |> Project.lens.stats.pledged .~ 1
       |> Project.lens.stats.staticUsdRate .~ 2.0
@@ -229,7 +229,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(project: project)
 
-    self.fundingProgressBarViewBackgroundColor.assertValues([UIColor.ksr_navy_500])
+    self.fundingProgressBarViewBackgroundColor.assertValues([UIColor.ksr_dark_grey_400])
   }
 
   func testFundingProgressBarViewBackgroundColor_SuccessfulProject() {
@@ -238,7 +238,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(project: project)
 
-    self.fundingProgressBarViewBackgroundColor.assertValues([UIColor.ksr_green_500])
+    self.fundingProgressBarViewBackgroundColor.assertValues([UIColor.ksr_green_700])
   }
 
   func testPledgedTitleLabelTextColor_SucessfulProject() {
@@ -247,7 +247,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(project: project)
 
-    self.pledgedTitleLabelTextColor.assertValues([UIColor.ksr_text_green_700])
+    self.pledgedTitleLabelTextColor.assertValues([UIColor.ksr_green_700])
   }
 
   func testPledgedTitleLabelTextColor_UnsuccessfulProject() {
@@ -256,12 +256,12 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
     self.vm.inputs.configureWith(project: project)
 
-    self.pledgedTitleLabelTextColor.assertValues([UIColor.ksr_text_navy_500])
+    self.pledgedTitleLabelTextColor.assertValues([UIColor.ksr_text_dark_grey_500])
   }
 
   func testPledgedLabels_WhenConversionNotNeeded() {
     let project = .template
-      |> Project.lens.country .~ .US
+      |> Project.lens.country .~ .us
       |> Project.lens.stats.pledged .~ 1_000
       |> Project.lens.stats.goal .~ 2_000
 
@@ -283,7 +283,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testPledgedLabels_WhenConversionNeeded() {
     let project = .template
-      |> Project.lens.country .~ .GB
+      |> Project.lens.country .~ .gb
       |> Project.lens.stats.pledged .~ 1
       |> Project.lens.stats.goal .~ 2
       |> Project.lens.stats.staticUsdRate .~ 2.0
@@ -300,7 +300,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
 
   func testPledgedLabels_InNonUSCountry() {
     let project = .template
-      |> Project.lens.country .~ .GB
+      |> Project.lens.country .~ .gb
       |> Project.lens.stats.pledged .~ 1
       |> Project.lens.stats.goal .~ 2
       |> Project.lens.stats.staticUsdRate .~ 2.0
@@ -338,7 +338,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.state .~ .successful
     self.vm.inputs.configureWith(project: project)
 
-    self.projectStateLabelTextColor.assertValues([UIColor.ksr_text_green_700])
+    self.projectStateLabelTextColor.assertValues([UIColor.ksr_green_700])
   }
 
   func testProjectStateLabelTextColor_UnsuccessfulProject() {
@@ -346,7 +346,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.state .~ .failed
     self.vm.inputs.configureWith(project: project)
 
-    self.projectStateLabelTextColor.assertValues([UIColor.ksr_text_navy_500])
+    self.projectStateLabelTextColor.assertValues([UIColor.ksr_text_dark_grey_400])
   }
 
   func testProjectUnsuccessfulLabelTextColor_SuccessfulProjects() {
@@ -354,7 +354,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.state .~ .failed
     self.vm.inputs.configureWith(project: project)
 
-    self.projectUnsuccessfulLabelTextColor.assertValues([UIColor.ksr_text_navy_500])
+    self.projectUnsuccessfulLabelTextColor.assertValues([UIColor.ksr_text_dark_grey_500])
   }
 
   func testProjectUnsuccessfulLabelTextColor_UnsuccessfulProjects() {
@@ -362,7 +362,7 @@ final class ProjectPamphletMainCellViewModelTests: TestCase {
       |> Project.lens.state .~ .failed
     self.vm.inputs.configureWith(project: project)
 
-    self.projectUnsuccessfulLabelTextColor.assertValues([UIColor.ksr_text_navy_500])
+    self.projectUnsuccessfulLabelTextColor.assertValues([UIColor.ksr_text_dark_grey_500])
   }
 
   func testStateLabelHidden_LiveProject() {

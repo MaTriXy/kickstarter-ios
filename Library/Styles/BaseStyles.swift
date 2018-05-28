@@ -27,7 +27,7 @@ public func baseLiveStreamControllerStyle <VC: UIViewControllerProtocol> () -> (
 public func baseTableControllerStyle <TVC: UITableViewControllerProtocol>
   (estimatedRowHeight: CGFloat = 44.0) -> ((TVC) -> TVC) {
   let style = baseControllerStyle()
-    <> TVC.lens.view.backgroundColor .~ .ksr_grey_300
+    <> TVC.lens.view.backgroundColor .~ .white
     <> TVC.lens.tableView.rowHeight .~ UITableViewAutomaticDimension
     <> TVC.lens.tableView.estimatedRowHeight .~ estimatedRowHeight
 
@@ -47,11 +47,19 @@ public func baseTableViewCellStyle <TVC: UITableViewCellProtocol> () -> ((TVC) -
       }
       return .init(topBottom: Styles.grid(1), leftRight: Styles.grid(2))
       }
-      <> TVC.lens.backgroundColor .~ .clear
+      <> TVC.lens.backgroundColor .~ .white
       <> (TVC.lens.contentView..UIView.lens.preservesSuperviewLayoutMargins) .~ false
       <> TVC.lens.layoutMargins .~ .init(all: 0.0)
       <> TVC.lens.preservesSuperviewLayoutMargins .~ false
       <> TVC.lens.selectionStyle .~ .none
+}
+
+public func baseActivityIndicatorStyle(indicator: UIActivityIndicatorView) -> UIActivityIndicatorView {
+
+  return indicator
+    |> UIActivityIndicatorView.lens.hidesWhenStopped .~ true
+    |> UIActivityIndicatorView.lens.activityIndicatorViewStyle .~ .white
+    |> UIActivityIndicatorView.lens.color .~ .ksr_dark_grey_900
 }
 
 /**
@@ -59,12 +67,19 @@ public func baseTableViewCellStyle <TVC: UITableViewCellProtocol> () -> ((TVC) -
 
  - returns: A view transformer that rounds corners, sets background color, and sets border color.
  */
-public func cardStyle <V: UIViewProtocol> (cornerRadius radius: CGFloat = Styles.cornerRadius) -> ((V) -> V) {
+public func cardStyle <V: UIViewProtocol> (cornerRadius radius: CGFloat = 0) -> ((V) -> V) {
 
   return roundedStyle(cornerRadius: radius)
     <> V.lens.layer.borderColor .~ UIColor.ksr_grey_500.cgColor
     <> V.lens.layer.borderWidth .~ 1.0
     <> V.lens.backgroundColor .~ .white
+}
+
+public func darkCardStyle <V: UIViewProtocol>
+  (cornerRadius radius: CGFloat = Styles.cornerRadius) -> ((V) -> V) {
+
+  return cardStyle(cornerRadius: radius)
+    <> V.lens.layer.borderColor .~ UIColor.ksr_text_dark_grey_500.cgColor
 }
 
 public let containerViewBackgroundStyle =
@@ -73,12 +88,20 @@ public let containerViewBackgroundStyle =
 public func dropShadowStyle <V: UIViewProtocol> (radius: CGFloat = 2.0,
                                                  offset: CGSize = .init(width: 0, height: 1)) -> ((V) -> V) {
   return
-    V.lens.layer.shadowColor .~ UIColor.ksr_dropShadow.cgColor
-      <> V.lens.layer.shadowOpacity .~ 1
+    V.lens.layer.shadowColor .~ UIColor.black.cgColor
+      <> V.lens.layer.shadowOpacity .~ 0.17
       <> V.lens.layer.shadowRadius .~ radius
       <> V.lens.layer.masksToBounds .~ false
       <> V.lens.layer.shouldRasterize .~ true
       <> V.lens.layer.shadowOffset .~ offset
+}
+
+public func dropShadowStyleMedium <V: UIViewProtocol> () -> ((V) -> V) {
+  return dropShadowStyle(radius: 5.0, offset: .init(width: 0, height: 2.0))
+}
+
+public func dropShadowStyleLarge <V: UIViewProtocol> () -> ((V) -> V) {
+  return dropShadowStyle(radius: 6.0, offset: .init(width: 0, height: 3.0))
 }
 
 public let feedTableViewCellStyle = baseTableViewCellStyle()
@@ -90,7 +113,7 @@ public let feedTableViewCellStyle = baseTableViewCellStyle()
 
 public let formFieldStyle =
   UITextField.lens.font .~ .ksr_body()
-    <> UITextField.lens.textColor .~ .ksr_text_navy_900
+    <> UITextField.lens.textColor .~ .ksr_text_dark_grey_900
     <> UITextField.lens.backgroundColor .~ .clear
     <> UITextField.lens.borderStyle .~ .none
     <> UITextField.lens.autocapitalizationType .~ .none
@@ -121,16 +144,16 @@ private let navBarLens: Lens<UINavigationController?, UINavigationBar?> = Lens(
 
 private let baseNavigationBarStyle =
   UINavigationBar.lens.titleTextAttributes .~ [
-    NSForegroundColorAttributeName: UIColor.black,
-    NSFontAttributeName: UIFont.ksr_callout()
+    NSAttributedStringKey.foregroundColor: UIColor.black,
+    NSAttributedStringKey.font: UIFont.ksr_callout()
     ]
-    <> UINavigationBar.lens.translucent .~ false
+    <> UINavigationBar.lens.isTranslucent .~ false
     <> UINavigationBar.lens.barTintColor .~ .white
 
 private let clearNavigationBarStyle =
   UINavigationBar.lens.titleTextAttributes .~ [
-    NSForegroundColorAttributeName: UIColor.white,
-    NSFontAttributeName: UIFont.ksr_callout()
+    NSAttributedStringKey.foregroundColor: UIColor.white,
+    NSAttributedStringKey.font: UIFont.ksr_callout()
     ]
-    <> UINavigationBar.lens.translucent .~ true
+    <> UINavigationBar.lens.isTranslucent .~ true
     <> UINavigationBar.lens.shadowImage .~ UIImage()

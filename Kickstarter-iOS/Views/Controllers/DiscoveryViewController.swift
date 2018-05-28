@@ -11,7 +11,6 @@ internal final class DiscoveryViewController: UIViewController {
   private weak var navigationHeaderViewController: DiscoveryNavigationHeaderViewController!
   private weak var pageViewController: UIPageViewController!
   private weak var sortPagerViewController: SortPagerViewController!
-
   internal static func instantiate() -> DiscoveryViewController {
     return Storyboard.Discovery.instantiate(DiscoveryViewController.self)
   }
@@ -20,19 +19,25 @@ internal final class DiscoveryViewController: UIViewController {
     super.viewDidLoad()
 
     self.pageViewController = self.childViewControllers
-      .flatMap { $0 as? UIPageViewController }.first
+      .compactMap { $0 as? UIPageViewController }.first
+    self.pageViewController.setViewControllers(
+      [.init()],
+      direction: .forward,
+      animated: false,
+      completion: nil
+    )
     self.pageViewController.delegate = self
 
     self.sortPagerViewController = self.childViewControllers
-      .flatMap { $0 as? SortPagerViewController }.first
+      .compactMap { $0 as? SortPagerViewController }.first
     self.sortPagerViewController.delegate = self
 
     self.navigationHeaderViewController = self.childViewControllers
-      .flatMap { $0 as? DiscoveryNavigationHeaderViewController }.first
+      .compactMap { $0 as? DiscoveryNavigationHeaderViewController }.first
     self.navigationHeaderViewController.delegate = self
 
     self.liveStreamDiscoveryViewController = self.childViewControllers
-      .flatMap { $0 as? LiveStreamDiscoveryViewController }.first
+      .compactMap { $0 as? LiveStreamDiscoveryViewController }.first
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -45,7 +50,6 @@ internal final class DiscoveryViewController: UIViewController {
     self.navigationController?.setNavigationBarHidden(true, animated: animated)
   }
 
-  // swiftlint:disable:next function_body_length
   override func bindViewModel() {
     super.bindViewModel()
 
@@ -83,14 +87,6 @@ internal final class DiscoveryViewController: UIViewController {
       .observeForControllerAction()
       .observeValues { [weak self] in self?.dataSource.load(filter: $0) }
 
-    self.viewModel.outputs.selectSortPage
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.sortPagerViewController.select(sort: $0) }
-
-    self.viewModel.outputs.updateSortPagerStyle
-      .observeForControllerAction()
-      .observeValues { [weak self] in self?.sortPagerViewController.updateStyle(categoryId: $0) }
-
     self.viewModel.outputs.navigateToSort
       .observeForControllerAction()
       .observeValues { [weak self] sort, direction in
@@ -103,11 +99,20 @@ internal final class DiscoveryViewController: UIViewController {
         )
     }
 
+    self.viewModel.outputs.selectSortPage
+      .observeForControllerAction()
+      .observeValues { [weak self] in self?.sortPagerViewController.select(sort: $0) }
+
     self.viewModel.outputs.sortsAreEnabled
       .observeForUI()
       .observeValues { [weak self] in
         self?.sortPagerViewController.setSortPagerEnabled($0)
+        self?.setPageViewControllerScrollEnabled($0)
     }
+
+    self.viewModel.outputs.updateSortPagerStyle
+      .observeForControllerAction()
+      .observeValues { [weak self] in self?.sortPagerViewController.updateStyle(categoryId: $0) }
   }
 
   internal func filter(with params: DiscoveryParams) {
@@ -131,6 +136,10 @@ internal final class DiscoveryViewController: UIViewController {
         completion: nil
       )
     }
+  }
+
+  private func setPageViewControllerScrollEnabled(_ enabled: Bool) {
+    self.pageViewController.dataSource = enabled == false ? nil : self.dataSource
   }
 }
 

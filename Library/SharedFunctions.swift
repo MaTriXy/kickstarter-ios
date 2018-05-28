@@ -92,10 +92,10 @@ public func currencySymbol(forCountry country: Project.Country) -> String {
     return country.currencySymbol
   }
 
-  if country == .US && AppEnvironment.current.countryCode == "US" {
+  if country == .us && AppEnvironment.current.countryCode == "US" {
     // US people looking at US projects just get the currency symbol
     return country.currencySymbol
-  } else if country == .SG {
+  } else if country == .sg {
     // Singapore projects get a special currency prefix
     return "\(String.nbsp)S\(country.currencySymbol)\(String.nbsp)"
   } else if country.currencySymbol == "kr" || country.currencySymbol == "Fr" {
@@ -133,7 +133,7 @@ public func countdownProducer(to date: Date)
     // A timer that emits every second, but with a small delay so that it emits on a roundeded second.
     let everySecond = SignalProducer<(), NoError>(value: ())
       .ksr_delay(.milliseconds(Int(timeUntilNextRoundSecond * 1000)), on: AppEnvironment.current.scheduler)
-      .flatMap { timer(interval: .seconds(1), on: AppEnvironment.current.scheduler) }
+      .flatMap { SignalProducer.timer(interval: .seconds(1), on: AppEnvironment.current.scheduler) }
 
     return SignalProducer.merge(
       SignalProducer<Date, NoError>(value: now),

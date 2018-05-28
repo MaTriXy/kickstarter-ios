@@ -5,8 +5,7 @@ public struct SelectableRow {
   public let isSelected: Bool
   public let params: DiscoveryParams
 
-  // swiftlint:disable type_name
-  public enum lens {
+    public enum lens {
     public static let isSelected = Lens<SelectableRow, Bool>(
       view: { $0.isSelected },
       set: { SelectableRow(isSelected: $0, params: $1.params) }
@@ -17,7 +16,6 @@ public struct SelectableRow {
       set: { SelectableRow(isSelected: $1.isSelected, params: $0) }
     )
   }
-  // swiftlint:enable type_name
 }
 
 public extension Lens where Whole == SelectableRow, Part == DiscoveryParams {

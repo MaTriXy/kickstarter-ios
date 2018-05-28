@@ -58,9 +58,8 @@ public protocol SortPagerViewModelType {
 public final class SortPagerViewModel: SortPagerViewModelType, SortPagerViewModelInputs,
 SortPagerViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
-    let sorts = self.sortsProperty.signal.skipNil()
+    public init() {
+    let sorts: Signal<[DiscoveryParams.Sort], NoError> = self.sortsProperty.signal.skipNil()
       .takeWhen(self.viewWillAppearProperty.signal)
 
     self.createSortButtons = sorts.take(first: 1)
@@ -71,13 +70,16 @@ SortPagerViewModelOutputs {
       )
       .map { sorts, id, animated in (categoryId: id, sorts: sorts, animated: animated) }
 
-    let selectedPage = Signal.combineLatest(
+    let selectedPage: Signal<(Int, Int), NoError> = Signal.combineLatest(
       sorts,
       self.selectSortProperty.signal.skipNil()
-      )
-      .map { sorts, sort in (sorts.index(of: sort) ?? 0, sorts.count) }
+    )
+      .map { (arg) -> (Int, Int) in
+        let (sorts, sort) = arg
+        return (sorts.index(of: sort) ?? 0, sorts.count)
+    }
 
-    let pageIndex = sorts.mapConst(0)
+    let pageIndex: Signal<Int, NoError> = sorts.mapConst(0)
 
     self.setSelectedButton = Signal.merge(
       pageIndex.take(first: 1),
@@ -121,9 +123,8 @@ SortPagerViewModelOutputs {
         .ksr_debounce(.milliseconds(100), on: AppEnvironment.current.scheduler)
     )
   }
-  // swiftlint:enable function_body_length
 
-  fileprivate let didRotateProperty = MutableProperty()
+  fileprivate let didRotateProperty = MutableProperty(())
   public func didRotateFromInterfaceOrientation() {
     self.didRotateProperty.value = ()
   }
@@ -143,15 +144,15 @@ SortPagerViewModelOutputs {
   public func updateStyle(categoryId: Int?) {
     self.updateStyleProperty.value = categoryId
   }
-  fileprivate let willRotateProperty = MutableProperty()
+  fileprivate let willRotateProperty = MutableProperty(())
   public func willRotateToInterfaceOrientation() {
     self.willRotateProperty.value = ()
   }
-  fileprivate let viewDidAppearProperty = MutableProperty()
+  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.viewDidAppearProperty.value = ()
   }
-  fileprivate let viewWillAppearProperty = MutableProperty()
+  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }

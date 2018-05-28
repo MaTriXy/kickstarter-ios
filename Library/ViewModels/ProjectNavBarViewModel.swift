@@ -7,10 +7,11 @@ public protocol ProjectNavBarViewModelInputs {
   func categoryButtonTapped()
   func closeButtonTapped()
   func configureWith(project: Project, refTag: RefTag?)
+  func projectPageDidScrollToTop(_ didScrollToTop: Bool)
   func projectImageIsVisible(_ visible: Bool)
   func projectVideoDidFinish()
   func projectVideoDidStart()
-  func starButtonTapped()
+  func saveButtonTapped()
   func userSessionEnded()
   func userSessionStarted()
   func viewDidLoad()
@@ -18,9 +19,6 @@ public protocol ProjectNavBarViewModelInputs {
 
 public protocol ProjectNavBarViewModelOutputs {
   var backgroundOpaqueAndAnimate: Signal<(opaque: Bool, animate: Bool), NoError> { get }
-
-  /// Emits the color of the category button's background.
-  var categoryButtonBackgroundColor: Signal<UIColor, NoError> { get }
 
   /// Emits the category button's title text.
   var categoryButtonText: Signal<String, NoError> { get }
@@ -40,17 +38,26 @@ public protocol ProjectNavBarViewModelOutputs {
   /// Emits when the login tout should be shown to the user.
   var goToLoginTout: Signal<(), NoError> { get }
 
+  /// Emits a boolean that determines if the navBar should show dropShadow.
+  var navBarShadowVisible: Signal<Bool, NoError> { get }
+
+  /// Emits a project.
+  var postNotificationWithProject: Signal<Project, NoError> { get }
+
   /// Emits the name of the project
   var projectName: Signal<String, NoError> { get }
 
-  /// Emits when the project has been successfully starred and a prompt should be shown to the user.
-  var showProjectStarredPrompt: Signal<String, NoError> { get }
+  /// Emits a boolean that determines if the save button is enabled.
+  var saveButtonEnabled: Signal<Bool, NoError> { get }
+
+  /// Emits a boolean that determines if the save button is selected.
+  var saveButtonSelected: Signal<Bool, NoError> { get }
+
+  /// Emits when the project has been successfully saved and a prompt should be shown to the user.
+  var showProjectSavedPrompt: Signal<Void, NoError> { get }
 
   /// Emits the accessibility hint for the star button.
-  var starButtonAccessibilityHint: Signal<String, NoError> { get }
-
-  /// Emits a boolean that determines if the star button is selected.
-  var starButtonSelected: Signal<Bool, NoError> { get }
+  var saveButtonAccessibilityValue: Signal<String, NoError> { get }
 
   var titleHiddenAndAnimate: Signal<(hidden: Bool, animate: Bool), NoError> { get }
 }
@@ -63,8 +70,7 @@ public protocol ProjectNavBarViewModelType {
 public final class ProjectNavBarViewModel: ProjectNavBarViewModelType,
 ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let configuredProjectAndRefTag = Signal.combineLatest(
       self.projectAndRefTagProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -82,78 +88,88 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
       .map { AppEnvironment.current.currentUser }
       .skipRepeats(==)
 
-    let loggedInUserTappedStar = currentUser
-      .takeWhen(self.starButtonTappedProperty.signal)
+    let loggedInUserTappedSaveButton = currentUser
+      .takeWhen(self.saveButtonTappedProperty.signal)
       .filter(isNotNil)
       .ignoreValues()
 
-    let loggedOutUserTappedStar = currentUser
-      .takeWhen(self.starButtonTappedProperty.signal)
+    let loggedOutUserTappedSaveButton = currentUser
+      .takeWhen(self.saveButtonTappedProperty.signal)
       .filter(isNil)
       .ignoreValues()
 
-    // Emits only when a user logs in after having tapped the star while logged out.
-    let userLoginAfterTappingStar = Signal.combineLatest(
+    // Emits only when a user logs in after having tapped the save/heart while logged out.
+    let userLoginAfterTappingSaveButton = Signal.combineLatest(
       self.userSessionStartedProperty.signal,
-      loggedOutUserTappedStar
+      loggedOutUserTappedSaveButton
       )
       .ignoreValues()
       .take(first: 1)
 
-    let toggleStarLens = Project.lens.personalization.isStarred %~ { !($0 ?? false) }
+    let toggleSaveLens = Project.lens.personalization.isStarred %~ { !($0 ?? false) }
 
-    let projectOnStarToggle = configuredProject
-      .takeWhen(.merge(loggedInUserTappedStar, userLoginAfterTappingStar))
-      .scan(nil) { accum, project in (accum ?? project) |> toggleStarLens }
+    let projectOnSaveButtonToggle = configuredProject
+      .takeWhen(.merge(loggedInUserTappedSaveButton, userLoginAfterTappingSaveButton))
+      .scan(nil) { accum, project in (accum ?? project) |> toggleSaveLens }
       .skipNil()
 
-    let projectOnStarToggleAndSuccess = projectOnStarToggle
+    let isLoading = MutableProperty(false)
+
+    let projectOnSaveButtonToggleAndSuccess = projectOnSaveButtonToggle
       .switchMap { project in
         AppEnvironment.current.apiService.toggleStar(project)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .on(
+            starting: { isLoading.value = true },
+            terminated: { isLoading.value = false}
+          )
           .map { ($0.project, success: true) }
           .flatMapError { _ in .init(value: (project, success: false)) }
     }
 
-    let projectOnStarToggleSuccess = projectOnStarToggleAndSuccess
+    let projectOnSaveButtonToggleSuccess = projectOnSaveButtonToggleAndSuccess
       .filter(second)
       .map(first)
 
-    let revertStarToggle = projectOnStarToggle
-      .takeWhen(projectOnStarToggleAndSuccess.filter(second >>> isFalse))
-      .map(toggleStarLens)
+    let revertSaveButtonToggle = projectOnSaveButtonToggle
+      .takeWhen(projectOnSaveButtonToggleAndSuccess.filter(second >>> isFalse))
+      .map(toggleSaveLens)
 
-    let project = Signal
-      .merge(configuredProject, projectOnStarToggle, projectOnStarToggleSuccess, revertStarToggle)
-
-    self.categoryButtonBackgroundColor = configuredProject.map {
-        discoveryGradientColors(forCategoryId: $0.category.rootId).0.withAlphaComponent(0.8)
-      }
-      .skipRepeats()
+    let project = Signal.merge(
+      configuredProject,
+      projectOnSaveButtonToggle,
+      projectOnSaveButtonToggleSuccess,
+      revertSaveButtonToggle)
 
     self.categoryButtonText = configuredProject.map(Project.lens.category.name.view)
       .skipRepeats()
 
-    self.categoryButtonTintColor = configuredProject.map {
-      discoveryPrimaryColor(forCategoryId: $0.category.rootId)
-      }
-      .skipRepeats()
+    self.categoryButtonTintColor = configuredProject.mapConst(discoveryPrimaryColor())
 
     self.categoryButtonTitleColor = self.categoryButtonTintColor
 
-    self.goToLoginTout = loggedOutUserTappedStar
+    self.goToLoginTout = loggedOutUserTappedSaveButton
 
-    self.showProjectStarredPrompt = projectOnStarToggleSuccess
+    self.showProjectSavedPrompt = project
+      .takeWhen(self.saveButtonTappedProperty.signal)
       .filter { $0.personalization.isStarred == true && !$0.endsIn48Hours(
-        today: AppEnvironment.current.dateType.init().date) }
-      .map { _ in Strings.project_star_confirmation() }
+        today: AppEnvironment.current.dateType.init().date ) }
+      .filter { _ in
+        !AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert ||
+        !AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert
+      }
+      .on(value: { _ in
+        AppEnvironment.current.ubiquitousStore.hasSeenSaveProjectAlert = true
+        AppEnvironment.current.userDefaults.hasSeenSaveProjectAlert = true
+      })
+      .ignoreValues()
 
-    self.starButtonSelected = project
+    self.saveButtonSelected = project
       .map { $0.personalization.isStarred == true }
       .skipRepeats()
 
-    self.starButtonAccessibilityHint = self.starButtonSelected
-      .map { starred in starred ? Strings.Unsaves_project() : Strings.Saves_project() }
+    self.saveButtonAccessibilityValue = self.saveButtonSelected
+      .map { starred in starred ? Strings.Saved() : Strings.Unsaved() }
 
     self.projectName = project.map(Project.lens.name.view)
 
@@ -162,6 +178,9 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
       self.projectVideoDidStartProperty.signal.mapConst(true),
       self.projectVideoDidFinishProperty.signal.mapConst(false)
     )
+
+    self.saveButtonEnabled = isLoading.signal.map(negate)
+      .skipRepeats()
 
     let projectImageIsVisible = Signal.merge(
       self.projectImageIsVisibleProperty.signal,
@@ -180,7 +199,13 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
       )
       .skipRepeats { $0.hidden == $1.hidden }
 
-    self.titleHiddenAndAnimate = Signal.merge(
+    self.navBarShadowVisible = Signal.merge(
+      self.viewDidLoadProperty.signal.mapConst(true),
+      self.projectPageDidScrollToTopProperty.signal
+      )
+      .skipRepeats()
+
+      self.titleHiddenAndAnimate = Signal.merge(
       self.viewDidLoadProperty.signal.mapConst((true, false)),
       self.projectImageIsVisibleProperty.signal.map { ($0, true) }
       )
@@ -194,23 +219,25 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
 
     self.dismissViewController = self.closeButtonTappedProperty.signal
 
+    self.postNotificationWithProject = project
+      .takeWhen(self.saveButtonTappedProperty.signal)
+
     Signal.combineLatest(project, configuredRefTag)
       .takeWhen(self.closeButtonTappedProperty.signal)
       .observeValues { project, refTag in
         AppEnvironment.current.koala.trackClosedProjectPage(project, refTag: refTag, gestureType: .tap)
     }
 
-    projectOnStarToggleSuccess
-      .observeValues { AppEnvironment.current.koala.trackProjectStar($0) }
+    projectOnSaveButtonToggleSuccess
+      .observeValues { AppEnvironment.current.koala.trackProjectSave($0, context: .project) }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let projectAndRefTagProperty = MutableProperty<(Project, RefTag?)?>(nil)
   public func configureWith(project: Project, refTag: RefTag?) {
     self.projectAndRefTagProperty.value = (project, refTag)
   }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     self.closeButtonTappedProperty.value = ()
   }
@@ -220,12 +247,17 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
     self.projectImageIsVisibleProperty.value = visible
   }
 
-  fileprivate let projectVideoDidFinishProperty = MutableProperty()
+  fileprivate let projectPageDidScrollToTopProperty = MutableProperty(false)
+  public func projectPageDidScrollToTop(_ didScrollToTop: Bool) {
+    self.projectPageDidScrollToTopProperty.value = didScrollToTop
+  }
+
+  fileprivate let projectVideoDidFinishProperty = MutableProperty(())
   public func projectVideoDidFinish() {
     self.projectVideoDidFinishProperty.value = ()
   }
 
-  fileprivate let projectVideoDidStartProperty = MutableProperty()
+  fileprivate let projectVideoDidStartProperty = MutableProperty(())
   public func projectVideoDidStart() {
     self.projectVideoDidStartProperty.value = ()
   }
@@ -233,38 +265,40 @@ ProjectNavBarViewModelInputs, ProjectNavBarViewModelOutputs {
   public func categoryButtonTapped() {
   }
 
-  fileprivate let starButtonTappedProperty = MutableProperty()
-  public func starButtonTapped() {
-    self.starButtonTappedProperty.value = ()
+  fileprivate let saveButtonTappedProperty = MutableProperty(())
+  public func saveButtonTapped() {
+    self.saveButtonTappedProperty.value = ()
   }
 
-  fileprivate let userSessionEndedProperty = MutableProperty()
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
   public let backgroundOpaqueAndAnimate: Signal<(opaque: Bool, animate: Bool), NoError>
-  public let categoryButtonBackgroundColor: Signal<UIColor, NoError>
   public let categoryButtonText: Signal<String, NoError>
   public let categoryButtonTintColor: Signal<UIColor, NoError>
   public let categoryButtonTitleColor: Signal<UIColor, NoError>
   public let categoryHiddenAndAnimate: Signal<(hidden: Bool, animate: Bool), NoError>
   public let dismissViewController: Signal<(), NoError>
   public let goToLoginTout: Signal<(), NoError>
+  public let navBarShadowVisible: Signal<Bool, NoError>
+  public let postNotificationWithProject: Signal<Project, NoError>
   public let projectName: Signal<String, NoError>
-  public let showProjectStarredPrompt: Signal<String, NoError>
-  public let starButtonAccessibilityHint: Signal<String, NoError>
-  public let starButtonSelected: Signal<Bool, NoError>
+  public let saveButtonEnabled: Signal<Bool, NoError>
+  public let saveButtonSelected: Signal<Bool, NoError>
+  public let showProjectSavedPrompt: Signal<Void, NoError>
+  public let saveButtonAccessibilityValue: Signal<String, NoError>
   public let titleHiddenAndAnimate: Signal<(hidden: Bool, animate: Bool), NoError>
 
   public var inputs: ProjectNavBarViewModelInputs { return self }

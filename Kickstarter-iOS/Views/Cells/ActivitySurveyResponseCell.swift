@@ -40,24 +40,24 @@ internal final class ActivitySurveyResponseCell: UITableViewCell, ValueCell {
       |> feedTableViewCellStyle
 
     _ = self.cardView
-      |> dropShadowStyle()
+      |> cardStyle()
 
     _ = self.containerView
       |> UIView.lens.layoutMargins .~ .init(all: Styles.grid(2))
 
     _ = self.creatorNameLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 13)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
 
     _ = self.respondNowButton
       |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
-      |> UIButton.lens.backgroundColor(forState: .normal) .~ .clear
-      |> UIButton.lens.titleColor(forState: .normal) .~ .ksr_green_700
-      |> UIButton.lens.titleColor(forState: .highlighted) .~ .ksr_navy_700
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.discovery_survey_button_respond_now() }
+      |> UIButton.lens.backgroundColor(for: .normal) .~ .clear
+      |> UIButton.lens.titleColor(for: .normal) .~ .ksr_green_700
+      |> UIButton.lens.titleColor(for: .highlighted) .~ .ksr_dark_grey_500
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.discovery_survey_button_respond_now() }
       |> UIButton.lens.tintColor .~ .ksr_green_700
       |> UIButton.lens.imageEdgeInsets .~ .init(top: 0, left: 0, bottom: 0, right: Styles.grid(4))
-      |> UIButton.lens.image(forState: .normal) %~ { _ in Library.image(named: "respond-icon") }
+      |> UIButton.lens.image(for: .normal) %~ { _ in Library.image(named: "respond-icon") }
       |> UIButton.lens.contentEdgeInsets .~ .init(top: Styles.grid(3), left: 0, bottom: Styles.grid(1),
                                                   right: 0)
 

@@ -23,9 +23,13 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
   override func bindViewModel() {
     super.bindViewModel()
 
+    self.rac.accessibilityValue = self.viewModel.outputs.cellAccessibilityValue
+
     self.followButton.rac.enabled = self.viewModel.outputs.enableFollowButton
+    self.followButton.rac.accessibilityLabel = self.viewModel.outputs.followButtonAccessibilityLabel
 
     self.unfollowButton.rac.enabled = self.viewModel.outputs.enableUnfollowButton
+    self.unfollowButton.rac.accessibilityLabel = self.viewModel.outputs.unfollowButtonAccessibilityLabel
 
     self.friendNameLabel.rac.text = self.viewModel.outputs.name
 
@@ -57,33 +61,33 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
     super.bindStyles()
 
     _ = self.friendNameLabel
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
       |> UILabel.lens.font .~ UIFont.ksr_headline(size: 14.0)
 
     _ = self.self.friendLocationLabel
-      |> UILabel.lens.textColor .~ .ksr_text_navy_500
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
       |> UILabel.lens.font .~ .ksr_caption1()
 
     _ = self.projectsBackedLabel
-      |> UILabel.lens.textColor .~ .ksr_navy_600
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_500
       |> UILabel.lens.font .~ .ksr_footnote()
 
     _ = self.projectsCreatedLabel
-      |> UILabel.lens.textColor .~ .ksr_navy_600
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_500
       |> UILabel.lens.font .~ .ksr_footnote()
 
     _ = self.followButton
       |> navyButtonStyle
       |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
       |> UIButton.lens.targets .~ [(self, action: #selector(followButtonTapped), .touchUpInside)]
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
 
     _ = self.unfollowButton
       |> lightNavyButtonStyle
       |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
-      |> UIButton.lens.titleColor(forState: .normal) .~ .ksr_text_navy_600
+      |> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_navy_600
       |> UIButton.lens.targets .~ [(self, action: #selector(unfollowButtonTapped), .touchUpInside)]
-      |> UIButton.lens.title(forState: .normal) %~ { _ in
+      |> UIButton.lens.title(for: .normal) %~ { _ in
         Strings.social_following_friend_buttons_following()
     }
 

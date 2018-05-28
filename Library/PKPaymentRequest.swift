@@ -5,9 +5,9 @@ import Foundation
 import KsApi
 import PassKit
 
-extension PKPaymentNetwork: Decodable {}
+extension PKPaymentNetwork: Argo.Decodable {}
 
-extension PKPaymentSummaryItem: Decodable {
+extension PKPaymentSummaryItem: Argo.Decodable {
 
   public static func decode(_ json: JSON) -> Decoded<PKPaymentSummaryItem> {
     return curry(PKPaymentSummaryItem.init(label:amount:type:))
@@ -17,7 +17,7 @@ extension PKPaymentSummaryItem: Decodable {
   }
 }
 
-extension PKPaymentRequest: Decodable {
+extension PKPaymentRequest: Argo.Decodable {
 
   fileprivate convenience init(countryCode: String, currencyCode: String,
                                merchantCapabilities: PKMerchantCapability,
@@ -37,8 +37,7 @@ extension PKPaymentRequest: Decodable {
   }
 
   public static func decode(_ json: JSON) -> Decoded<PKPaymentRequest> {
-    let create = curry(PKPaymentRequest.init)
-    let tmp = create
+    let tmp = curry(PKPaymentRequest.init)
       <^> json <|  "country_code"
       <*> json <|  "currency_code"
       <*> (json <| "merchant_capabilities" <|> .success(.capability3DS))
@@ -49,7 +48,7 @@ extension PKPaymentRequest: Decodable {
       <*> json <|| "supported_networks"
 
     let camelCase = { () -> Decoded<PKPaymentRequest> in
-      let tmp = create
+      let tmp = curry(PKPaymentRequest.init)
         <^> json <|  "countryCode"
         <*> json <|  "currencyCode"
         <*> (json <| "merchantCapabilities" <|> .success(.capability3DS))
@@ -64,7 +63,7 @@ extension PKPaymentRequest: Decodable {
   }
 }
 
-extension NSDecimalNumber: Decodable {
+extension NSDecimalNumber: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<NSDecimalNumber> {
     switch json {
     case let .string(string):
@@ -78,8 +77,8 @@ extension NSDecimalNumber: Decodable {
 }
 
 extension PKPaymentRequest: EncodableType {
-  public func encode() -> [String : Any] {
-    var result: [String:Any] = [:]
+  public func encode() -> [String: Any] {
+    var result: [String: Any] = [:]
     result["countryCode"] = self.countryCode
     result["currencyCode"] = self.currencyCode
     result["merchantCapabilities"] = self.merchantCapabilities.rawValue.bitComponents()
@@ -92,8 +91,8 @@ extension PKPaymentRequest: EncodableType {
 }
 
 extension PKPaymentSummaryItem: EncodableType {
-  public func encode() -> [String : Any] {
-    var result: [String:Any] = [:]
+  public func encode() -> [String: Any] {
+    var result: [String: Any] = [:]
     result["label"] = self.label
     result["amount"] = self.amount
     result["type"] = self.type.rawValue
@@ -102,7 +101,7 @@ extension PKPaymentSummaryItem: EncodableType {
 }
 
 // swiftlint:disable cyclomatic_complexity
-extension PKMerchantCapability: Decodable {
+extension PKMerchantCapability: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<PKMerchantCapability> {
     switch json {
     case let .string(string):
@@ -131,7 +130,7 @@ extension PKMerchantCapability: Decodable {
     case let .array(array):
       return .success(
         array
-          .flatMap { PKMerchantCapability.decode($0).value }
+          .compactMap { PKMerchantCapability.decode($0).value }
           .reduce([]) { $0.union($1) }
       )
 
@@ -143,7 +142,7 @@ extension PKMerchantCapability: Decodable {
   }
 }
 
-extension PKShippingType: Decodable {
+extension PKShippingType: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<PKShippingType> {
     switch json {
     case let .string(string):
@@ -180,7 +179,7 @@ extension PKShippingType: Decodable {
   }
 }
 
-extension PKPaymentSummaryItemType: Decodable {
+extension PKPaymentSummaryItemType: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<PKPaymentSummaryItemType> {
     switch json {
     case let .string(string):

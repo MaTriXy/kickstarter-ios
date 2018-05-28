@@ -30,7 +30,7 @@ internal final class CommentCell: UITableViewCell, ValueCell {
       .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
 
     _ = self.bodyTextView
-      |> UITextView.lens.scrollEnabled .~ false
+      |> UITextView.lens.isScrollEnabled .~ false
       |> UITextView.lens.textContainerInset .~ UIEdgeInsets.zero
       |> UITextView.lens.textContainer.lineFragmentPadding .~ 0
 
@@ -50,11 +50,11 @@ internal final class CommentCell: UITableViewCell, ValueCell {
 
     _ = self.creatorView
       |> authorBadgeViewStyle
-      |> UIView.lens.backgroundColor .~ .ksr_navy_700
+      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_900
 
     _ = self.nameLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 16.0)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
 
     _ = self.rootStackView
       |> UIStackView.lens.spacing .~ Styles.grid(2)
@@ -64,7 +64,7 @@ internal final class CommentCell: UITableViewCell, ValueCell {
 
     _ = self.timestampLabel
       |> UILabel.lens.font .~ .ksr_body(size: 12.0)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_600
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
 
     _ = self.youLabel
       |> authorBadgeLabelStyle

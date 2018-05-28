@@ -70,8 +70,7 @@ public protocol ProjectActivityBackingCellViewModelType {
 public final class ProjectActivityBackingCellViewModel: ProjectActivityBackingCellViewModelType,
 ProjectActivityBackingCellViewModelInputs, ProjectActivityBackingCellViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let activityAndProject = self.activityAndProjectProperty.signal.skipNil()
     let activity = activityAndProject.map(first)
     let title = activity.map(title(activity:))
@@ -144,9 +143,8 @@ ProjectActivityBackingCellViewModelInputs, ProjectActivityBackingCellViewModelOu
       .map { $0 || $1 }
       .skipRepeats()
   }
-  // swiftlint:enable function_body_length
 
-  fileprivate let backingButtonPressedProperty = MutableProperty()
+  fileprivate let backingButtonPressedProperty = MutableProperty(())
   public func backingButtonPressed() {
     self.backingButtonPressedProperty.value = ()
   }
@@ -156,7 +154,7 @@ ProjectActivityBackingCellViewModelInputs, ProjectActivityBackingCellViewModelOu
     self.activityAndProjectProperty.value = (activity, project)
   }
 
-  fileprivate let sendMessageButtonPressedProperty = MutableProperty()
+  fileprivate let sendMessageButtonPressedProperty = MutableProperty(())
   public func sendMessageButtonPressed() {
     self.sendMessageButtonPressedProperty.value = ()
   }
@@ -191,7 +189,7 @@ private func accessibilityValue(activity: Activity, project: Project) -> String 
   case .backingAmount:
     return Strings.Amount_previous_amount(
       amount: amount(activity: activity, project: project),
-      previous_amount:oldAmount(activity: activity, project: project))
+      previous_amount: oldAmount(activity: activity, project: project))
   case .backingReward:
     return rewardSummary(activity: activity, project: project).htmlStripped() ?? ""
   case .backingDropped, .cancellation, .commentPost, .commentProject, .failure, .follow, .funding,

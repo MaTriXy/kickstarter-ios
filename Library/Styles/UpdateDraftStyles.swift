@@ -12,7 +12,7 @@ public let updateTitleTextFieldStyle = formFieldStyle
   <> UITextField.lens.font %~ { _ in .ksr_title1(size: 22) }
   <> UITextField.lens.placeholder %~ { _ in Strings.dashboard_post_update_compose_placeholder_title() }
   <> UITextField.lens.returnKeyType .~ .next
-  <> UITextField.lens.textColor .~ .ksr_text_navy_700
+  <> UITextField.lens.textColor .~ .ksr_text_dark_grey_500
 
 public let updateBodyTextViewStyle = UITextView.lens.backgroundColor .~ .clear
   <> UITextView.lens.font %~ { _ in .ksr_callout() }
@@ -23,39 +23,39 @@ public let updateBodyTextViewStyle = UITextView.lens.backgroundColor .~ .clear
 
 public let updateBodyPlaceholderTextViewStyle = updateBodyTextViewStyle
   <> UITextView.lens.text %~ { _ in Strings.Share_an_update_about_your_project() }
-  <> UITextView.lens.textColor .~ .ksr_text_navy_500
-  <> UITextView.lens.userInteractionEnabled .~ false
+  <> UITextView.lens.textColor .~ .ksr_text_dark_grey_400
+  <> UITextView.lens.isUserInteractionEnabled .~ false
 
 public let updateBackersOnlyButtonStyle =
   UIButton.lens.contentEdgeInsets .~ .init(top: 0, left: 7, bottom: 0, right: 0)
-    <> UIButton.lens.image(forState: .normal) %~ { _ in image(named: "update-draft-visibility-public-icon") }
-    <> UIButton.lens.image(forState: .selected) %~ { _ in
+    <> UIButton.lens.image(for: .normal) %~ { _ in image(named: "update-draft-visibility-public-icon") }
+    <> UIButton.lens.image(for: .selected) %~ { _ in
       image(named: "update-draft-visibility-backers-only-icon")
     }
     <> UIButton.lens.tintColor .~ .ksr_navy_600
-    <> UIButton.lens.title(forState: .normal) %~ { _ in Strings.dashboard_post_update_compose_public_label() }
-    <> UIButton.lens.title(forState: .selected) %~ { _ in
+    <> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_post_update_compose_public_label() }
+    <> UIButton.lens.title(for: .selected) %~ { _ in
       Strings.dashboard_post_update_compose_private_label()
     }
-    <> UIButton.lens.titleColor(forState: .normal) .~ .ksr_text_navy_600
+    <> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_navy_600
     <> UIButton.lens.titleEdgeInsets .~ .init(top: 0, left: 7, bottom: 0, right: 0)
     <> UIButton.lens.titleLabel.font %~ { _ in .ksr_caption1() }
 
 public let updateAddAttachmentButtonStyle =
   UIButton.lens.backgroundColor .~ .ksr_navy_200
-    <> UIButton.lens.contentCompressionResistancePriorityForAxis(.vertical) .~ UILayoutPriorityRequired
+    <> UIButton.lens.contentCompressionResistancePriority(for: .vertical) .~ .required
     <> UIButton.lens.contentEdgeInsets .~ .init(top: 11, left: 9, bottom: 12, right: 9)
-    <> UIButton.lens.contentHuggingPriorityForAxis(.vertical) .~ UILayoutPriorityRequired
-    <> UIButton.lens.image(forState: .normal) %~ { _ in image(named: "update-draft-add-attachment-icon") }
+    <> UIButton.lens.contentHuggingPriority(for: .vertical) .~ .required
+    <> UIButton.lens.image(for: .normal) %~ { _ in image(named: "update-draft-add-attachment-icon") }
     <> UIButton.lens.layer.borderColor .~ UIColor.ksr_navy_300.cgColor
     <> UIButton.lens.layer.borderWidth .~ 1
     <> UIButton.lens.layer.cornerRadius .~ 8
     <> UIButton.lens.tintColor .~ .ksr_navy_600
-    <> UIButton.lens.title(forState: .normal) .~ nil
+    <> UIButton.lens.title(for: .normal) .~ nil
 
 public let updateAddAttachmentExpandedButtonStyle =
-  UIButton.lens.tintColor .~ .ksr_text_navy_500
-    <> UIButton.lens.title(forState: .normal) %~ { _ in
+  UIButton.lens.tintColor .~ .ksr_text_dark_grey_400
+    <> UIButton.lens.title(for: .normal) %~ { _ in
       Strings.dashboard_post_update_compose_attachment_buttons_add_attachment()
     }
     <> UIButton.lens.titleLabel.font %~ { _ in .ksr_caption1() }
@@ -70,7 +70,7 @@ public let updateAttachmentsThumbStyle =
   UIImageView.lens.contentMode .~ .scaleAspectFill
     <> UIImageView.lens.clipsToBounds .~ true
     <> UIImageView.lens.layer.cornerRadius .~ 4
-    <> UIImageView.lens.userInteractionEnabled .~ true
+    <> UIImageView.lens.isUserInteractionEnabled .~ true
 
 public let updatePreviewBarButtonItemStyle =
   doneBarButtonItemStyle

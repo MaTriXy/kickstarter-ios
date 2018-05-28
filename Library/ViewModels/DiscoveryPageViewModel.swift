@@ -64,8 +64,8 @@ public protocol DiscoveryPageViewModelOutputs {
   /// Emits a project and update when should go to update.
   var goToProjectUpdate: Signal<(Project, Update), NoError> { get }
 
-  /// Emits a list of projects that should be shown.
-  var projects: Signal<[Project], NoError> { get }
+  /// Emits a list of projects that should be shown, and the corresponding filter request params
+  var projectsLoaded: Signal<([Project], DiscoveryParams?), NoError> { get }
 
   /// Emits a boolean that determines if projects are currently loading or not.
   var projectsAreLoading: Signal<Bool, NoError> { get }
@@ -91,8 +91,7 @@ public protocol DiscoveryPageViewModelType {
 public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, DiscoveryPageViewModelInputs,
   DiscoveryPageViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let currentUser = Signal.merge(
       self.userSessionStartedProperty.signal,
       self.userSessionEndedProperty.signal,
@@ -133,7 +132,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
     (paginatedProjects, self.projectsAreLoading, pageCount) = paginate(
       requestFirstPageWith: requestFirstPageWith,
       requestNextPageWhen: isCloseToBottom,
-      clearOnNewRequest: false,
+      clearOnNewRequest: true,
       skipRepeats: false,
       valuesFromEnvelope: { $0.projects },
       cursorFromEnvelope: { $0.urls.api.moreProjects },
@@ -141,22 +140,31 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) },
       concater: { ($0 + $1).distincts() })
 
-    self.projects = Signal.merge(
-      paginatedProjects,
-      self.selectedFilterProperty.signal.skipNil().skipRepeats().mapConst([])
+      let projects = Signal.merge(
+        paginatedProjects,
+        self.selectedFilterProperty.signal.skipNil().skipRepeats().mapConst([])
       )
       .skip { $0.isEmpty }
       .skipRepeats(==)
 
-    self.asyncReloadData = self.projects.take(first: 1).ignoreValues()
+      self.projectsLoaded =  self.selectedFilterProperty.signal
+        .takePairWhen(projects)
+        .map { ($1, $0) }
 
-    self.showEmptyState = paramsChanged
-      .takeWhen(paginatedProjects.filter { $0.isEmpty })
-      .map(emptyState(forParams:))
+    self.asyncReloadData = self.projectsLoaded.take(first: 1).ignoreValues()
+
+    self.showEmptyState = Signal.combineLatest(paramsChanged, self.projectsAreLoading, paginatedProjects)
+      .filter { _, projectsAreLoading, projects in projectsAreLoading == false && projects.isEmpty }
+      .map { params, _, _ in
+        emptyState(forParams: params)
+      }
       .skipNil()
+      .skipRepeats()
 
     self.hideEmptyState = Signal.merge(
       self.viewWillAppearProperty.signal.take(first: 1),
+      self.asyncReloadData,
+      paginatedProjects.filter { !$0.isEmpty }.ignoreValues(),
       paramsChanged.skip(first: 1).ignoreValues()
     )
 
@@ -180,7 +188,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
 
     self.goToActivityProject = activitySampleTapped
 
-    self.goToProjectPlaylist = self.projects
+    self.goToProjectPlaylist = projects
       .takePairWhen(projectCardTapped)
       .map(unpack)
       .map { projects, project, refTag in (project, projects, refTag) }
@@ -237,7 +245,6 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
       self.viewDidDisappearProperty.signal.mapConst(false)
     )
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let sortProperty = MutableProperty<DiscoveryParams.Sort?>(nil)
   public func configureWith(sort: DiscoveryParams.Sort) {
@@ -259,15 +266,15 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public func transitionedToProject(at row: Int, outOf totalRows: Int) {
     self.transitionedToProjectRowAndTotalProperty.value = (row, totalRows)
   }
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
-  fileprivate let userSessionEndedProperty = MutableProperty()
+  fileprivate let userSessionEndedProperty = MutableProperty(())
   public func userSessionEnded() {
     self.userSessionEndedProperty.value = ()
   }
-  fileprivate let viewDidAppearProperty = MutableProperty()
+  fileprivate let viewDidAppearProperty = MutableProperty(())
   public func viewDidAppear() {
     self.viewDidAppearProperty.value = ()
   }
@@ -275,7 +282,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public func viewDidDisappear(animated: Bool) {
     self.viewDidDisappearProperty.value = animated
   }
-  fileprivate let viewWillAppearProperty = MutableProperty()
+  fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
     self.viewWillAppearProperty.value = ()
   }
@@ -290,7 +297,7 @@ public final class DiscoveryPageViewModel: DiscoveryPageViewModelType, Discovery
   public var goToActivityProject: Signal<(Project, RefTag), NoError>
   public let goToProjectPlaylist: Signal<(Project, [Project], RefTag), NoError>
   public let goToProjectUpdate: Signal<(Project, Update), NoError>
-  public let projects: Signal<[Project], NoError>
+  public let projectsLoaded: Signal<([Project], DiscoveryParams?), NoError>
   public let projectsAreLoading: Signal<Bool, NoError>
   public let setScrollsToTop: Signal<Bool, NoError>
   public let scrollToProjectRow: Signal<Int, NoError>
@@ -313,9 +320,7 @@ private func saveSeen(activities: [Activity]) {
 
 private func refTag(fromParams params: DiscoveryParams, project: Project) -> RefTag {
 
-  if project.isPotdToday(today: AppEnvironment.current.dateType.init().date) {
-    return .discoveryPotd
-  } else if params.category != nil {
+  if params.category != nil {
     return .categoryWithSort(params.sort ?? .magic)
   } else if params.recommended == .some(true) {
     return .recsWithSort(params.sort ?? .magic)
@@ -330,6 +335,7 @@ private func refTag(fromParams params: DiscoveryParams, project: Project) -> Ref
 }
 
 private func emptyState(forParams params: DiscoveryParams) -> EmptyState? {
+
   if params.starred == .some(true) {
     return .starred
   } else if params.recommended == .some(true) {

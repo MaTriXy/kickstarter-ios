@@ -19,7 +19,6 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   fileprivate let projectsCountLabelAlpha = TestObserver<CGFloat, NoError>()
   fileprivate let projectsCountLabelHidden = TestObserver<Bool, NoError>()
   fileprivate let projectsCountLabelText = TestObserver<String, NoError>()
-  fileprivate let projectsCountLabelTextColor = TestObserver<UIColor, NoError>()
 
   override func setUp() {
     super.setUp()
@@ -33,7 +32,6 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     self.vm.outputs.projectsCountLabelAlpha.observe(self.projectsCountLabelAlpha.observer)
     self.vm.outputs.projectsCountLabelHidden.observe(self.projectsCountLabelHidden.observer)
     self.vm.outputs.projectsCountLabelText.observe(self.projectsCountLabelText.observer)
-    self.vm.outputs.projectsCountLabelTextColor.observe(self.projectsCountLabelTextColor.observer)
   }
 
   func testCellAccessibilityHint_WhenCollapsed() {
@@ -42,7 +40,8 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
     )
-    let categoryId = expandableRowNotExpanded.params.category?.id
+
+    let categoryId = expandableRowNotExpanded.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRowNotExpanded, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -56,7 +55,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
       )
-    let categoryId = expandableRowExpanded.params.category?.id
+    let categoryId = expandableRowExpanded.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRowExpanded, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -70,7 +69,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
       )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -78,7 +77,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
     self.cellAccessibilityLabel.assertValues([
       Strings.Filter_name_project_count_live_projects(
         filter_name: (expandableRow.params.category?.name ?? ""),
-        project_count: (expandableRow.params.category?.projectsCount ?? 0)
+        project_count: (expandableRow.params.category?.totalProjectCount ?? 0)
       )])
   }
 
@@ -88,7 +87,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
     )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -104,7 +103,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .games,
       selectableRows: []
       )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -118,7 +117,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .games,
       selectableRows: []
       )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -132,7 +131,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
       )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -146,7 +145,7 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
       params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
       selectableRows: []
     )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -155,13 +154,13 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   }
 
   func testProjectsCountLabelHidden() {
-    let gamesCategory = .games |> Category.lens.projectsCount .~ 10
+    let gamesCategory = .games |> Category.lens.totalProjectCount .~ 10
     let expandableRow =  ExpandableRow(
       isExpanded: false,
       params: .defaults |> DiscoveryParams.lens.category .~ gamesCategory,
       selectableRows: []
     )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -170,13 +169,13 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   }
 
   func testProjectsCountLabelHidden_NoProjects() {
-    let gamesCategory = .games |> Category.lens.projectsCount .~ 0
+    let gamesCategory = .games |> Category.lens.totalProjectCount .~ 0
     let expandableRow =  ExpandableRow(
       isExpanded: false,
       params: .defaults |> DiscoveryParams.lens.category .~ gamesCategory,
       selectableRows: []
     )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
@@ -185,31 +184,17 @@ final class DiscoveryExpandableRowCellViewModelTests: TestCase {
   }
 
   func testProjectsCountLabelText() {
-    let filmAndVideoCategory = .filmAndVideo |> Category.lens.projectsCount .~ 10
+    let filmAndVideoCategory = .filmAndVideo |> Category.lens.totalProjectCount .~ 10
     let expandableRow =  ExpandableRow(
       isExpanded: false,
       params: .defaults |> DiscoveryParams.lens.category .~ filmAndVideoCategory,
       selectableRows: []
     )
-    let categoryId = expandableRow.params.category?.id
+    let categoryId = expandableRow.params.category?.intID
 
     self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
     self.vm.inputs.willDisplay()
 
     self.projectsCountLabelText.assertValues([Format.wholeNumber(10)])
-  }
-
-  func testProjectsCountLabelTextColor() {
-    let expandableRow =  ExpandableRow(
-      isExpanded: false,
-      params: .defaults |> DiscoveryParams.lens.category .~ .filmAndVideo,
-      selectableRows: []
-    )
-    let categoryId = expandableRow.params.category?.id
-
-    self.vm.inputs.configureWith(row: expandableRow, categoryId: categoryId)
-    self.vm.inputs.willDisplay()
-
-    self.projectsCountLabelTextColor.assertValues([.ksr_forest_500])
   }
 }

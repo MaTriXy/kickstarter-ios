@@ -20,6 +20,8 @@ internal final class LiveStreamChatViewController: UIViewController {
   @IBOutlet private weak var textField: UITextField!
 
   fileprivate let dataSource = LiveStreamChatDataSource()
+  private var deviceOrientationChangedObserver: Any?
+  private var sessionStartedObserver: Any?
   fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
   internal let viewModel: LiveStreamChatViewModelType = LiveStreamChatViewModel()
 
@@ -28,7 +30,8 @@ internal final class LiveStreamChatViewController: UIViewController {
 
       let vc = Storyboard.LiveStream.instantiate(LiveStreamChatViewController.self)
       vc.viewModel.inputs.configureWith(project: project, liveStreamEvent: liveStreamEvent)
-      vc.shareViewModel.inputs.configureWith(shareContext: .liveStream(project, liveStreamEvent))
+      vc.shareViewModel.inputs.configureWith(shareContext: .liveStream(project, liveStreamEvent),
+                                             shareContextView: nil)
 
       return vc
   }
@@ -40,12 +43,12 @@ internal final class LiveStreamChatViewController: UIViewController {
     self.tableView.keyboardDismissMode = .onDrag
     self.tableView.transform = CGAffineTransform(scaleX: 1, y: -1)
 
-    NotificationCenter.default
+    self.sessionStartedObserver = NotificationCenter.default
       .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
-    NotificationCenter.default
+    self.deviceOrientationChangedObserver = NotificationCenter.default
       .addObserver(forName: .UIDeviceOrientationDidChange, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.deviceOrientationDidChange(
           orientation: UIApplication.shared.statusBarOrientation
@@ -58,15 +61,20 @@ internal final class LiveStreamChatViewController: UIViewController {
     self.viewModel.inputs.viewDidLoad()
   }
 
+  deinit {
+    self.deviceOrientationChangedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
+  }
+
   internal override func bindStyles() {
     super.bindStyles()
 
     _ = self
       |> baseLiveStreamControllerStyle()
-      |> UIViewController.lens.view.backgroundColor .~ .ksr_navy_700
+      |> UIViewController.lens.view.backgroundColor .~ .ksr_dark_grey_900
 
     _ = self.tableView
-      |> UITableView.lens.backgroundColor .~ .ksr_navy_700
+      |> UITableView.lens.backgroundColor .~ .ksr_dark_grey_900
       |> UITableView.lens.separatorStyle .~ .none
       |> UITableView.lens.rowHeight .~ UITableViewAutomaticDimension
       |> UITableView.lens.estimatedRowHeight .~ 200
@@ -74,7 +82,7 @@ internal final class LiveStreamChatViewController: UIViewController {
     self.tableView.contentInset = .init(topBottom: Styles.grid(1))
 
     _ = self.chatInputView
-      |> UIView.lens.backgroundColor .~ .ksr_navy_700
+      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_900
 
     _ = self.separatorView
       |> UIView.lens.backgroundColor .~ UIColor.white.withAlphaComponent(0.2)
@@ -84,15 +92,15 @@ internal final class LiveStreamChatViewController: UIViewController {
 
     _ = self.chatInputViewMessageLengthCountLabelStackView
       |> UIStackView.lens.layoutMargins .~ .init(top: Styles.gridHalf(1))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.chatInputViewStackView
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
       |> UIStackView.lens.layoutMargins .~ .init(leftRight: Styles.grid(2))
       |> UIStackView.lens.spacing .~ Styles.grid(1)
 
     _ = self.textField
-      |> UITextField.lens.backgroundColor .~ .ksr_navy_700
+      |> UITextField.lens.backgroundColor .~ .ksr_dark_grey_900
       |> UITextField.lens.tintColor .~ .white
       |> UITextField.lens.textColor .~ .white
       |> UITextField.lens.font .~ .ksr_body(size: 14)
@@ -102,10 +110,9 @@ internal final class LiveStreamChatViewController: UIViewController {
 
     _ = self.sendButton
       |> UIButton.lens.tintColor .~ .white
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.Send() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.Send() }
   }
 
-  //swiftlint:disable:next function_body_length
   internal override func bindViewModel() {
     super.bindViewModel()
 
@@ -139,7 +146,7 @@ internal final class LiveStreamChatViewController: UIViewController {
 
     self.shareViewModel.outputs.showShareSheet
       .observeForControllerAction()
-      .observeValues { [weak self] in self?.showShareSheet(controller: $0) }
+      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller: controller) }
 
     self.viewModel.outputs.dismissKeyboard
       .observeForUI()

@@ -34,7 +34,7 @@ internal final class LiveStreamChatMessageCell: UITableViewCell, ValueCell {
       |> baseTableViewCellStyle()
 
     _ = self.contentView
-      |> UIView.lens.backgroundColor .~ .ksr_navy_700
+      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_900
 
     _  = self.avatarImageView
       |> UIImageView.lens.layer.masksToBounds .~ true
@@ -45,7 +45,7 @@ internal final class LiveStreamChatMessageCell: UITableViewCell, ValueCell {
       |> UIStackView.lens.spacing .~ Styles.grid(1)
       |> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1),
                                                  leftRight: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.creatorTextLabel
       |> UILabel.lens.text %~ { _ in Strings.Creator() }

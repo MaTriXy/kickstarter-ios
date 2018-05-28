@@ -28,7 +28,7 @@ public protocol DashboardActionCellViewModelOutputs {
   var goToActivity: Signal<Project, NoError> { get }
 
   /// Emits with the project when should go to messages screen.
-  var goToMessages: Signal<Project, NoError> { get }
+  var goToMessages: Signal<(), NoError> { get }
 
   /// Emits with the project when should go to post update screen.
   var goToPostUpdate: Signal<Project, NoError> { get }
@@ -77,7 +77,7 @@ public final class DashboardActionCellViewModel: DashboardActionCellViewModelInp
 
     self.goToActivity = project.takeWhen(self.activityTappedProperty.signal)
 
-    self.goToMessages = project.takeWhen(self.messagesTappedProperty.signal)
+    self.goToMessages = project.ignoreValues().takeWhen(self.messagesTappedProperty.signal)
 
     self.goToPostUpdate = project.takeWhen(self.postUpdateTappedProperty.signal)
 
@@ -121,17 +121,17 @@ public final class DashboardActionCellViewModel: DashboardActionCellViewModelInp
     self.activityRowHidden = project.map { !$0.memberData.permissions.contains(.viewPledges) }
   }
 
-  fileprivate let activityTappedProperty = MutableProperty()
+  fileprivate let activityTappedProperty = MutableProperty(())
   public func activityTapped() {
     activityTappedProperty.value = ()
   }
 
-  fileprivate let messagesTappedProperty = MutableProperty()
+  fileprivate let messagesTappedProperty = MutableProperty(())
   public func messagesTapped() {
     messagesTappedProperty.value = ()
   }
 
-  fileprivate let postUpdateTappedProperty = MutableProperty()
+  fileprivate let postUpdateTappedProperty = MutableProperty(())
   public func postUpdateTapped() {
     postUpdateTappedProperty.value = ()
   }
@@ -144,7 +144,7 @@ public final class DashboardActionCellViewModel: DashboardActionCellViewModelInp
   public let activityButtonAccessibilityLabel: Signal<String, NoError>
   public let activityRowHidden: Signal<Bool, NoError>
   public let goToActivity: Signal<Project, NoError>
-  public let goToMessages: Signal<Project, NoError>
+  public let goToMessages: Signal<(), NoError>
   public let goToPostUpdate: Signal<Project, NoError>
   public let lastUpdatePublishedAt: Signal<String, NoError>
   public let lastUpdatePublishedLabelHidden: Signal<Bool, NoError>

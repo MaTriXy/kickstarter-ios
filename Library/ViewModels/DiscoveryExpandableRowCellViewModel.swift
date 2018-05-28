@@ -17,7 +17,6 @@ public protocol DiscoveryExpandableRowCellOutputs {
   var projectsCountLabelAlpha: Signal<CGFloat, NoError> { get }
   var projectsCountLabelHidden: Signal<Bool, NoError> { get }
   var projectsCountLabelText: Signal<String, NoError> { get }
-  var projectsCountLabelTextColor: Signal<UIColor, NoError> { get }
 }
 
 public protocol DiscoveryExpandableRowCellViewModelType {
@@ -33,7 +32,6 @@ DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
       .takeWhen(self.willDisplayProperty.signal)
 
     let expandableRow = expandableRowAndCategoryId.map(first)
-    let categoryId = expandableRowAndCategoryId.map(second)
 
     self.expandCategoryStyle = expandableRowAndCategoryId
 
@@ -50,17 +48,14 @@ DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
       .map {
         Strings.Filter_name_project_count_live_projects(
           filter_name: ($0.params.category?.name ?? ""),
-          project_count:($0.params.category?.projectsCount ?? 0))
+          project_count: ($0.params.category?.totalProjectCount ?? 0))
       }
 
     self.projectsCountLabelText = expandableRow
-      .map { Format.wholeNumber($0.params.category?.projectsCount ?? 0) }
+      .map { Format.wholeNumber($0.params.category?.totalProjectCount ?? 0) }
 
     self.projectsCountLabelHidden = expandableRow
-      .map { $0.params.category?.projectsCount == .some(0) }
-
-    self.projectsCountLabelTextColor = categoryId
-      .map(discoverySecondaryColor(forCategoryId:))
+      .map { $0.params.category?.totalProjectCount == .some(0) }
 
     self.projectsCountLabelAlpha = expandableRowAndCategoryId
       .map { expandableRow, categoryId in categoryId == nil || expandableRow.isExpanded ? 1.0 : 0.4 }
@@ -72,7 +67,7 @@ DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
     self.expandableRowAndCategoryIdProperty.value = (row, categoryId)
   }
 
-  fileprivate let willDisplayProperty = MutableProperty()
+  fileprivate let willDisplayProperty = MutableProperty(())
   public func willDisplay() {
     self.willDisplayProperty.value = ()
   }
@@ -85,7 +80,6 @@ DiscoveryExpandableRowCellInputs, DiscoveryExpandableRowCellOutputs {
   public let projectsCountLabelAlpha: Signal<CGFloat, NoError>
   public let projectsCountLabelHidden: Signal<Bool, NoError>
   public let projectsCountLabelText: Signal<String, NoError>
-  public let projectsCountLabelTextColor: Signal<UIColor, NoError>
 
   public var inputs: DiscoveryExpandableRowCellInputs { return self }
   public var outputs: DiscoveryExpandableRowCellOutputs { return self }

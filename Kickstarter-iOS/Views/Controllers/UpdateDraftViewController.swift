@@ -58,8 +58,7 @@ internal final class UpdateDraftViewController: UIViewController {
     _ = self.separatorViews ||> separatorStyle
   }
 
-  // swiftlint:disable function_body_length
-  internal override func bindViewModel() {
+    internal override func bindViewModel() {
     super.bindViewModel()
 
     self.addAttachmentExpandedButton.rac.hidden =
@@ -81,7 +80,7 @@ internal final class UpdateDraftViewController: UIViewController {
       .observeValues { [weak self] attachments in
         guard let attachmentsStackView = self?.attachmentsStackView else { return }
         _ = attachmentsStackView |>
-          UIStackView.lens.arrangedSubviews .~ attachments.flatMap { self?.imageView(forAttachment: $0) }
+          UIStackView.lens.arrangedSubviews .~ attachments.compactMap { self?.imageView(forAttachment: $0) }
     }
 
     self.viewModel.outputs.notifyPresenterViewControllerWantsDismissal
@@ -160,7 +159,6 @@ internal final class UpdateDraftViewController: UIViewController {
     Keyboard.change.observeForUI()
       .observeValues { [weak self] in self?.animateBottomConstraint($0) }
   }
-  // swiftlint:enable function_body_length
 
   internal override func viewDidLoad() {
     super.viewDidLoad()
@@ -298,7 +296,7 @@ extension UpdateDraftViewController: UITextViewDelegate {
 
 extension UpdateDraftViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
   @objc internal func imagePickerController(_ picker: UIImagePickerController,
-                                            didFinishPickingMediaWithInfo info: [String:Any]) {
+                                            didFinishPickingMediaWithInfo info: [String: Any]) {
     guard
       let image = info[UIImagePickerControllerOriginalImage] as? UIImage,
       let imageData = UIImageJPEGRepresentation(image, 0.9),

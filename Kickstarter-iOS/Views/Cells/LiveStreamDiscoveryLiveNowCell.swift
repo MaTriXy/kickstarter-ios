@@ -34,7 +34,6 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
     self.viewModel.inputs.didEndDisplay()
   }
 
-  // swiftlint:disable:next function_body_length
   internal override func bindStyles() {
     super.bindStyles()
 
@@ -48,7 +47,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
 
     _ = self.cardView
       |> cardStyle()
-      |> dropShadowStyle()
+      |> dropShadowStyleMedium()
 
     _ = self.creatorLabel
       |> SimpleHTMLLabel.lens.boldFont .~ UIFont.ksr_title3(size: 14).bolded
@@ -75,7 +74,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
 
     _ = self.streamTitleLabel
       |> UILabel.lens.font .~ .ksr_title3(size: 16)
-      |> UILabel.lens.textColor .~ .ksr_text_navy_900
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
       |> UILabel.lens.numberOfLines .~ 0
 
     _ = self.streamImageView
@@ -83,7 +82,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
 
     _ = self.numberWatchingContainerView
       |> roundedStyle()
-      |> UIView.lens.backgroundColor .~ UIColor.black.withAlphaComponent(0.5)
+      |> UIView.lens.backgroundColor .~ UIColor.ksr_dark_grey_900.withAlphaComponent(0.5)
       |> UIView.lens.layoutMargins .~ .init(topBottom: Styles.gridHalf(1), leftRight: Styles.gridHalf(3))
 
     _ = self.numberWatchingLabel
@@ -94,7 +93,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
       |> UIImageView.lens.tintColor .~ .white
 
     _ = self.imageOverlayView
-      |> UIView.lens.backgroundColor .~ UIColor.ksr_navy_900.withAlphaComponent(0.4)
+      |> UIView.lens.backgroundColor .~ UIColor.ksr_dark_grey_900.withAlphaComponent(0.3)
 
     _ = self.creatorStackView
       |> UIStackView.lens.spacing .~ Styles.grid(1)
@@ -141,7 +140,7 @@ internal final class LiveStreamDiscoveryLiveNowCell: UITableViewCell, ValueCell 
     self.streamPlayerView.playerLayer?.player = url.map(AVPlayer.init(url:))
     self.streamPlayerView.playerLayer?.player?.play()
     self.streamPlayerView.playerLayer?.player?.isMuted = true
-    self.streamPlayerView.playerLayer?.videoGravity = AVLayerVideoGravityResizeAspectFill
+    self.streamPlayerView.playerLayer?.videoGravity = AVLayerVideoGravity.resizeAspectFill
     self.streamPlayerView.backgroundColor = .black
 
     UIView.animate(withDuration: 0.3) {

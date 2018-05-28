@@ -3,33 +3,36 @@ import Foundation
 public enum AppKeys: String {
   case closedFacebookConnectInActivity = "com.kickstarter.KeyValueStoreType.closedFacebookConnectInActivity"
   case closedFindFriendsInActivity = "com.kickstarter.KeyValueStoreType.closedFindFriendsInActivity"
+  case deniedNotificationContexts = "com.kickstarter.KeyValueStoreType.deniedNotificationContexts"
   case favoriteCategoryIds = "favorite_category_ids"
   case hasSeenFavoriteCategoryAlert = "com.kickstarter.KeyValueStoreType.hasSeenFavoriteCategoryAlert"
+  case hasSeenSaveProjectAlert = "com.kickstarter.KeyValueStoreType.hasSeenSaveProjectAlert"
   case lastSeenActivitySampleId = "com.kickstarter.KeyValueStoreType.lastSeenActivitySampleId"
   case seenAppRating = "com.kickstarter.KeyValueStoreType.hasSeenAppRating"
   case seenGamesNewsletter = "com.kickstarter.KeyValueStoreType.hasSeenGamesNewsletter"
 }
 
 public protocol KeyValueStoreType: class {
-  func setBool(_ bool: Bool, forKey key: String)
-  func setInteger(_ int: Int, forKey key: String)
+  func set(_ value: Bool, forKey defaultName: String)
+  func set(_ value: Int, forKey defaultName: String)
   func set(_ value: Any?, forKey defaultName: String)
 
-  func boolForKey(_ key: String) -> Bool
-  func dictionary(forKey defaultName: String) -> [String : Any]?
-  func integerForKey(_ key: String) -> Int
+  func bool(forKey defaultName: String) -> Bool
+  func dictionary(forKey defaultName: String) -> [String: Any]?
+  func integer(forKey defaultName: String) -> Int
   func object(forKey defaultName: String) -> Any?
-  func stringForKey(_ key: String) -> String?
+  func string(forKey defaultName: String) -> String?
   func synchronize() -> Bool
 
-  func removeObjectForKey(_ key: String)
-
+  func removeObject(forKey defaultName: String)
+  var deniedNotificationContexts: [String] { get set }
   var favoriteCategoryIds: [Int] { get set }
   var hasClosedFacebookConnectInActivity: Bool { get set }
   var hasClosedFindFriendsInActivity: Bool { get set }
   var hasSeenAppRating: Bool { get set }
   var hasSeenFavoriteCategoryAlert: Bool { get set }
   var hasSeenGamesNewsletterPrompt: Bool { get set }
+  var hasSeenSaveProjectAlert: Bool { get set }
   var lastSeenActivitySampleId: Int { get set }
 }
 
@@ -40,6 +43,15 @@ extension KeyValueStoreType {
     }
     set {
       self.set(newValue, forKey: AppKeys.favoriteCategoryIds.rawValue)
+    }
+  }
+
+  public var deniedNotificationContexts: [String] {
+    get {
+      return self.object(forKey: AppKeys.deniedNotificationContexts.rawValue) as? [String] ?? []
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.deniedNotificationContexts.rawValue)
     }
   }
 
@@ -63,37 +75,46 @@ extension KeyValueStoreType {
 
   public var hasSeenAppRating: Bool {
     get {
-      return self.boolForKey(AppKeys.seenAppRating.rawValue)
+      return self.bool(forKey: AppKeys.seenAppRating.rawValue)
     }
     set {
-      self.setBool(newValue, forKey: AppKeys.seenAppRating.rawValue)
+      self.set(newValue, forKey: AppKeys.seenAppRating.rawValue)
     }
   }
 
   public var hasSeenFavoriteCategoryAlert: Bool {
     get {
-      return self.boolForKey(AppKeys.hasSeenFavoriteCategoryAlert.rawValue)
+      return self.bool(forKey: AppKeys.hasSeenFavoriteCategoryAlert.rawValue)
     }
     set {
-      self.setBool(newValue, forKey: AppKeys.hasSeenFavoriteCategoryAlert.rawValue)
+      self.set(newValue, forKey: AppKeys.hasSeenFavoriteCategoryAlert.rawValue)
     }
   }
 
   public var hasSeenGamesNewsletterPrompt: Bool {
     get {
-      return self.boolForKey(AppKeys.seenGamesNewsletter.rawValue)
+      return self.bool(forKey: AppKeys.seenGamesNewsletter.rawValue)
     }
     set {
-      self.setBool(newValue, forKey: AppKeys.seenGamesNewsletter.rawValue)
+      self.set(newValue, forKey: AppKeys.seenGamesNewsletter.rawValue)
+    }
+  }
+
+  public var hasSeenSaveProjectAlert: Bool {
+    get {
+      return self.bool(forKey: AppKeys.hasSeenSaveProjectAlert.rawValue)
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.hasSeenSaveProjectAlert.rawValue)
     }
   }
 
   public var lastSeenActivitySampleId: Int {
     get {
-      return self.integerForKey(AppKeys.lastSeenActivitySampleId.rawValue)
+      return self.integer(forKey: AppKeys.lastSeenActivitySampleId.rawValue)
     }
     set {
-      self.setInteger(newValue, forKey: AppKeys.lastSeenActivitySampleId.rawValue)
+      self.set(newValue, forKey: AppKeys.lastSeenActivitySampleId.rawValue)
     }
   }
 }
@@ -102,52 +123,52 @@ extension UserDefaults: KeyValueStoreType {
 }
 
 extension NSUbiquitousKeyValueStore: KeyValueStoreType {
-  public func integerForKey(_ key: String) -> Int {
-    return Int(longLong(forKey: key))
+  public func integer(forKey defaultName: String) -> Int {
+    return Int(longLong(forKey: defaultName))
   }
 
-  public func setInteger(_ int: Int, forKey key: String) {
-    return set(Int64(int), forKey: key)
+  public func set(_ value: Int, forKey defaultName: String) {
+    return set(Int64(value), forKey: defaultName)
   }
 }
 
 internal class MockKeyValueStore: KeyValueStoreType {
-  var store: [String:Any] = [:]
+  var store: [String: Any] = [:]
 
-  func setBool(_ bool: Bool, forKey key: String) {
-    self.store[key] = bool
+  func set(_ value: Bool, forKey defaultName: String) {
+    self.store[defaultName] = value
   }
 
-  func setInteger(_ int: Int, forKey key: String) {
-    self.store[key] = int
+  func set(_ value: Int, forKey defaultName: String) {
+    self.store[defaultName] = value
   }
 
   func set(_ value: Any?, forKey key: String) {
     self.store[key] = value
   }
 
-  func boolForKey(_ key: String) -> Bool {
-    return self.store[key] as? Bool ?? false
+  func bool(forKey defaultName: String) -> Bool {
+    return self.store[defaultName] as? Bool ?? false
   }
 
-  func integerForKey(_ key: String) -> Int {
-    return self.store[key] as? Int ?? 0
+  func dictionary(forKey key: String) -> [String: Any]? {
+    return self.object(forKey: key) as? [String: Any]
+  }
+
+  func integer(forKey defaultName: String) -> Int {
+    return self.store[defaultName] as? Int ?? 0
   }
 
   func object(forKey key: String) -> Any? {
     return self.store[key]
   }
 
-  func stringForKey(_ key: String) -> String? {
-    return self.object(forKey: key) as? String
+  func string(forKey defaultName: String) -> String? {
+    return self.store[defaultName] as? String
   }
 
-  func dictionary(forKey key: String) -> [String:Any]? {
-    return self.object(forKey: key) as? [String:Any]
-  }
-
-  func removeObjectForKey(_ key: String) {
-    self.set(nil, forKey: key)
+  func removeObject(forKey defaultName: String) {
+    self.set(nil, forKey: defaultName)
   }
 
   func synchronize() -> Bool {

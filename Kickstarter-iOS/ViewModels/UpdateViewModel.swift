@@ -5,7 +5,7 @@ import Prelude
 import ReactiveSwift
 import Result
 
-fileprivate struct UpdateData {
+private struct UpdateData {
   fileprivate let project: Project
   fileprivate let update: Update
 }
@@ -46,8 +46,7 @@ internal protocol UpdateViewModelType {
 
 internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs, UpdateViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  internal init() {
+    internal init() {
     let configurationData = self.configurationDataProperty.signal.skipNil()
 
     let initialUpdate = configurationData.map { $0.update }
@@ -148,7 +147,6 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
         AppEnvironment.current.koala.trackOpenedExternalLink(project: $0, context: .projectUpdate)
     }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let configurationDataProperty = MutableProperty<UpdateData?>(nil)
   internal func configureWith(project: Project, update: Update) {
@@ -163,7 +161,7 @@ internal final class UpdateViewModel: UpdateViewModelType, UpdateViewModelInputs
       return self.policyDecisionProperty.value
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   internal func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

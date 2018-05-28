@@ -1,5 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable function_body_length
 // swiftlint:disable force_unwrapping
 import Prelude
 import ReactiveSwift
@@ -12,36 +10,41 @@ import XCTest
 
 internal final class DashboardViewModelTests: TestCase {
   internal let vm: DashboardViewModelType = DashboardViewModel()
+
+  internal let animateOutProjectsDrawer = TestObserver<(), NoError>()
+  internal let dismissProjectsDrawer = TestObserver<(), NoError>()
+  internal let focusScreenReaderOnTitleView = TestObserver<(), NoError>()
   internal let fundingStats = TestObserver<[ProjectStatsEnvelope.FundingDateStats], NoError>()
+  internal let goToMessageThread = TestObserver<Project, NoError>()
+  internal let loaderIsAnimating = TestObserver<Bool, NoError>()
+  internal let presentProjectsDrawer = TestObserver<[ProjectsDrawerData], NoError>()
   internal let project = TestObserver<Project, NoError>()
   internal let referrerCumulativeStats = TestObserver<ProjectStatsEnvelope.CumulativeStats, NoError>()
   internal let referrerStats = TestObserver<[ProjectStatsEnvelope.ReferrerStats], NoError>()
   internal let rewardStats = TestObserver<[ProjectStatsEnvelope.RewardStats], NoError>()
-  internal let videoStats = TestObserver<ProjectStatsEnvelope.VideoStats, NoError>()
-  internal let animateOutProjectsDrawer = TestObserver<(), NoError>()
-  internal let dismissProjectsDrawer = TestObserver<(), NoError>()
-  internal let presentProjectsDrawer = TestObserver<[ProjectsDrawerData], NoError>()
   internal let updateTitleViewData = TestObserver<DashboardTitleViewData, NoError>()
-  internal let focusScreenReaderOnTitleView = TestObserver<(), NoError>()
+  internal let videoStats = TestObserver<ProjectStatsEnvelope.VideoStats, NoError>()
 
   let project1 = Project.template
   let project2 = .template |> Project.lens.id .~ 4
 
   internal override func setUp() {
     super.setUp()
+    self.vm.outputs.animateOutProjectsDrawer.observe(self.animateOutProjectsDrawer.observer)
+    self.vm.outputs.dismissProjectsDrawer.observe(self.dismissProjectsDrawer.observer)
+    self.vm.outputs.focusScreenReaderOnTitleView.observe(self.focusScreenReaderOnTitleView.observer)
     self.vm.outputs.fundingData.map { stats, _ in stats }.observe(self.fundingStats.observer)
+    self.vm.outputs.goToMessageThread.map { $0.0 }.observe(self.goToMessageThread.observer)
+    self.vm.outputs.loaderIsAnimating.observe(self.loaderIsAnimating.observer)
+    self.vm.outputs.presentProjectsDrawer.observe(self.presentProjectsDrawer.observer)
     self.vm.outputs.project.observe(self.project.observer)
     self.vm.outputs.referrerData
-      .map { cumulative, _, _ in cumulative }
+      .map { cumulative, _, _, _ in cumulative }
       .observe(self.referrerCumulativeStats.observer)
-    self.vm.outputs.referrerData.map { _, _, stats in stats }.observe(self.referrerStats.observer)
+    self.vm.outputs.referrerData.map { _, _, _, stats in stats }.observe(self.referrerStats.observer)
     self.vm.outputs.rewardData.map { stats, _ in stats }.observe(self.rewardStats.observer)
     self.vm.outputs.videoStats.observe(self.videoStats.observer)
-    self.vm.outputs.dismissProjectsDrawer.observe(self.dismissProjectsDrawer.observer)
-    self.vm.outputs.presentProjectsDrawer.observe(self.presentProjectsDrawer.observer)
-    self.vm.outputs.animateOutProjectsDrawer.observe(self.animateOutProjectsDrawer.observer)
     self.vm.outputs.updateTitleViewData.observe(self.updateTitleViewData.observer)
-    self.vm.outputs.focusScreenReaderOnTitleView.observe(self.focusScreenReaderOnTitleView.observer)
   }
 
   func testDashboardTracking() {
@@ -262,6 +265,20 @@ internal final class DashboardViewModelTests: TestCase {
     }
   }
 
+  func testLoaderIsAnimating() {
+
+    let projects = (0...4).map { .template |> Project.lens.id .~ $0 }
+
+    withEnvironment(apiService: MockService(fetchProjectsResponse: projects)) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.loaderIsAnimating.assertValues([true])
+
+      self.scheduler.advance()
+      self.loaderIsAnimating.assertValues([true, false])
+    }
+  }
+
   func testProjectStatsEmit() {
     let projects = [Project.template]
     let projects2 = projects + [.template |> Project.lens.id .~ 5]
@@ -322,6 +339,38 @@ internal final class DashboardViewModelTests: TestCase {
       self.scheduler.advance()
 
       self.project.assertValues([projects.last!])
+    }
+  }
+
+  func testGoToThread() {
+    let projects = (0...4).map { .template |> Project.lens.id .~ $0 }
+    let thread = MessageThread.template
+
+    let threadProj = projects[1]
+
+    withEnvironment(apiService: MockService(fetchProjectsResponse: projects)) {
+      self.project.assertValues([])
+
+      self.vm.inputs.messageThreadNavigated(projectId: .id(threadProj.id), messageThread: thread)
+      self.project.assertValues([])
+
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.scheduler.advance()
+
+      self.goToMessageThread.assertValues([threadProj], "Go to message thread emitted")
+      self.project.assertValues([threadProj], "Thread project is selected")
+
+      self.vm.inputs.viewWillDisappear()
+      self.scheduler.advance()
+
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.scheduler.advance()
+
+      self.goToMessageThread.assertValues([threadProj],
+                                          "Go to message thread not emitted again when view appears")
+
+      self.project.assertValues([threadProj, threadProj],
+        "Keep previously selected project when view Appears")
     }
   }
 

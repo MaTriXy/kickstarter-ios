@@ -6,6 +6,7 @@ import Prelude_UIKit
 
 public protocol ProjectPamphletContentViewControllerDelegate: VideoViewControllerDelegate {
   func projectPamphletContent(_ controller: ProjectPamphletContentViewController, imageIsVisible: Bool)
+  func projectPamphletContent(_ controller: ProjectPamphletContentViewController, didScrollToTop: Bool)
   func projectPamphletContent(_ controller: ProjectPamphletContentViewController,
                               scrollViewPanGestureRecognizerDidChange recognizer: UIPanGestureRecognizer)
 }
@@ -50,7 +51,6 @@ public final class ProjectPamphletContentViewController: UITableViewController {
       |> baseTableControllerStyle(estimatedRowHeight: 450)
       |> (UITableViewController.lens.tableView..UITableView.lens.delaysContentTouches) .~ false
       |> (UITableViewController.lens.tableView..UITableView.lens.canCancelContentTouches) .~ true
-      |> UITableViewController.lens.view.backgroundColor .~ .clear
   }
 
   public override func bindViewModel() {
@@ -58,8 +58,8 @@ public final class ProjectPamphletContentViewController: UITableViewController {
 
     self.viewModel.outputs.loadProjectAndLiveStreamsIntoDataSource
       .observeForUI()
-      .observeValues { [weak self] project, liveStreamEvents in
-        self?.dataSource.load(project: project, liveStreamEvents: liveStreamEvents)
+      .observeValues { [weak self] project, liveStreamEvents, visible in
+        self?.dataSource.load(project: project, liveStreamEvents: liveStreamEvents, visible: visible )
         self?.tableView.reloadData()
     }
 
@@ -205,6 +205,11 @@ public final class ProjectPamphletContentViewController: UITableViewController {
       self,
       imageIsVisible: scrollView.contentOffset.y < scrollView.bounds.width * 9/16
     )
+
+    self.delegate?.projectPamphletContent(
+      self,
+      didScrollToTop: scrollView.contentOffset.y <= 0
+    )
   }
 
   @objc fileprivate func scrollViewPanGestureRecognizerDidChange(_ recognizer: UIPanGestureRecognizer) {
@@ -214,8 +219,6 @@ public final class ProjectPamphletContentViewController: UITableViewController {
   fileprivate func scrollingIsAllowed(_ scrollView: UIScrollView) -> Bool {
     return self.presentingViewController?.presentedViewController?.isBeingDismissed != .some(true)
       && (!scrollView.isTracking || scrollView.contentOffset.y >= 0)
-    // swiftlint:disable:previous force_unwrapping
-    // NB: this ^ shouldn't be necessary, looks like a bug in swiftlint.
   }
 }
 

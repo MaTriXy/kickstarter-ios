@@ -1,4 +1,3 @@
-// swiftlint:disable type_name
 import Argo
 import Curry
 import Prelude
@@ -110,15 +109,14 @@ public func == (lhs: LiveStreamEvent, rhs: LiveStreamEvent) -> Bool {
   return lhs.id == rhs.id
 }
 
-extension LiveStreamEvent: Decodable {
+extension LiveStreamEvent: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent> {
-    let create = curry(LiveStreamEvent.init)
 
     let hlsUrl: Decoded<String?> = (json <| ["stream", "hls_url"] <|> json <| "hls_url")
       .map(Optional.some)
       <|> .success(nil)
 
-    let tmp1 = create
+    let tmp1 = curry(LiveStreamEvent.init)
       <^> (json <| ["stream", "background_image"] <|> json <| "background_image")
       <*> json <| "creator"
       <*> (json <| ["stream", "description"] <|> json <| "description")
@@ -146,7 +144,7 @@ extension LiveStreamEvent: Decodable {
   }
 }
 
-extension LiveStreamEvent.BackgroundImage: Decodable {
+extension LiveStreamEvent.BackgroundImage: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<LiveStreamEvent.BackgroundImage> {
     return curry(LiveStreamEvent.BackgroundImage.init)
       <^> json <| "medium"
@@ -154,7 +152,7 @@ extension LiveStreamEvent.BackgroundImage: Decodable {
   }
 }
 
-extension LiveStreamEvent.Creator: Decodable {
+extension LiveStreamEvent.Creator: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent.Creator> {
     return curry(LiveStreamEvent.Creator.init)
       <^> json <| "creator_avatar"
@@ -162,10 +160,9 @@ extension LiveStreamEvent.Creator: Decodable {
   }
 }
 
-extension LiveStreamEvent.Firebase: Decodable {
+extension LiveStreamEvent.Firebase: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent.Firebase> {
-    let create = curry(LiveStreamEvent.Firebase.init)
-    let tmp = create
+    let tmp = curry(LiveStreamEvent.Firebase.init)
       <^> json <| "firebase_api_key"
       <*> json <|? "avatar"
       <*> json <| "chat_path"
@@ -182,7 +179,7 @@ extension LiveStreamEvent.Firebase: Decodable {
   }
 }
 
-extension LiveStreamEvent.OpenTok: Decodable {
+extension LiveStreamEvent.OpenTok: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent.OpenTok> {
     return curry(LiveStreamEvent.OpenTok.init)
       <^> json <| "app"
@@ -191,7 +188,7 @@ extension LiveStreamEvent.OpenTok: Decodable {
   }
 }
 
-extension LiveStreamEvent.Project: Decodable {
+extension LiveStreamEvent.Project: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent.Project> {
 
     // Sometimes the project id doesn't come back, and sometimes it comes back as `uid` even though it should
@@ -207,7 +204,7 @@ extension LiveStreamEvent.Project: Decodable {
   }
 }
 
-extension LiveStreamEvent.User: Decodable {
+extension LiveStreamEvent.User: Argo.Decodable {
   static public func decode(_ json: JSON) -> Decoded<LiveStreamEvent.User> {
     return curry(LiveStreamEvent.User.init)
       <^> json <| "is_subscribed"

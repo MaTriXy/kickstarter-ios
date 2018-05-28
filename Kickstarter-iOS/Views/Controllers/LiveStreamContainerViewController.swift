@@ -1,4 +1,3 @@
-//swiftlint:disable file_length
 import KsApi
 import Library
 import LiveStream
@@ -7,7 +6,6 @@ import ReactiveSwift
 import Result
 import UIKit
 
-//swiftlint:disable:next type_body_length
 public final class LiveStreamContainerViewController: UIViewController {
 
   @IBOutlet private weak var gradientView: GradientView!
@@ -22,6 +20,8 @@ public final class LiveStreamContainerViewController: UIViewController {
 
   private var liveVideoViewController: LiveVideoViewController?
   internal weak var liveStreamContainerPageViewController: LiveStreamContainerPageViewController?
+  private var deviceOrientationChangedObserver: Any?
+  private var sessionStartedObserver: Any?
   private let shareViewModel: ShareViewModelType = ShareViewModel()
   fileprivate let viewModel: LiveStreamContainerViewModelType = LiveStreamContainerViewModel()
 
@@ -38,7 +38,8 @@ public final class LiveStreamContainerViewController: UIViewController {
                                       refTag: refTag,
                                       presentedFromProject: presentedFromProject)
 
-    vc.shareViewModel.inputs.configureWith(shareContext: .liveStream(project, liveStreamEvent))
+    vc.shareViewModel.inputs.configureWith(shareContext: .liveStream(project, liveStreamEvent),
+                                           shareContextView: nil)
 
     return vc
   }
@@ -52,25 +53,29 @@ public final class LiveStreamContainerViewController: UIViewController {
     self.navigationItem.titleView = self.navBarTitleView
 
     self.liveStreamContainerPageViewController = self.childViewControllers
-      .flatMap { $0 as? LiveStreamContainerPageViewController }
+      .compactMap { $0 as? LiveStreamContainerPageViewController }
       .first
 
-    NotificationCenter.default
+    self.sessionStartedObserver = NotificationCenter.default
+      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
+        self?.viewModel.inputs.userSessionStarted()
+    }
+
+    self.deviceOrientationChangedObserver = NotificationCenter.default
       .addObserver(forName: .UIDeviceOrientationDidChange, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.deviceOrientationDidChange(
           orientation: UIApplication.shared.statusBarOrientation
         )
     }
 
-    NotificationCenter.default
-      .addObserver(forName: .ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
-        self?.viewModel.inputs.userSessionStarted()
-    }
-
     self.viewModel.inputs.viewDidLoad()
   }
 
-  //swiftlint:disable:next function_body_length
+  deinit {
+    self.deviceOrientationChangedObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.sessionStartedObserver.doIfSome(NotificationCenter.default.removeObserver)
+  }
+
   public override func bindStyles() {
     super.bindStyles()
 
@@ -117,7 +122,6 @@ public final class LiveStreamContainerViewController: UIViewController {
                                    (UIColor.black.withAlphaComponent(0), 1.0)])
   }
 
-  //swiftlint:disable:next function_body_length
   public override func bindViewModel() {
     super.bindViewModel()
 
@@ -172,7 +176,7 @@ public final class LiveStreamContainerViewController: UIViewController {
 
     self.shareViewModel.outputs.showShareSheet
       .observeForControllerAction()
-      .observeValues { [weak self] in self?.showShareSheet(controller: $0) }
+      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller: controller) }
 
     self.viewModel.outputs.createVideoViewController
       .observeForUI()

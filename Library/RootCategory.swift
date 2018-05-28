@@ -1,3 +1,5 @@
+import KsApi
+
 public enum RootCategory: Int {
   case art = 1
   case comics = 3
@@ -15,6 +17,10 @@ public enum RootCategory: Int {
   case tech = 16
   case theater = 17
   case unrecognized = -1
+
+  public init(categoryId: String) {
+    self = RootCategory(rawValue: decompose(id: categoryId) ?? -1) ?? .unrecognized
+  }
 
   public init(categoryId: Int) {
     self = RootCategory(rawValue: categoryId) ?? .unrecognized

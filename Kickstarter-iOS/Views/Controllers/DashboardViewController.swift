@@ -11,6 +11,8 @@ internal final class DashboardViewController: UITableViewController {
   fileprivate let dataSource = DashboardDataSource()
   fileprivate let viewModel: DashboardViewModelType = DashboardViewModel()
   fileprivate let shareViewModel: ShareViewModelType = ShareViewModel()
+  fileprivate let loadingIndicatorView = UIActivityIndicatorView()
+  fileprivate let backgroundView = UIView()
 
   internal static func instantiate() -> DashboardViewController {
     return Storyboard.Dashboard.instantiate(DashboardViewController.self)
@@ -23,6 +25,8 @@ internal final class DashboardViewController: UITableViewController {
   internal override func viewDidLoad() {
     super.viewDidLoad()
 
+    self.tableView.backgroundView = self.backgroundView
+
     self.tableView.dataSource = self.dataSource
 
     let shareButton = UIBarButtonItem()
@@ -32,6 +36,8 @@ internal final class DashboardViewController: UITableViewController {
     self.navigationItem.rightBarButtonItem = shareButton
 
     self.titleView.delegate = self
+
+    self.viewModel.inputs.viewDidLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -44,11 +50,36 @@ internal final class DashboardViewController: UITableViewController {
     _ = self
       |> baseTableControllerStyle(estimatedRowHeight: 200.0)
       |> UITableViewController.lens.view.backgroundColor .~ .white
+
+    _ = self.loadingIndicatorView
+      |> UIActivityIndicatorView.lens.hidesWhenStopped .~ true
+      |> UIActivityIndicatorView.lens.activityIndicatorViewStyle .~ .white
+      |> UIActivityIndicatorView.lens.color .~ .ksr_dark_grey_900
   }
 
-  // swiftlint:disable function_body_length
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+
+    self.viewModel.inputs.viewWillDisappear()
+  }
+
   internal override func bindViewModel() {
     super.bindViewModel()
+
+    self.loadingIndicatorView.rac.animating = self.viewModel.outputs.loaderIsAnimating
+
+    self.viewModel.outputs.loaderIsAnimating
+      .observeForUI()
+      .observeValues { [weak self] isAnimating in
+        guard let _self = self else { return }
+        _self.tableView.tableHeaderView = isAnimating ? _self.loadingIndicatorView : nil
+        if let headerView = _self.tableView.tableHeaderView {
+          headerView.frame = CGRect(x: headerView.frame.origin.x,
+                                    y: headerView.frame.origin.y,
+                                    width: headerView.frame.size.width,
+                                    height: Styles.grid(15))
+        }
+    }
 
     self.viewModel.outputs.fundingData
       .observeForUI()
@@ -64,13 +95,15 @@ internal final class DashboardViewController: UITableViewController {
         self?.tableView.reloadData()
 
         // NB: this is just temporary for now
-        self?.shareViewModel.inputs.configureWith(shareContext: .creatorDashboard(project))
+        self?.shareViewModel.inputs.configureWith(shareContext: .creatorDashboard(project),
+                                                  shareContextView: nil)
     }
 
     self.viewModel.outputs.referrerData
       .observeForUI()
-      .observeValues { [weak self] (cumulative, project, referrers) in
-        self?.dataSource.load(cumulative: cumulative, project: project, referrers: referrers)
+      .observeValues { [weak self] (cumulative, project, aggregates, referrers) in
+        self?.dataSource.load(cumulative: cumulative, project: project,
+                              aggregate: aggregates, referrers: referrers)
         self?.tableView.reloadData()
     }
 
@@ -114,6 +147,12 @@ internal final class DashboardViewController: UITableViewController {
         element?.updateData(data)
     }
 
+    self.viewModel.outputs.goToMessages
+      .observeForControllerAction()
+      .observeValues { [weak self] project in
+        self?.goToMessages(project: project)
+    }
+
     self.viewModel.outputs.goToProject
       .observeForControllerAction()
       .observeValues { [weak self] project, reftag in
@@ -128,9 +167,20 @@ internal final class DashboardViewController: UITableViewController {
 
     self.shareViewModel.outputs.showShareSheet
       .observeForControllerAction()
-      .observeValues { [weak self] in self?.showShareSheet($0) }
+      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller) }
+
+    self.viewModel.outputs.goToMessageThread
+      .observeForControllerAction()
+      .observeValues { [weak self] project, messageThread in
+        self?.goToMessageThread(project: project, messageThread: messageThread)
+    }
+
+    self.viewModel.outputs.goToActivities
+      .observeForControllerAction()
+      .observeValues { [weak self] project in
+        self?.goToActivity(project)
+    }
   }
-  // swiftlint:enable function_body_length
 
   internal override func tableView(_ tableView: UITableView,
                                    willDisplay cell: UITableViewCell,
@@ -158,8 +208,8 @@ internal final class DashboardViewController: UITableViewController {
     }
   }
 
-  fileprivate func goToMessages(_ project: Project) {
-    let vc = MessageThreadsViewController.configuredWith(project: project)
+  private func goToMessages(project: Project) {
+    let vc = MessageThreadsViewController.configuredWith(project: project, refTag: .dashboard)
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
@@ -173,19 +223,19 @@ internal final class DashboardViewController: UITableViewController {
     self.present(nav, animated: true, completion: nil)
   }
 
-  fileprivate func goToProject(_ project: Project, refTag: RefTag) {
+  private func goToProject(_ project: Project, refTag: RefTag) {
     let vc = ProjectNavigatorViewController.configuredWith(project: project, refTag: refTag)
     self.present(vc, animated: true, completion: nil)
   }
 
-  fileprivate func presentProjectsDrawer(data: [ProjectsDrawerData]) {
+  private func presentProjectsDrawer(data: [ProjectsDrawerData]) {
     let vc = DashboardProjectsDrawerViewController.configuredWith(data: data)
     vc.delegate = self
     self.modalPresentationStyle = .overCurrentContext
     self.present(vc, animated: false, completion: nil)
   }
 
-  fileprivate func showShareSheet(_ controller: UIActivityViewController) {
+  private func showShareSheet(_ controller: UIActivityViewController) {
 
     controller.completionWithItemsHandler = { [weak self] activityType, completed, returnedItems, error in
 
@@ -207,12 +257,27 @@ internal final class DashboardViewController: UITableViewController {
     }
   }
 
-  fileprivate func accessibilityFocusOnTitleView() {
+  private func accessibilityFocusOnTitleView() {
     UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, self.titleView)
   }
 
   @objc fileprivate func shareButtonTapped() {
     self.shareViewModel.inputs.shareButtonTapped()
+  }
+
+  private func goToMessageThread(project: Project, messageThread: MessageThread) {
+    let threadsVC = MessageThreadsViewController.configuredWith(project: project, refTag: .dashboard)
+    let messageThreadVC = MessagesViewController.configuredWith(messageThread: messageThread)
+
+    self.navigationController?.setViewControllers([self, threadsVC, messageThreadVC], animated: true)
+  }
+
+  public func navigateToProjectMessageThread(projectId: Param, messageThread: MessageThread) {
+    self.viewModel.inputs.messageThreadNavigated(projectId: projectId, messageThread: messageThread)
+  }
+
+  public func navigateToProjectActivities(projectId: Param) {
+    self.viewModel.inputs.activitiesNavigated(projectId: projectId)
   }
 }
 
@@ -221,8 +286,8 @@ extension DashboardViewController: DashboardActionCellDelegate {
     self.goToActivity(project)
   }
 
-  internal func goToMessages(_ cell: DashboardActionCell?, project: Project) {
-    self.goToMessages(project)
+  internal func goToMessages(_ cell: DashboardActionCell?) {
+    self.viewModel.inputs.messagesCellTapped()
   }
 
   internal func goToPostUpdate(_ cell: DashboardActionCell?, project: Project) {

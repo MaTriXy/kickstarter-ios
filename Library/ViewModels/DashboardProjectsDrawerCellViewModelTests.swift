@@ -6,9 +6,7 @@ import Prelude
 @testable import Library
 @testable import ReactiveExtensions_TestHelpers
 
-  // swiftlint:disable type_name
-internal final class DashboardProjectsDrawerCellViewModelTests: TestCase {
-  // swiftlint:enable type_name
+  internal final class DashboardProjectsDrawerCellViewModelTests: TestCase {
   internal let vm: DashboardProjectsDrawerCellViewModelType = DashboardProjectsDrawerCellViewModel()
 
   let isCheckmarkHidden = TestObserver<Bool, NoError>()

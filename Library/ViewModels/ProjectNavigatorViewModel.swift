@@ -57,7 +57,6 @@ public protocol ProjectNavigatorViewModelType {
 public final class ProjectNavigatorViewModel: ProjectNavigatorViewModelType,
 ProjectNavigatorViewModelInputs, ProjectNavigatorViewModelOutputs {
 
-  // swiftlint:disable:next function_body_length
   public init() {
     let configData = Signal.combineLatest(
       self.configDataProperty.signal.skipNil(),
@@ -165,7 +164,7 @@ ProjectNavigatorViewModelInputs, ProjectNavigatorViewModelOutputs {
     self.pageTransitionCompletedFromIndexProperty.value = (completed, index)
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

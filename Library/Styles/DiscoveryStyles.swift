@@ -3,67 +3,12 @@ import Prelude
 import Prelude_UIKit
 import UIKit
 
-public enum CategoryGroup {
-  case none
-  case culture
-  case entertainment
-  case story
-
-  public init(categoryId: Int?) {
-    let category = RootCategory(categoryId: categoryId ?? RootCategory.unrecognized.rawValue)
-    switch category {
-    case .art, .crafts, .design, .fashion, .theater:
-      self = .culture
-    case .dance, .food, .games, .music, .tech:
-      self = .entertainment
-    case .comics, .film, .journalism, .photography, .publishing:
-      self = .story
-    case .unrecognized:
-      self = .none
-    }
-  }
+public func discoveryPrimaryColor() -> UIColor {
+  return .ksr_dark_grey_900
 }
 
-public func discoveryPrimaryColor(forCategoryId id: Int?) -> UIColor {
-  let group = CategoryGroup(categoryId: id)
-  switch group {
-  case .none:
-    return .black
-  case .culture:
-    return .ksr_red_400
-  case .entertainment:
-    return .ksr_violet_500
-  case .story:
-    return .ksr_forest_700
-  }
-}
-
-public func discoverySecondaryColor(forCategoryId id: Int?) -> UIColor {
-  let group = CategoryGroup(categoryId: id)
-  switch group {
-  case .none:
-    return .ksr_green_700
-  case .culture:
-    return .ksr_violet_600
-  case .entertainment:
-    return .ksr_magenta_400
-  case .story:
-    return .ksr_forest_500
-  }
-}
-
-public func discoveryGradientColors(forCategoryId id: Int?) -> (UIColor, UIColor) {
-  let group = CategoryGroup(categoryId: id)
-  switch group {
-  case .none:
-    return (.white, .white)
-  case .culture:
-    return (.ksr_peachToBlushGradientStart, .ksr_peachToBlushGradientEnd)
-  case .entertainment:
-    return (.ksr_lavenderToPowderGradientStart, .ksr_lavenderToPowderGradientEnd)
-  case .story:
-    return (.ksr_sandToSageGradientStart, .ksr_sandToSageGradientEnd)
-  }
+public func discoverySecondaryColor() -> UIColor {
+  return .ksr_text_dark_grey_500
 }
 
 public let discoveryBorderLineStyle = UIView.lens.alpha .~ 0.15
@@ -76,16 +21,21 @@ public let discoveryNavTitleStackViewStyle =
   UIStackView.lens.layoutMargins %~~ { _, stack in
     stack.traitCollection.horizontalSizeClass == .compact ? .init(top: -6.0) : .init(top: 0.0)
     }
-    <> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+    <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
+
+public let discoverySaveButtonStyle = saveButtonStyle
+  <> UIButton.lens.image(for: .normal) .~ image(named: "icon--heart-outline-circle")
+  <> UIButton.lens.image(for: .selected) .~ image(named: "icon--heart-circle")
+  <> UIButton.lens.tintColor .~ .white
 
 public let discoveryOnboardingSignUpButtonStyle = baseButtonStyle
-  <> UIButton.lens.titleColor(forState: .normal) .~ .ksr_text_navy_900
-  <> UIButton.lens.backgroundColor(forState: .normal) .~ .white
-  <> UIButton.lens.titleColor(forState: .highlighted) .~ .ksr_text_navy_500
-  <> UIButton.lens.backgroundColor(forState: .highlighted) .~ .ksr_navy_200
-  <> UIButton.lens.layer.borderColor .~ UIColor.black.cgColor
+  <> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_dark_grey_900
+  <> UIButton.lens.backgroundColor(for: .normal) .~ .white
+  <> UIButton.lens.titleColor(for: .highlighted) .~ .ksr_text_dark_grey_400
+  <> UIButton.lens.backgroundColor(for: .highlighted) .~ .ksr_navy_200
+  <> UIButton.lens.layer.borderColor .~ UIColor.ksr_dark_grey_900.cgColor
   <> UIButton.lens.layer.borderWidth .~ 1.0
-  <> UIButton.lens.title(forState: .normal) %~ { _ in
+  <> UIButton.lens.title(for: .normal) %~ { _ in
     Strings.discovery_onboarding_buttons_signup_or_login()
 }
 
@@ -99,8 +49,8 @@ public func discoveryFilterLabelFontStyle<L: UILabelProtocol> (isSelected: Bool)
 
 public func discoveryFilterLabelStyle<L: UILabelProtocol> (categoryId: Int?, isSelected: Bool)
   -> ((L) -> L) {
-  return L.lens.textColor .~ discoveryPrimaryColor(forCategoryId: categoryId)
-      <> L.lens.alpha .~ ((categoryId == nil) ? 1.0 : (isSelected ? 1.0 : 0.6))
+  return L.lens.textColor .~ discoveryPrimaryColor()
+      <> L.lens.alpha .~ ((categoryId == nil) ? 1.0 : (isSelected ? 1.0 : 0.8))
 }
 
 public let discoveryFilterRowMarginStyle = baseTableViewCellStyle()
@@ -124,8 +74,8 @@ public let discoveryOnboardingTitleStyle =
 
 public let discoveryOnboardingLogoStyle =
   UIImageView.lens.contentMode .~ .scaleAspectFit
-    <> UIImageView.lens.contentHuggingPriorityForAxis(.vertical) .~ UILayoutPriorityRequired
-    <> UIImageView.lens.contentCompressionResistancePriorityForAxis(.vertical) .~ UILayoutPriorityRequired
+    <> UIImageView.lens.contentHuggingPriority(for: .vertical) .~ .required
+    <> UIImageView.lens.contentCompressionResistancePriority(for: .vertical) .~ .required
 
 public let discoveryOnboardingStackViewStyle =
   UIStackView.lens.spacing .~ 16.0
@@ -145,62 +95,67 @@ public func discoverySortPagerButtonStyle <B: UIButtonProtocol> (sort: Discovery
                                                                  isRegularRegular: Bool) -> ((B) -> B) {
 
   let sortString = string(forSort: sort)
-  let titleColor = discoverySecondaryColor(forCategoryId: categoryId)
 
   let normalTitleString = NSAttributedString(string: sortString, attributes: [
-    NSFontAttributeName: isRegularRegular
+    NSAttributedStringKey.font: isRegularRegular
       ? UIFont.ksr_subhead(size: 16.0)
-      : UIFont.ksr_subhead(size: 14.0),
-    NSForegroundColorAttributeName: titleColor.withAlphaComponent(0.6)
+      : UIFont.ksr_subhead(size: 15.0),
+    NSAttributedStringKey.foregroundColor: discoverySecondaryColor().withAlphaComponent(0.6)
   ])
 
   let selectedTitleString = NSAttributedString(string: sortString, attributes: [
-    NSFontAttributeName: isRegularRegular
+    NSAttributedStringKey.font: isRegularRegular
       ? UIFont.ksr_subhead(size: 16.0).bolded
-      : UIFont.ksr_subhead(size: 14.0).bolded,
-    NSForegroundColorAttributeName: titleColor
+      : UIFont.ksr_subhead(size: 15.0),
+    NSAttributedStringKey.foregroundColor: UIColor.black
   ])
 
   return
-    B.lens.titleColor(forState: .highlighted) .~ titleColor
+    B.lens.titleColor(for: .highlighted) .~ discoverySecondaryColor()
       <> B.lens.accessibilityLabel %~ { _ in
         Strings.discovery_accessibility_buttons_sort_label(sort: sortString)
       }
       <> B.lens.accessibilityHint %~ { _ in Strings.discovery_accessibility_buttons_sort_hint() }
       <> B.lens.contentEdgeInsets .~ sortButtonEdgeInsets(isLeftMost: isLeftMost,
                                                           isRightMost: isRightMost)
-      <> B.lens.attributedTitle(forState: .normal) %~ { _ in normalTitleString }
-      <> B.lens.attributedTitle(forState: .selected) %~ { _ in selectedTitleString }
+      <> B.lens.attributedTitle(for: .normal) %~ { _ in normalTitleString }
+      <> B.lens.attributedTitle(for: .selected) %~ { _ in selectedTitleString }
 }
+
+public let postcardCategoryLabelStyle =
+  UILabel.lens.font .~ .ksr_body(size: 13.0)
+    <> UILabel.lens.textColor .~ .ksr_text_dark_grey_500
+    <> UILabel.lens.textAlignment .~ .left
+    <> UILabel.lens.lineBreakMode .~ .byClipping
 
 public let postcardMetadataLabelStyle =
   UILabel.lens.font .~ .ksr_headline(size: 12.0)
-    <> UILabel.lens.textColor .~ .ksr_text_navy_700
+    <> UILabel.lens.textColor .~ .ksr_text_dark_grey_500
 
 public let postcardMetadataStackViewStyle =
   UIStackView.lens.alignment .~ .center
     <> UIStackView.lens.spacing .~ Styles.grid(1)
     <> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: 8.0)
-    <> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+    <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
 public let postcardSocialStackViewStyle =
   UIStackView.lens.alignment .~ .center
     <> UIStackView.lens.spacing .~ Styles.grid(1)
     <> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: 8.0)
-    <> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+    <> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
 public let postcardStatsSubtitleStyle =
   UILabel.lens.font %~~ { _, label in
       label.traitCollection.isRegularRegular
         ? .ksr_body(size: 14)
-        : .ksr_body(size: 12)
+        : .ksr_body(size: 13)
     }
 
 public let postcardStatsTitleStyle =
   UILabel.lens.font %~~ { _, label in
     label.traitCollection.isRegularRegular
       ? .ksr_headline(size: 17)
-      : .ksr_headline(size: 15)
+      : .ksr_headline(size: 13)
   }
 
 private func sortButtonEdgeInsets(isLeftMost: Bool, isRightMost: Bool) -> UIEdgeInsets {
@@ -221,7 +176,7 @@ private func string(forSort sort: DiscoveryParams.Sort) -> String {
   case .endingSoon:
     return Strings.Ending_soon()
   case .magic:
-    return Strings.Home()
+    return Strings.discovery_sort_types_magic()
   case .mostFunded:
     return Strings.discovery_sort_types_most_funded()
   case .newest:

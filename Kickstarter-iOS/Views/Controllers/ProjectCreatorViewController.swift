@@ -38,9 +38,25 @@ internal final class ProjectCreatorViewController: WebViewController {
   internal override func bindViewModel() {
     super.bindViewModel()
 
+    self.viewModel.outputs.goToLoginTout
+      .observeForControllerAction()
+      .observeValues { [weak self] in
+        self?.goToLoginTout($0)
+    }
+
     self.viewModel.outputs.loadWebViewRequest
       .observeForControllerAction()
       .observeValues { [weak self] in _ = self?.webView.load($0) }
+
+    self.viewModel.outputs.goBackToProject
+      .observeForControllerAction()
+      .observeValues { [weak self] in
+        if self?.traitCollection.userInterfaceIdiom == .pad {
+          self?.dismiss(animated: true, completion: nil)
+        } else {
+          self?.navigationController?.popViewController(animated: true)
+        }
+    }
 
     self.viewModel.outputs.goToMessageDialog
       .observeForControllerAction()
@@ -54,13 +70,21 @@ internal final class ProjectCreatorViewController: WebViewController {
   }
 
   internal func webView(_ webView: WKWebView,
-                        decidePolicyForNavigationAction navigationAction: WKNavigationAction,
-                        decisionHandler: (WKNavigationActionPolicy) -> Void) {
+                        decidePolicyFor navigationAction: WKNavigationAction,
+                        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
     decisionHandler(
       self.viewModel.inputs.decidePolicy(
         forNavigationAction: WKNavigationActionData(navigationAction: navigationAction)
       )
     )
+  }
+
+  fileprivate func goToLoginTout(_ loginIntent: LoginIntent) {
+    let vc = LoginToutViewController.configuredWith(loginIntent: loginIntent)
+    let nav = UINavigationController(rootViewController: vc)
+    nav.modalPresentationStyle = .formSheet
+
+    self.present(nav, animated: true, completion: nil)
   }
 
   fileprivate func goToMessageDialog(subject: MessageSubject, context: Koala.MessageDialogContext) {

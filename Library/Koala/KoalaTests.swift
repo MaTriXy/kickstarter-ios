@@ -1,7 +1,5 @@
 // swiftlint:disable force_cast
 // swiftlint:disable force_unwrapping
-// swiftlint:disable type_body_length
-// swiftlint:disable file_length
 import XCTest
 import Prelude
 @testable import KsApi
@@ -123,7 +121,7 @@ final class KoalaTests: TestCase {
     XCTAssertEqual(project.stats.fundingProgress, properties["project_percent_raised"] as? Float)
     XCTAssertNotNil(project.video)
     XCTAssertEqual(project.category.name, properties["project_category"] as? String)
-    XCTAssertEqual(project.category.parent?.name, properties["project_parent_category"] as? String)
+    XCTAssertEqual(project.category._parent?.name, properties["project_parent_category"] as? String)
     XCTAssertEqual(project.location.name, properties["project_location"] as? String)
     XCTAssertEqual(project.stats.backersCount, properties["project_backers_count"] as? Int)
 
@@ -341,6 +339,7 @@ final class KoalaTests: TestCase {
 
   func testDiscoveryProperties_Everything() {
     let client = MockTrackingClient()
+
     let params = .defaults
       |> DiscoveryParams.lens.sort .~ .magic
 

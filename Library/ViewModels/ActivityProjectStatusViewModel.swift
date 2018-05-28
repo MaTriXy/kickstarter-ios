@@ -87,24 +87,24 @@ public final class ActivityProjectStatusViewModel: ActivityProjectStatusViewMode
 private func progressBarColor(forActivityCategory category: Activity.Category) -> UIColor {
   switch category {
   case .cancellation, .failure, .suspension:
-    return .ksr_navy_500
+    return .ksr_dark_grey_900
   case .launch, .success:
-    return .ksr_green_400
+    return .ksr_green_700
   default:
-    return .ksr_green_400
+    return .ksr_green_700
   }
 }
 
 private func metadataColor(forActivityCategory category: Activity.Category) -> UIColor {
   switch category {
   case .cancellation, .failure, .suspension:
-    return .ksr_navy_500
+    return .ksr_dark_grey_900
   case .launch:
-    return .ksr_navy_700
+    return .ksr_green_500
   case .success:
-    return .ksr_green_700
+    return .ksr_green_500
   default:
-    return .ksr_green_700
+    return .ksr_green_500
   }
 }
 
@@ -132,24 +132,9 @@ private func percentFundedString(forActivity activity: Activity) -> NSAttributed
   guard let project = activity.project else { return NSAttributedString(string: "") }
 
   let percentage = Format.percentage(project.stats.percentFunded)
-  let funded = Strings.percentage_funded(percentage: percentage)
 
-  let mutableString = NSMutableAttributedString(string: funded, attributes: [
-    NSFontAttributeName: UIFont.ksr_caption1(),
-    NSForegroundColorAttributeName: UIColor.ksr_navy_500
+  return NSAttributedString(string: percentage, attributes: [
+    NSAttributedStringKey.font: UIFont.ksr_caption1(size: 10),
+    NSAttributedStringKey.foregroundColor: UIColor.ksr_green_700
     ])
-
-  if let percentRange = mutableString.string.range(of: percentage) {
-    let percentStartIndex = mutableString.string
-      .distance(from: mutableString.string.startIndex, to: percentRange.lowerBound)
-    mutableString.addAttributes([
-      NSFontAttributeName: UIFont.ksr_headline(size: 12.0),
-      NSForegroundColorAttributeName:
-        (activity.category == .cancellation
-          || activity.category == .failure
-          || activity.category == .suspension) ? UIColor.ksr_text_navy_500 : UIColor.ksr_green_500
-      ], range: NSRange(location: percentStartIndex, length: percentage.characters.count))
-  }
-
-  return mutableString
 }

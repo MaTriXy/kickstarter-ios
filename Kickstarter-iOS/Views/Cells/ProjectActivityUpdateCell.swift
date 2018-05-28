@@ -52,8 +52,7 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
     self.updateTitleLabel.rac.text = self.viewModel.outputs.updateTitle
   }
 
-  // swiftlint:disable function_body_length
-  internal override func bindStyles() {
+    internal override func bindStyles() {
     super.bindStyles()
 
     let statLabel =
@@ -70,11 +69,11 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
       |> UITableViewCell.lens.accessibilityHint %~ { _ in Strings.Opens_update() }
 
     _ = self.cardView
-      |> dropShadowStyle()
+      |> dropShadowStyleMedium()
 
     _ = self.bodyLabel
       |> UILabel.lens.numberOfLines .~ 4
-      |> UILabel.lens.textColor .~ .ksr_text_navy_600
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
       |> UILabel.lens.font %~~ { _, label in
           label.traitCollection.isRegularRegular
             ? UIFont.ksr_body()
@@ -82,7 +81,7 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
       }
 
     _ = self.commentsCountImageView
-      |> UIImageView.lens.tintColor .~ .ksr_navy_600
+      |> UIImageView.lens.tintColor .~ .ksr_dark_grey_500
 
     _ = self.commentsCountLabel
       |> statLabel
@@ -93,7 +92,7 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
     _ = self.containerStackView
       |> UIStackView.lens.spacing .~ Styles.grid(4)
       |> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.contentAndFooterStackView
       |> UIStackView.lens.spacing .~ Styles.grid(3)
@@ -105,7 +104,7 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
       |> UIStackView.lens.spacing .~ Styles.grid(3)
 
     _ = self.likesCountImageView
-      |> UIImageView.lens.tintColor .~ .ksr_navy_600
+      |> UIImageView.lens.tintColor .~ .ksr_dark_grey_500
 
     _ = self.likesCountLabel
       |> statLabel
@@ -116,7 +115,6 @@ internal final class ProjectActivityUpdateCell: UITableViewCell, ValueCell {
     _ = self.updateTitleLabel
       |> UILabel.lens.font .~ .ksr_title1(size: 22)
       |> UILabel.lens.numberOfLines .~ 0
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
   }
-  // swiftlint:enable function_body_length
 }

@@ -9,7 +9,6 @@ internal final class ProjectActivityViewControllerTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
     AppEnvironment.pushEnvironment(
       apiService: MockService(
         oauthToken: OauthToken(token: "deadbeef"),
@@ -55,7 +54,8 @@ internal final class ProjectActivityViewControllerTests: TestCase {
   }
 
   func testVoiceOverRunning() {
-    withEnvironment(isVoiceOverRunning: { true }) {
+    let isVoiceOverRunning = { true }
+    withEnvironment(isVoiceOverRunning: isVoiceOverRunning) {
       let controller = ProjectActivitiesViewController.configuredWith(project: project)
       let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
       parent.view.frame.size.height = 2800

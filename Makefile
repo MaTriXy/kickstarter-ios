@@ -4,13 +4,15 @@ BUILD_FLAGS = -scheme $(SCHEME) -destination $(DESTINATION)
 SCHEME ?= $(TARGET)-$(PLATFORM)
 TARGET ?= Kickstarter-Framework
 PLATFORM ?= iOS
-OS ?= 10.2
 RELEASE ?= beta
+IOS_VERSION ?= 11.3
+IPHONE_NAME ?= iPhone 8
 BRANCH ?= master
 DIST_BRANCH = $(RELEASE)-dist
+OPENTOK_VERSION ?= 2.10.2
 
 ifeq ($(PLATFORM),iOS)
-	DESTINATION ?= 'platform=iOS Simulator,name=iPhone 7,OS=10.2'
+	DESTINATION ?= 'platform=iOS Simulator,name=$(IPHONE_NAME),OS=$(IOS_VERSION)'
 endif
 
 XCPRETTY :=
@@ -87,24 +89,32 @@ deploy:
 
 	@echo "Deploy has been kicked off to CircleCI!"
 
+alpha:
+	@echo "Deploying private/alpha-dist..."
+
+	@git branch -f alpha-dist private/alpha-dist
+	@git push -f private alpha-dist
+	@git branch -d alpha-dist
+
+	@echo "Deploy has been kicked off to CircleCI!"
+
 lint:
 	swiftlint lint --reporter json --strict
 
 strings:
-	cat Frameworks/ios-ksapi/Frameworks/native-secrets/ios/Secrets.swift bin/strings.swift \
+	cat Frameworks/native-secrets/ios/Secrets.swift bin/strings.swift \
 		| xcrun -sdk macosx swift -
 
 secrets:
-	-@rm -rf Frameworks/ios-ksapi/Frameworks/native-secrets
-	-@git clone https://github.com/kickstarter/native-secrets Frameworks/ios-ksapi/Frameworks/native-secrets 2>/dev/null || echo '(Skipping secrets.)'
-	if [ ! -d Frameworks/ios-ksapi/Frameworks/native-secrets ]; \
+	-@rm -rf Frameworks/native-secrets
+	-@git clone https://github.com/kickstarter/native-secrets Frameworks/native-secrets 2>/dev/null || echo '(Skipping secrets.)'
+	if [ ! -d Frameworks/native-secrets ]; \
 	then \
-		mkdir -p Frameworks/ios-ksapi/Frameworks/native-secrets/ios \
-		&& cp -n Configs/Secrets.swift.example Frameworks/ios-ksapi/Frameworks/native-secrets/ios/Secrets.swift \
+		mkdir -p Frameworks/native-secrets/ios \
+		&& cp -n Configs/Secrets.swift.example Frameworks/native-secrets/ios/Secrets.swift \
 		|| true; \
 	fi
 
-OPENTOK_VERSION = 2.10.2
 VERSION_FILE = Frameworks/OpenTok/version
 CURRENT_OPENTOK_VERSION = $(shell cat $(VERSION_FILE))
 ifeq ($(CURRENT_OPENTOK_VERSION),)

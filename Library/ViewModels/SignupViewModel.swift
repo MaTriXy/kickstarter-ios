@@ -69,8 +69,7 @@ public protocol SignupViewModelType {
 
 public final class SignupViewModel: SignupViewModelType, SignupViewModelInputs, SignupViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let initialText = self.viewDidLoadProperty.signal.mapConst("")
     let name = Signal.merge(
       self.nameChangedProperty.signal,
@@ -84,8 +83,9 @@ public final class SignupViewModel: SignupViewModelType, SignupViewModelInputs, 
       self.passwordChangedProperty.signal,
       initialText
     )
+
     let newsletter = Signal.merge(
-      self.viewDidLoadProperty.signal.map { AppEnvironment.current.config?.countryCode == "US" },
+      self.viewDidLoadProperty.signal.mapConst(false),
       self.weeklyNewsletterChangedProperty.signal.skipNil()
     )
 
@@ -159,12 +159,12 @@ public final class SignupViewModel: SignupViewModelType, SignupViewModelInputs, 
     self.emailChangedProperty.value = email
   }
 
-  fileprivate let emailTextFieldReturnProperty = MutableProperty()
+  fileprivate let emailTextFieldReturnProperty = MutableProperty(())
   public func emailTextFieldReturn() {
     self.emailTextFieldReturnProperty.value = ()
   }
 
-  fileprivate let environmentLoggedInProperty = MutableProperty()
+  fileprivate let environmentLoggedInProperty = MutableProperty(())
   public func environmentLoggedIn() {
     self.environmentLoggedInProperty.value = ()
   }
@@ -174,7 +174,7 @@ public final class SignupViewModel: SignupViewModelType, SignupViewModelInputs, 
     self.nameChangedProperty.value = name
   }
 
-  fileprivate let nameTextFieldReturnProperty = MutableProperty()
+  fileprivate let nameTextFieldReturnProperty = MutableProperty(())
   public func nameTextFieldReturn() {
     self.nameTextFieldReturnProperty.value = ()
   }
@@ -184,17 +184,17 @@ public final class SignupViewModel: SignupViewModelType, SignupViewModelInputs, 
     self.passwordChangedProperty.value = password
   }
 
-  fileprivate let passwordTextFieldReturnProperty = MutableProperty()
+  fileprivate let passwordTextFieldReturnProperty = MutableProperty(())
   public func passwordTextFieldReturn() {
     self.passwordTextFieldReturnProperty.value = ()
   }
 
-  fileprivate let signupButtonPressedProperty = MutableProperty()
+  fileprivate let signupButtonPressedProperty = MutableProperty(())
   public func signupButtonPressed() {
     self.signupButtonPressedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

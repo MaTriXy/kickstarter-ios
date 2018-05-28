@@ -150,17 +150,15 @@ internal final class SortPagerViewController: UIViewController {
   fileprivate func selectButton(atIndex index: Int) {
     for (idx, button) in self.sortsStackView.arrangedSubviews.enumerated() {
       _ = (button as? UIButton)
-        ?|> UIButton.lens.selected .~ (idx == index)
+        ?|> UIButton.lens.isSelected .~ (idx == index)
     }
   }
 
   fileprivate func pinSelectedIndicator(toPage page: Int, animated: Bool) {
     guard let button = self.sortsStackView.arrangedSubviews[page] as? UIButton else { return }
 
-    let padding = page == 0 ? Styles.grid(2) : Styles.grid(4) - 3
-
-    let leadingConstant = self.sortsStackView.frame.origin.x + button.frame.origin.x + padding
-    let widthConstant = button.titleLabel?.frame.width ?? button.frame.width
+    let leadingConstant = self.sortsStackView.frame.origin.x + button.frame.origin.x
+    let widthConstant = button.frame.width
 
     self.indicatorViewLeadingConstraint.constant = leadingConstant
     self.indicatorViewWidthConstraint.constant = widthConstant
@@ -202,7 +200,7 @@ internal final class SortPagerViewController: UIViewController {
       options: [.transitionCrossDissolve, .curveEaseOut],
       animations: {
         _ = [self.indicatorView, self.borderLineView]
-          ||> UIView.lens.backgroundColor .~ discoveryPrimaryColor(forCategoryId: categoryId)
+          ||> UIView.lens.backgroundColor .~ discoveryPrimaryColor()
       },
       completion: nil)
   }

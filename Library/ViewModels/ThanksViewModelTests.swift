@@ -1,5 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
 import XCTest
 import ReactiveSwift
 import UIKit
@@ -24,6 +22,7 @@ final class ThanksViewModelTests: TestCase {
   let showGamesNewsletterOptInAlert = TestObserver<String, NoError>()
   let showRecommendations = TestObserver<[Project], NoError>()
   let dismissToRootViewController = TestObserver<(), NoError>()
+  let postContextualNotification = TestObserver<(), NoError>()
   let postUserUpdatedNotification = TestObserver<Notification.Name, NoError>()
   let updateUserInEnvironment = TestObserver<User, NoError>()
   let facebookButtonIsHidden = TestObserver<Bool, NoError>()
@@ -31,24 +30,21 @@ final class ThanksViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
     vm.outputs.backedProjectText.map { $0.string }.observe(backedProjectText.observer)
+    vm.outputs.dismissToRootViewController.observe(dismissToRootViewController.observer)
+    vm.outputs.goToAppStoreRating.observe(goToAppStoreRating.observer)
     vm.outputs.goToDiscovery.map { params in params.category ?? Category.filmAndVideo }
       .observe(goToDiscovery.observer)
     vm.outputs.goToProject.map { $0.0 }.observe(goToProject.observer)
     vm.outputs.goToProject.map { $0.1 }.observe(goToProjects.observer)
     vm.outputs.goToProject.map { $0.2 }.observe(goToRefTag.observer)
-    vm.outputs.showRatingAlert.observe(showRatingAlert.observer)
-    vm.outputs.goToAppStoreRating.observe(goToAppStoreRating.observer)
+    vm.outputs.postContextualNotification.observe(postContextualNotification.observer)
+    vm.outputs.postUserUpdatedNotification.map { $0.name }.observe(postUserUpdatedNotification.observer)
     vm.outputs.showGamesNewsletterAlert.observe(showGamesNewsletterAlert.observer)
     vm.outputs.showGamesNewsletterOptInAlert.observe(showGamesNewsletterOptInAlert.observer)
+    vm.outputs.showRatingAlert.observe(showRatingAlert.observer)
     vm.outputs.showRecommendations.map { projects, _ in projects }.observe(showRecommendations.observer)
-    vm.outputs.dismissToRootViewController.observe(dismissToRootViewController.observer)
-    vm.outputs.postUserUpdatedNotification.map { $0.name }
-      .observe(postUserUpdatedNotification.observer)
     vm.outputs.updateUserInEnvironment.observe(updateUserInEnvironment.observer)
-    vm.outputs.facebookButtonIsHidden.observe(facebookButtonIsHidden.observer)
-    vm.outputs.twitterButtonIsHidden.observe(twitterButtonIsHidden.observer)
   }
 
   func testdismissToRootViewController() {
@@ -91,8 +87,10 @@ final class ThanksViewModelTests: TestCase {
     vm.inputs.project(project)
     vm.inputs.viewDidLoad()
 
-    backedProjectText.assertValues(["You just backed The Project. " +
-      "Share this project with friends to help it along!"], "Name of project emits")
+    backedProjectText.assertValues(
+      ["You have successfully backed The Project. " +
+      "This project is now one step closer to a reality, thanks to you. Spread the word!"
+      ], "Name of project emits")
   }
 
   func testRatingAlert_Initial() {
@@ -324,6 +322,26 @@ final class ThanksViewModelTests: TestCase {
     }
   }
 
+  func testContextualNotificationEmitsWhen_userPledgedFirstProject() {
+
+    let user = .template |> User.lens.stats.backedProjectsCount .~ 0
+
+    withEnvironment(currentUser: user) {
+      vm.inputs.viewDidLoad()
+      postContextualNotification.assertDidEmitValue()
+    }
+  }
+
+  func testContextualNotificationDoesNotEmitWhen_userPledgedMoreThanOneProject() {
+
+    let user = .template |> User.lens.stats.backedProjectsCount .~ 2
+
+    withEnvironment(currentUser: user) {
+      vm.inputs.viewDidLoad()
+      postContextualNotification.assertDidNotEmitValue()
+    }
+  }
+
   func testGamesNewsletterOptInAlert() {
     withEnvironment(countryCode: "DE", currentUser: User.template) {
       vm.inputs.project(.template |> Project.lens.category .~ .games)
@@ -467,7 +485,8 @@ final class ThanksViewModelTests: TestCase {
       let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
       secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
 
-      secondVM.inputs.project(Project.template |> Project.lens.category .~ Category.games)
+      secondVM.inputs.project(Project.template
+        |> Project.lens.category .~ Category.games)
       secondVM.inputs.viewDidLoad()
 
       secondShowRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
@@ -621,37 +640,5 @@ final class ThanksViewModelTests: TestCase {
 
       showRecommendations.assertValueCount(0, "Recommended projects did not emit")
     }
-  }
-
-  func testFacebookIsNotAvailable() {
-    self.vm.inputs.project(.template)
-    self.vm.inputs.facebookIsAvailable(false)
-    self.vm.inputs.viewDidLoad()
-
-    self.facebookButtonIsHidden.assertValues([true], "Facebook button is hidden")
-  }
-
-  func testFacebookIsAvailable() {
-    self.vm.inputs.project(.template)
-    self.vm.inputs.facebookIsAvailable(true)
-    self.vm.inputs.viewDidLoad()
-
-    self.facebookButtonIsHidden.assertValues([false], "Facebook button is not hidden")
-  }
-
-  func testTwitterIsNotAvailable() {
-    self.vm.inputs.project(.template)
-    self.vm.inputs.twitterIsAvailable(false)
-    self.vm.inputs.viewDidLoad()
-
-    self.twitterButtonIsHidden.assertValues([true], "Twitter button is hidden.")
-  }
-
-  func testTwitterIsAvailable() {
-    self.vm.inputs.project(.template)
-    self.vm.inputs.twitterIsAvailable(true)
-    self.vm.inputs.viewDidLoad()
-
-    self.twitterButtonIsHidden.assertValues([false], "Twitter button is not hidden.")
   }
 }

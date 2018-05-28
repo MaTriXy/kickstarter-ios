@@ -1,11 +1,10 @@
-// swiftlint:disable function_body_length
 import XCTest
 import Argo
 @testable import LiveStream
 
 final class LiveStreamSubscribeEnvelopeTests: XCTestCase {
   func testParseJson_Success() {
-    let json: [String:Any] = [
+    let json: [String: Any] = [
       "success": true
     ]
 
@@ -16,7 +15,7 @@ final class LiveStreamSubscribeEnvelopeTests: XCTestCase {
   }
 
   func testParseJson_Failure() {
-    let json: [String:Any] = [
+    let json: [String: Any] = [
       "success": false,
       "reason": "A great reason"
     ]

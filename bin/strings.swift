@@ -1,7 +1,9 @@
 import Foundation
 
+let oauthToken: String = ProcessInfo.processInfo.environment["KICKSTARTER_API_IOS_OAUTH_TOKEN"] ?? ""
+
 let endpoint: String? =
-  "https://\(Secrets.Api.Endpoint.production)/v1/app/ios/config?client_id=\(Secrets.Api.Client.production)&all_locales=true"
+  "https://\(Secrets.Api.Endpoint.production)/v1/app/ios/config?client_id=\(Secrets.Api.Client.production)&all_locales=true&oauth_token=\(oauthToken)"
 
 extension Dictionary {
   public func withAllValuesFrom(_ other: Dictionary) -> Dictionary {
@@ -141,8 +143,6 @@ staticStringsLines.append("//===================================================
 staticStringsLines.append("")
 staticStringsLines.append("// swiftlint:disable valid_docs")
 staticStringsLines.append("// swiftlint:disable line_length")
-staticStringsLines.append("// swiftlint:disable file_length")
-staticStringsLines.append("// swiftlint:disable type_body_length")
 staticStringsLines.append("public enum Strings {")
 
 stringsByLocale?["Base"]?.keys

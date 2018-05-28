@@ -15,6 +15,7 @@ import ReactiveSwift
 import Result
 import SafariServices
 import UIKit
+import UserNotifications
 
 @UIApplicationMain
 internal final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -25,7 +26,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     return self.window?.rootViewController as? RootTabBarViewController
   }
 
-  // swiftlint:disable function_body_length
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
@@ -35,7 +35,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     AppEnvironment.replaceCurrentEnvironment(
       AppEnvironment.fromStorage(
-        ubiquitousStore: NSUbiquitousKeyValueStore.default(),
+        ubiquitousStore: NSUbiquitousKeyValueStore.default,
         userDefaults: UserDefaults.standard
       )
     )
@@ -97,9 +97,21 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.goToLiveStream(project: $0, liveStreamEvent: $1, refTag: $2)
     }
 
+    self.viewModel.outputs.goToCreatorMessageThread
+      .observeForUI()
+      .observeValues { [weak self] in
+        self?.goToCreatorMessageThread($0, $1)
+      }
+
     self.viewModel.outputs.goToMessageThread
       .observeForUI()
       .observeValues { [weak self] in self?.goToMessageThread($0) }
+
+    self.viewModel.outputs.goToProjectActivities
+      .observeForUI()
+      .observeValues { [weak self] in
+        self?.goToProjectActivities($0)
+    }
 
     self.viewModel.outputs.goToSearch
       .observeForUI()
@@ -109,13 +121,42 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { UIApplication.shared.openURL($0) }
 
-    self.viewModel.outputs.registerUserNotificationSettings
+    self.viewModel.outputs.registerForRemoteNotifications
       .observeForUI()
       .observeValues {
-        UIApplication.shared.registerUserNotificationSettings(
-          UIUserNotificationSettings(types: .alert, categories: [])
-        )
-        UIApplication.shared.registerForRemoteNotifications()
+        if #available(iOS 10.0, *) {
+          UIApplication.shared.registerForRemoteNotifications()
+        } else {
+          UIApplication.shared.registerUserNotificationSettings(
+            UIUserNotificationSettings(types: .alert, categories: [])
+          )
+
+          UIApplication.shared.registerForRemoteNotifications()
+        }
+      }
+
+      if #available(iOS 10.0, *) {
+        self.viewModel.outputs.getNotificationAuthorizationStatus
+          .observeForUI()
+          .observeValues { [weak self] in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
+              self?.viewModel.inputs.notificationAuthorizationStatusReceived(settings.authorizationStatus)
+            }
+          }
+
+        self.viewModel.outputs.authorizeForRemoteNotifications
+          .observeForUI()
+          .observeValues { [weak self] in
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { (isGranted, _) in
+              self?.viewModel.inputs.notificationAuthorizationCompleted(isGranted: isGranted)
+            }
+          }
+      }
+
+    self.viewModel.outputs.showAlert
+      .observeForUI()
+      .observeValues { [weak self] in
+        self?.presentContextualPermissionAlert($0)
     }
 
     self.viewModel.outputs.unregisterForRemoteNotifications
@@ -124,7 +165,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     self.viewModel.outputs.presentRemoteNotificationAlert
       .observeForUI()
-      .observeValues { [weak self] in self?.presentRemoteNotificationAlert($0) }
+      .observeValues { [weak self] in
+        self?.presentRemoteNotificationAlert($0)
+      }
 
     self.viewModel.outputs.configureHockey
       .observeForUI()
@@ -157,24 +200,31 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] in self?.findRedirectUrl($0) }
 
+    //swiftlint:disable discarded_notification_center_observer
     NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionStarted, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionStarted()
     }
 
     NotificationCenter.default
+      .addObserver(
+        forName: Notification.Name.ksr_showNotificationsDialog, object: nil, queue: nil) { [weak self] in
+        self?.viewModel.inputs.showNotificationDialog(notification: $0)
+    }
+
+    NotificationCenter.default
       .addObserver(forName: Notification.Name.ksr_sessionEnded, object: nil, queue: nil) { [weak self] _ in
         self?.viewModel.inputs.userSessionEnded()
     }
+    //swiftlint:enable discarded_notification_center_observer
 
-    self.window?.tintColor = .ksr_navy_700
+    self.window?.tintColor = .ksr_dark_grey_500
 
     self.viewModel.inputs.applicationDidFinishLaunching(application: application,
                                                         launchOptions: launchOptions)
 
     return self.viewModel.outputs.applicationDidFinishLaunchingReturnValue
   }
-  // swiftlint:enable function_body_length
 
   func applicationWillEnterForeground(_ application: UIApplication) {
     self.viewModel.inputs.applicationWillEnterForeground()
@@ -189,6 +239,16 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
                    restorationHandler: @escaping ([Any]?) -> Void) -> Bool {
 
     return self.viewModel.inputs.applicationContinueUserActivity(userActivity)
+  }
+
+  func application(_ app: UIApplication, open url: URL,
+                   options: [UIApplicationOpenURLOptionsKey: Any] = [:]) -> Bool {
+    guard let sourceApplication = options[.sourceApplication] as? String else { return false }
+
+    return self.viewModel.inputs.applicationOpenUrl(application: app,
+                                                    url: url,
+                                                    sourceApplication: sourceApplication,
+                                                    annotation: options[.annotation] as Any)
   }
 
   func application(_ application: UIApplication,
@@ -235,6 +295,35 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     completionHandler(true)
   }
 
+  fileprivate func presentContextualPermissionAlert(_ notification: Notification) {
+
+    guard let context = notification.userInfo?.values.first as? PushNotificationDialog.Context else {
+      return
+    }
+
+    let alert = UIAlertController(title: context.title, message: context.message, preferredStyle: .alert)
+
+    alert.addAction(
+      UIAlertAction(title: Strings.project_star_ok(), style: .default) { [weak self] _ in
+        self?.viewModel.inputs.didAcceptReceivingRemoteNotifications()
+      }
+    )
+
+    alert.addAction(
+      UIAlertAction(title: PushNotificationDialog.titleForDismissal, style: .cancel, handler: { _ in
+        PushNotificationDialog.didDenyAccess(for: context)
+      })
+    )
+
+    DispatchQueue.main.async {
+      if let viewController = notification.userInfo?[UserInfoKeys.viewController] as? UIViewController {
+        viewController.present(alert, animated: true, completion: nil)
+      } else {
+        self.rootTabBarController?.present(alert, animated: true, completion: nil)
+      }
+    }
+  }
+
   fileprivate func presentRemoteNotificationAlert(_ message: String) {
     let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
 
@@ -248,7 +337,9 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       UIAlertAction(title: Strings.Dismiss(), style: .cancel, handler: nil)
     )
 
-    self.rootTabBarController?.present(alert, animated: true, completion: nil)
+    DispatchQueue.main.async {
+      self.rootTabBarController?.present(alert, animated: true, completion: nil)
+    }
   }
 
   private func goToLiveStream(project: Project,
@@ -279,8 +370,17 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
   }
 
-  fileprivate func goToMessageThread(_ messageThread: MessageThread) {
+  private func goToMessageThread(_ messageThread: MessageThread) {
     self.rootTabBarController?.switchToMessageThread(messageThread)
+  }
+
+  private func goToCreatorMessageThread(_ projectId: Param, _ messageThread: MessageThread) {
+    self.rootTabBarController?
+      .switchToCreatorMessageThread(projectId: projectId, messageThread: messageThread)
+  }
+
+  private func goToProjectActivities(_ projectId: Param) {
+    self.rootTabBarController?.switchToProjectActivities(projectId: projectId)
   }
 
   private func findRedirectUrl(_ url: URL) {
@@ -290,7 +390,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 }
 
-extension AppDelegate : BITHockeyManagerDelegate {
+extension AppDelegate: BITHockeyManagerDelegate {
   func crashManagerDidFinishSendingCrashReport(_ crashManager: BITCrashManager!) {
     self.viewModel.inputs.crashManagerDidFinishSendingCrashReport()
   }

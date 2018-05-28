@@ -58,17 +58,16 @@ public protocol FindFriendsFacebookConnectCellViewModelType {
 
 public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookConnectCellViewModelType,
   FindFriendsFacebookConnectCellViewModelInputs, FindFriendsFacebookConnectCellViewModelOutputs {
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     self.notifyDelegateToDismissHeader = self.closeButtonTappedProperty.signal
 
-    let isLoading = MutableProperty(false)
+    let isLoading: MutableProperty<Bool> = MutableProperty(false)
 
     self.isLoading = isLoading.signal
 
     self.attemptFacebookLogin = self.facebookConnectButtonTappedProperty.signal
 
-    let tokenString = self.facebookLoginSuccessProperty.signal.skipNil()
+    let tokenString: Signal<String, NoError> = self.facebookLoginSuccessProperty.signal.skipNil()
       .map { $0.token.tokenString ?? "" }
 
     let facebookConnect = tokenString
@@ -142,12 +141,11 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
       .takeWhen(self.closeButtonTappedProperty.signal)
       .observeValues { AppEnvironment.current.koala.trackCloseFacebookConnect(source: $0) }
   }
-  // swiftlint:enable function_body_length
 
   public var inputs: FindFriendsFacebookConnectCellViewModelInputs { return self }
   public var outputs: FindFriendsFacebookConnectCellViewModelOutputs { return self }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     closeButtonTappedProperty.value = ()
   }
@@ -157,7 +155,7 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
     configureWithProperty.value = source
   }
 
-  fileprivate let facebookConnectButtonTappedProperty = MutableProperty()
+  fileprivate let facebookConnectButtonTappedProperty = MutableProperty(())
   public func facebookConnectButtonTapped() {
     facebookConnectButtonTappedProperty.value = ()
   }
@@ -172,7 +170,7 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
     self.facebookLoginSuccessProperty.value = result
   }
 
-  fileprivate let userUpdatedProperty = MutableProperty()
+  fileprivate let userUpdatedProperty = MutableProperty(())
   public func userUpdated() {
     userUpdatedProperty.value = ()
   }

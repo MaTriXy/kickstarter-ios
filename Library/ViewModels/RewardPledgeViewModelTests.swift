@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 // swiftlint:disable force_unwrapping
 import PassKit
 import Prelude
@@ -25,7 +22,7 @@ private let shippingRules = locations
     .template
       |> ShippingRule.lens.location .~ location
       |> ShippingRule.lens.cost .~ Double(idx + 1)
-}
+} ||> ShippingRule.lens.location..Location.lens.localizedName %~ { "Local " + $0 }
 
 private let sortedShippingRules = shippingRules
   .sorted { lhs, rhs in lhs.location.displayableName < rhs.location.displayableName }
@@ -191,7 +188,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testConversionLabel_NotShown() {
     let project = .template
-      |> Project.lens.country .~ .US
+      |> Project.lens.country .~ .us
 
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
@@ -204,8 +201,28 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testConversionLabel_Shown() {
     let project = .template
-      |> Project.lens.country .~ .GB
+      |> Project.lens.country .~ .gb
       |> Project.lens.stats.staticUsdRate .~ 2
+      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.currentCurrencyRate .~ 2
+    let reward = .template
+      |> Reward.lens.minimum .~ 1_000
+
+    withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
+      self.vm.inputs.configureWith(project: project, reward: reward, applePayCapable: false)
+      self.vm.inputs.viewDidLoad()
+
+      self.conversionLabelHidden.assertValues([false], "US user viewing non-US project sees conversion.")
+      self.conversionLabelText.assertValues(["About $2,000"])
+    }
+  }
+
+  func testConversionLabel_Shown_WithoutCurrentCurrency() {
+    let project = .template
+      |> Project.lens.country .~ .gb
+      |> Project.lens.stats.staticUsdRate .~ 2
+      |> Project.lens.stats.currentCurrency .~ nil
+      |> Project.lens.stats.currentCurrencyRate .~ nil
     let reward = .template
       |> Reward.lens.minimum .~ 1_000
 
@@ -231,7 +248,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
         self.scheduler.advance()
 
-        self.countryLabelText.assertValues(["", "Australia"])
+        self.countryLabelText.assertValues(["", "Local Australia"])
         self.shippingAmountLabelText.assertValues(["", "+$4"])
     }
   }
@@ -249,7 +266,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
         self.scheduler.advance()
 
-        self.countryLabelText.assertValues(["", "United States"])
+        self.countryLabelText.assertValues(["", "Local United States"])
         self.shippingAmountLabelText.assertValues(["", "+$1"])
     }
   }
@@ -272,7 +289,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
         self.scheduler.advance()
 
-        self.countryLabelText.assertValues(["", defaultShippingRule.location.displayableName])
+        self.countryLabelText.assertValues(["", defaultShippingRule.location.localizedName])
         self.shippingAmountLabelText.assertValues([
           "", "+" + Format.currency(Int(defaultShippingRule.cost), country: project.country)
           ])
@@ -281,7 +298,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
         self.vm.inputs.change(shippingRule: otherShippingRule)
 
         self.countryLabelText.assertValues([
-          "", defaultShippingRule.location.displayableName, otherShippingRule.location.displayableName
+          "", defaultShippingRule.location.localizedName, otherShippingRule.location.localizedName
           ])
         self.shippingAmountLabelText.assertValues([
           "",
@@ -333,7 +350,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     self.estimatedDeliveryDateLabelText.assertValues([
-      Format.date(secondsInUTC: reward.estimatedDeliveryOn!, dateFormat: "MMM yyyy", timeZone: UTCTimeZone)
+      Format.date(secondsInUTC: reward.estimatedDeliveryOn!, template: "MMMyyyy", timeZone: UTCTimeZone)
     ])
 
     self.estimatedFulfillmentStackViewHidden.assertValues([false])
@@ -1619,37 +1636,37 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testPledgeCurrencyLabelText_USProject_USBacker() {
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
-      let project = .template |> Project.lens.country .~ .US
+      let project = .template |> Project.lens.country .~ .us
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.pledgeCurrencyLabelText.assertValues([Project.Country.US.currencySymbol])
+      self.pledgeCurrencyLabelText.assertValues([Project.Country.us.currencySymbol])
     }
   }
 
   func testPledgeCurrencyLabelText_GBProject_USBacker() {
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
-      let project = .template |> Project.lens.country .~ .GB
+      let project = .template |> Project.lens.country .~ .gb
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.pledgeCurrencyLabelText.assertValues([Project.Country.GB.currencySymbol])
+      self.pledgeCurrencyLabelText.assertValues([Project.Country.gb.currencySymbol])
     }
   }
 
   func testPledgeCurrencyLabelText_FRProject_USBacker() {
     withEnvironment(config: .template |> Config.lens.countryCode .~ "US") {
-      let project = .template |> Project.lens.country .~ .FR
+      let project = .template |> Project.lens.country .~ .fr
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.pledgeCurrencyLabelText.assertValues([Project.Country.FR.currencySymbol])
+      self.pledgeCurrencyLabelText.assertValues([Project.Country.fr.currencySymbol])
     }
   }
 
   func testPledgeCurrencyLabelText_CAProject_USBacker() {
     withEnvironment(countryCode: "US") {
-      let project = .template |> Project.lens.country .~ .CA
+      let project = .template |> Project.lens.country .~ .ca
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
@@ -1659,7 +1676,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testPledgeCurrencyLabelText_USProject_NonUSBacker() {
     withEnvironment(countryCode: "GB") {
-      let project = .template |> Project.lens.country .~ .US
+      let project = .template |> Project.lens.country .~ .us
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
@@ -1669,27 +1686,27 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testPledgeCurrencyLabelText_GBProject_NonUSBacker() {
     withEnvironment(countryCode: "GB") {
-      let project = .template |> Project.lens.country .~ .GB
+      let project = .template |> Project.lens.country .~ .gb
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.pledgeCurrencyLabelText.assertValues([Project.Country.GB.currencySymbol])
+      self.pledgeCurrencyLabelText.assertValues([Project.Country.gb.currencySymbol])
     }
   }
 
   func testPledgeCurrencyLabelText_FRProject_NonUSBacker() {
     withEnvironment(countryCode: "GB") {
-      let project = .template |> Project.lens.country .~ .FR
+      let project = .template |> Project.lens.country .~ .fr
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.pledgeCurrencyLabelText.assertValues([Project.Country.FR.currencySymbol])
+      self.pledgeCurrencyLabelText.assertValues([Project.Country.fr.currencySymbol])
     }
   }
 
   func testPledgeCurrencyLabelText_CAProject_NonUSBacker() {
     withEnvironment(countryCode: "GB") {
-      let project = .template |> Project.lens.country .~ .CA
+      let project = .template |> Project.lens.country .~ .ca
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
@@ -1845,7 +1862,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testPledgeTextFieldText_Pledge_NoReward() {
     let reward = Reward.noReward
-    let project = .template |> Project.lens.country .~ .US
+    let project = .template |> Project.lens.country .~ .us
 
     self.vm.inputs.configureWith(project: project, reward: reward, applePayCapable: false)
     self.vm.inputs.viewDidLoad()
@@ -1855,7 +1872,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
 
   func testPledgeTextFieldText_Pledge_NoReward_DK() {
     let reward = Reward.noReward
-    let project = .template |> Project.lens.country .~ .DK
+    let project = .template |> Project.lens.country .~ .dk
 
     self.vm.inputs.configureWith(project: project, reward: reward, applePayCapable: false)
     self.vm.inputs.viewDidLoad()
@@ -1900,7 +1917,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
     self.vm.inputs.configureWith(project: .template, reward: .template, applePayCapable: false)
     self.vm.inputs.viewDidLoad()
 
-    self.setStripeAppleMerchantIdentifier.assertValues([])
+    self.setStripeAppleMerchantIdentifier.assertValueCount(0)
   }
 
   func testSetStripeAppleMerchantIdentifier_ApplePayCapable() {
@@ -1917,7 +1934,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
       self.vm.inputs.configureWith(project: .template, reward: .template, applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.setStripePublishableKey.assertValues([])
+      self.setStripePublishableKey.assertValueCount(0)
     }
   }
 
@@ -1933,7 +1950,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
   func testShippingAmountLabelText_USUser_CAProject() {
     let apiService = MockService(fetchShippingRulesResult: Result(shippingRules))
     let config = .template |> Config.lens.countryCode .~ "US"
-    let project = .template |> Project.lens.country .~ .CA
+    let project = .template |> Project.lens.country .~ .ca
 
     withEnvironment(apiService: apiService, config: config) {
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
@@ -1950,7 +1967,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
   func testShippingAmountLabelText_CAUser_CAProject() {
     let apiService = MockService(fetchShippingRulesResult: Result(shippingRules))
     let config = .template |> Config.lens.countryCode .~ "CA"
-    let project = .template |> Project.lens.country .~ .CA
+    let project = .template |> Project.lens.country .~ .ca
 
     withEnvironment(apiService: apiService, config: config) {
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
@@ -1967,7 +1984,7 @@ internal final class RewardPledgeViewModelTests: TestCase {
   func testShippingAmountLabelText_USUser_DKProject() {
     let apiService = MockService(fetchShippingRulesResult: Result(shippingRules))
     let config = .template |> Config.lens.countryCode .~ "US"
-    let project = .template |> Project.lens.country .~ .DK
+    let project = .template |> Project.lens.country .~ .dk
 
     withEnvironment(apiService: apiService, config: config) {
       self.vm.inputs.configureWith(project: project, reward: .template, applePayCapable: false)
@@ -2556,5 +2573,14 @@ internal final class RewardPledgeViewModelTests: TestCase {
             self.dismissViewController.assertValueCount(2)
         }
     }
+  }
+
+  func testNilShippingSummaryEmitsEmpty() {
+    let reward = .template
+      |> Reward.lens.shipping.summary .~ nil
+    self.vm.inputs.configureWith(project: .template, reward: reward, applePayCapable: false)
+    self.vm.inputs.viewDidLoad()
+
+    self.shippingLocationsLabelText.assertValues([""])
   }
 }

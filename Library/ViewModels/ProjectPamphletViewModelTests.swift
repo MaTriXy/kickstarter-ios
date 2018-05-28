@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 import Prelude
 import ReactiveSwift
 import Result
@@ -20,12 +17,12 @@ final class ProjectPamphletViewModelTests: TestCase {
   fileprivate let setNavigationBarHidden = TestObserver<Bool, NoError>()
   fileprivate let setNavigationBarAnimated = TestObserver<Bool, NoError>()
   fileprivate let setNeedsStatusBarAppearanceUpdate = TestObserver<(), NoError>()
+  fileprivate let topLayoutConstraintConstant = TestObserver<CGFloat, NoError>()
 
   internal override func setUp() {
     super.setUp()
 
     self.vm = ProjectPamphletViewModel()
-
     self.vm.outputs.configureChildViewControllersWithProjectAndLiveStreams.map(first)
       .observe(self.configureChildViewControllersWithProject.observer)
     self.vm.outputs.configureChildViewControllersWithProjectAndLiveStreams.map(second)
@@ -37,6 +34,7 @@ final class ProjectPamphletViewModelTests: TestCase {
     self.vm.outputs.setNavigationBarHiddenAnimated.map(second)
       .observe(self.setNavigationBarAnimated.observer)
     self.vm.outputs.setNeedsStatusBarAppearanceUpdate.observe(self.setNeedsStatusBarAppearanceUpdate.observer)
+    self.vm.outputs.topLayoutConstraintConstant.observe(self.topLayoutConstraintConstant.observer)
   }
 
   func testConfigureChildViewControllersWithProject_ConfiguredWithProject() {
@@ -159,7 +157,7 @@ final class ProjectPamphletViewModelTests: TestCase {
     XCTAssertEqual("ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
                    "A referral cookie is set for the project.")
     XCTAssertEqual("category?",
-                   (self.cookieStorage.cookies?.last?.value.characters.prefix(9)).map(String.init),
+                   (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
                    "A referral cookie is set for the category ref tag.")
 
     // Start up another view model with the same project
@@ -189,6 +187,75 @@ final class ProjectPamphletViewModelTests: TestCase {
                    "A single cookie has been set.")
   }
 
+  func testMockCookieStorageSet_SeparateSchedulers() {
+    let project = Project.template
+    let scheduler1 = TestScheduler(startDate: MockDate().date)
+    let scheduler2 = TestScheduler(startDate: scheduler1.currentDate.addingTimeInterval(1))
+
+    withEnvironment(scheduler: scheduler1) {
+      let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
+      newVm.inputs.configureWith(projectOrParam: .left(project), refTag: .category)
+      newVm.inputs.viewDidLoad()
+      newVm.inputs.viewWillAppear(animated: true)
+      newVm.inputs.viewDidAppear(animated: true)
+
+      scheduler1.advance()
+
+      XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
+    }
+
+    withEnvironment(scheduler: scheduler2) {
+      let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
+      newVm.inputs.configureWith(projectOrParam: .left(project), refTag: .recommended)
+      newVm.inputs.viewDidLoad()
+      newVm.inputs.viewWillAppear(animated: true)
+      newVm.inputs.viewDidAppear(animated: true)
+
+      scheduler2.advance()
+
+      XCTAssertEqual(2, self.cookieStorage.cookies?.count, "Two cookies are set on separate schedulers.")
+    }
+  }
+
+  func testMockCookieStorageSet_SameScheduler() {
+    let project = Project.template
+    let scheduler1 = TestScheduler(startDate: MockDate().date)
+
+    withEnvironment(scheduler: scheduler1) {
+      let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
+      newVm.inputs.configureWith(projectOrParam: .left(project), refTag: .category)
+      newVm.inputs.viewDidLoad()
+      newVm.inputs.viewWillAppear(animated: true)
+      newVm.inputs.viewDidAppear(animated: true)
+
+      scheduler1.advance()
+
+      XCTAssertEqual(1, self.cookieStorage.cookies?.count, "A single cookie has been set.")
+    }
+
+    withEnvironment(scheduler: scheduler1) {
+      let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
+      newVm.inputs.configureWith(projectOrParam: .left(project), refTag: .recommended)
+      newVm.inputs.viewDidLoad()
+      newVm.inputs.viewWillAppear(animated: true)
+      newVm.inputs.viewDidAppear(animated: true)
+
+      scheduler1.advance()
+
+      XCTAssertEqual(1, self.cookieStorage.cookies?.count,
+                     "A single cookie has been set on the same scheduler.")
+    }
+  }
+
+  func testTopLayoutConstraints_AfterRotation() {
+
+    self.vm.inputs.initial(topConstraint: 30.0)
+    XCTAssertNil(self.topLayoutConstraintConstant.lastValue)
+
+    self.vm.inputs.willTransition(toNewCollection: UITraitCollection(horizontalSizeClass: .compact))
+    XCTAssertEqual(30.0, self.topLayoutConstraintConstant.lastValue)
+  }
+
   func testTracksRefTag_WithBadData() {
     let project = Project.template
 
@@ -214,7 +281,7 @@ final class ProjectPamphletViewModelTests: TestCase {
     XCTAssertEqual("ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
                    "A referral cookie is set for the project.")
     XCTAssertEqual("category?",
-                   (self.cookieStorage.cookies?.last?.value.characters.prefix(9)).map(String.init),
+                   (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
                    "A referral cookie is set for the category ref tag.")
 
     // Start up another view model with the same project

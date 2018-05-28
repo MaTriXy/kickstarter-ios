@@ -7,9 +7,7 @@ import XCTest
 @testable import ReactiveExtensions
 @testable import ReactiveExtensions_TestHelpers
 
-// swiftlint:disable type_name
 internal final class DashboardReferrersRowStackViewViewModelTests: TestCase {
-  // swiftlint:enable type_name
   internal let vm = DashboardReferrerRowStackViewViewModel()
   internal let backersText = TestObserver<String, NoError>()
   internal let pledgedText = TestObserver<String, NoError>()
@@ -31,7 +29,7 @@ internal final class DashboardReferrersRowStackViewViewModelTests: TestCase {
       |> ProjectStatsEnvelope.ReferrerStats.lens.pledged .~ 100
       |> ProjectStatsEnvelope.ReferrerStats.lens.referrerName .~ "search"
       |> ProjectStatsEnvelope.ReferrerStats.lens.referrerType .~ .`internal`
-    let country = Project.Country.US
+    let country = Project.Country.us
 
     self.vm.inputs.configureWith(country: country, referrer: referrer)
     self.backersText.assertValues(["50"])

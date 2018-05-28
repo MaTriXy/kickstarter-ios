@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 @testable import KsApi
 @testable import Library
 @testable import ReactiveExtensions_TestHelpers
@@ -47,13 +44,13 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
     self.vm.outputs.showOnboarding.observe(self.showOnboarding.observer)
 
-    self.vm.outputs.projects
-      .map { $0.count }
+    self.vm.outputs.projectsLoaded
+      .map { $0.0.count }
       .combinePrevious(0)
       .map { prev, next in next > prev }
       .observe(self.hasAddedProjects.observer)
-    self.vm.outputs.projects
-      .map { $0.count }
+    self.vm.outputs.projectsLoaded
+      .map { $0.0.count }
       .combinePrevious(0)
       .map { prev, next in next < prev }
       .observe(self.hasRemovedProjects.observer)
@@ -226,11 +223,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   }
 
   func testGoToProject() {
-    let potdAt = AppEnvironment.current.calendar.startOfDay(for: MockDate().date).timeIntervalSince1970
     let project = Project.template
-    let potd = project
-      |> Project.lens.id %~ { $0 + 1 }
-      |> Project.lens.dates.potdAt .~ potdAt
     let discoveryEnvelope = .template
       |> DiscoveryEnvelope.lens.projects .~ (
         (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
@@ -249,7 +242,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.goToPlaylistRefTag.assertValues([.discoveryWithSort(.magic)],
                                            "Go to the project with discovery ref tag.")
 
-      self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.category .~ Category.art)
+      self.vm.inputs.selectedFilter(.defaults
+                                    |> DiscoveryParams.lens.category .~ Category.art)
       self.vm.inputs.tapped(project: project)
 
       self.goToPlaylist.assertValueCount(2, "New playlist for project emits.")
@@ -257,32 +251,23 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.goToPlaylistRefTag.assertValues([.discoveryWithSort(.magic), .categoryWithSort(.magic)],
                                            "Go to the project with the category sort ref tag.")
 
-      self.vm.inputs.tapped(project: potd)
-
-      self.goToPlaylist.assertValueCount(3, "New playlist for project emits.")
-      self.goToPlaylistProject.assertValues([project, project, potd])
-      self.goToPlaylistRefTag.assertValues(
-        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .discoveryPotd],
-        "Go to the project with the POTD ref tag."
-      )
-
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.staffPicks .~ true)
       self.vm.inputs.tapped(project: project)
 
-      self.goToPlaylist.assertValueCount(4, "New playlist for project emits.")
-      self.goToPlaylistProject.assertValues([project, project, potd, project])
+      self.goToPlaylist.assertValueCount(3, "New playlist for project emits.")
+      self.goToPlaylistProject.assertValues([project, project, project])
       self.goToPlaylistRefTag.assertValues(
-        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .discoveryPotd, .recommendedWithSort(.magic)],
+        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .recommendedWithSort(.magic)],
         "Go to the project with the recommended sort ref tag."
       )
 
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ true)
       self.vm.inputs.tapped(project: project)
 
-      self.goToPlaylist.assertValueCount(5, "New playlist for project emits.")
-      self.goToPlaylistProject.assertValues([project, project, potd, project, project])
+      self.goToPlaylist.assertValueCount(4, "New playlist for project emits.")
+      self.goToPlaylistProject.assertValues([project, project, project, project])
       self.goToPlaylistRefTag.assertValues(
-        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .discoveryPotd, .recommendedWithSort(.magic),
+        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .recommendedWithSort(.magic),
           .socialWithSort(.magic)], "Go to the project with the social ref tag."
       )
 
@@ -297,9 +282,9 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.vm.inputs.configureWith(sort: .endingSoon)
       self.vm.inputs.tapped(project: project)
-      self.goToPlaylistProject.assertValues([project, project, potd, project, project, project])
+      self.goToPlaylistProject.assertValues([project, project, project, project, project])
       self.goToPlaylistRefTag.assertValues(
-        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .discoveryPotd, .recommendedWithSort(.magic),
+        [.discoveryWithSort(.magic), .categoryWithSort(.magic), .recommendedWithSort(.magic),
           .socialWithSort(.magic), .socialWithSort(.endingSoon)], "Sort changes on ref tag."
       )
     }
@@ -335,7 +320,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.activitiesForSample.assertValues([[activity1]], "Activity sample is shown.")
 
       // Change the filter.
-      self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.category .~ Category.art)
+      self.vm.inputs.selectedFilter(.defaults
+                                    |> DiscoveryParams.lens.category .~ Category.art)
       self.vm.inputs.viewDidDisappear(animated: true)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -445,10 +431,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "cafebeef", user: User.template))
       self.vm.inputs.userSessionStarted()
-      self.hasAddedProjects.assertValues([true], "Previous projects not cleared.")
+      self.hasAddedProjects.assertValues([true, false], "Previous projects not cleared.")
 
       self.scheduler.advance()
-      self.hasAddedProjects.assertValues([true, true], "New projects added for logged in user.")
+      self.hasAddedProjects.assertValues([true, false, true], "New projects added for logged in user.")
     }
   }
 
@@ -472,11 +458,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.userSessionStarted()
-      self.hasAddedProjects.assertValues([true], "Previous projects not cleared.")
+      self.hasAddedProjects.assertValues([true, false], "Previous projects not cleared.")
 
       self.scheduler.advance()
 
-      self.hasAddedProjects.assertValues([true, true], "New projects added for logged in user.")
+      self.hasAddedProjects.assertValues([true, false, true], "New projects added for logged in user.")
     }
   }
 
@@ -561,17 +547,26 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
         self.scheduler.advance()
 
-        self.showEmptyState.assertValues([.starred, .recommended], "Show empty state does not emit.")
+        self.showEmptyState.assertValues(
+          [.starred, .recommended], "Show empty state does not emit.")
 
         // switch back to empty state
         withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
-          self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.starred .~ true)
+          self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ false)
 
-          self.hideEmptyState.assertValueCount(3)
+          self.hideEmptyState.assertValueCount(5)
 
           self.scheduler.advance()
 
-          self.showEmptyState.assertValues([.starred, .recommended, .starred])
+          self.showEmptyState.assertValues([.starred, .recommended])
+
+          self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.social .~ true)
+
+          self.hideEmptyState.assertValueCount(6)
+
+          self.scheduler.advance()
+
+          self.showEmptyState.assertValues([.starred, .recommended, .socialDisabled])
         }
       }
     }
@@ -620,7 +615,8 @@ internal final class DiscoveryPageViewModelTests: TestCase {
           self.vm.inputs.viewDidAppear()
           self.scheduler.advance()
 
-          self.showEmptyState.assertValues([.socialDisabled, .recommended, .socialDisabled, .socialNoPledges],
+          self.showEmptyState.assertValues(
+            [.socialDisabled, .recommended, .socialDisabled, .socialNoPledges],
                                            "Emits .socialNoPledges for true social.")
           self.hideEmptyState.assertValueCount(2)
         }

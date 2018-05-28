@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 // swiftlint:disable force_unwrapping
 import XCTest
 @testable import Library
@@ -56,7 +53,7 @@ final class CheckoutViewModelTests: TestCase {
         guard let url = request.url else { return nil }
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
         components.queryItems = components.queryItems?.filter {
-          $0.name != "client_id" && $0.name != "oauth_token"
+          $0.name != "client_id" && $0.name != "currency" && $0.name != "oauth_token"
         }
         return components.string?.trimmingCharacters(in: questionMark)
       }
@@ -992,7 +989,7 @@ final class CheckoutViewModelTests: TestCase {
                                  applePayCapable: false)
     self.vm.inputs.viewDidLoad()
 
-    self.setStripeAppleMerchantIdentifier.assertValues([])
+    self.setStripeAppleMerchantIdentifier.assertValueCount(0)
   }
 
   func testSetStripeAppleMerchantIdentifier_ApplePayCapable() {
@@ -1015,7 +1012,7 @@ final class CheckoutViewModelTests: TestCase {
                                    applePayCapable: false)
       self.vm.inputs.viewDidLoad()
 
-      self.setStripePublishableKey.assertValues([])
+      self.setStripePublishableKey.assertValueCount(0)
     }
   }
 
@@ -1044,7 +1041,7 @@ private func applePayUrlRequest(project: Project,
                                 reward: Reward,
                                 location: Location) -> URLRequest {
 
-  let payload: [String:Any] = [
+  let payload: [String: Any] = [
     "country_code": project.country.countryCode,
     "currency_code": project.country.currencyCode,
     "merchant_identifier": PKPaymentAuthorizationViewController.merchantIdentifier,

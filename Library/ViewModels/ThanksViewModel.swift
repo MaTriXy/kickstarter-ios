@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import KsApi
 import Prelude
 import ReactiveSwift
@@ -14,10 +13,6 @@ public protocol ThanksViewModelInputs {
 
   /// Call when category cell is tapped
   func categoryCellTapped(_ category: KsApi.Category)
-
-  /// Call with a boolean that determines if facebook is available on this device, i.e.
-  /// SLComposeViewController.isAvailableForServiceType(SLServiceTypeFacebook)
-  func facebookIsAvailable(_ available: Bool)
 
   /// Call to set project
   func project(_ project: Project)
@@ -37,35 +32,31 @@ public protocol ThanksViewModelInputs {
   /// Call when "no thanks" button is tapped on rating alert
   func rateNoThanksButtonTapped()
 
-  /// Call with a boolean that determines if twitter is available on this device, i.e.
-  /// SLComposeViewController.isAvailableForServiceType(SLServiceTypeTwitter)
-  func twitterIsAvailable(_ available: Bool)
-
   /// Call when the current user has been updated in the environment
   func userUpdated()
 }
 
 public protocol ThanksViewModelOutputs {
+  /// Emits backed project subheader text to display
+  var backedProjectText: Signal<NSAttributedString, NoError> { get }
+
   /// Emits when view controller should dismiss
   var dismissToRootViewController: Signal<(), NoError> { get }
-
-  /// Emits DiscoveryParams when should go to Discovery
-  var goToDiscovery: Signal<DiscoveryParams, NoError> { get }
 
   /// Emits iTunes link when should go to App Store
   var goToAppStoreRating: Signal<String, NoError> { get }
 
-  /// Emits backed project subheader text to display
-  var backedProjectText: Signal<NSAttributedString, NoError> { get }
-
-  /// Emits a bool determining whether or not the facebook button is hidden.
-  var facebookButtonIsHidden: Signal<Bool, NoError> { get }
+  /// Emits DiscoveryParams when should go to Discovery
+  var goToDiscovery: Signal<DiscoveryParams, NoError> { get }
 
   /// Emits project when should go to Project page
   var goToProject: Signal<(Project, [Project], RefTag), NoError> { get }
 
-  /// Emits when should show rating alert
-  var showRatingAlert: Signal <(), NoError> { get }
+  /// Emits when a user pledges a project for the first time.
+  var postContextualNotification: Signal<(), NoError> { get }
+
+  /// Emits when a user updated notification should be posted
+  var postUserUpdatedNotification: Signal<Notification, NoError> { get }
 
   /// Emits when should show games newsletter alert
   var showGamesNewsletterAlert: Signal <(), NoError> { get }
@@ -73,17 +64,14 @@ public protocol ThanksViewModelOutputs {
   /// Emits newsletter title when should show games newsletter opt-in alert
   var showGamesNewsletterOptInAlert: Signal <String, NoError> { get }
 
+  /// Emits when should show rating alert
+  var showRatingAlert: Signal <(), NoError> { get }
+
   /// Emits array of projects and a category when should show recommendations
   var showRecommendations: Signal <([Project], KsApi.Category), NoError> { get }
 
   /// Emits a User that can be used to replace the current user in the environment
   var updateUserInEnvironment: Signal<User, NoError> { get }
-
-  /// Emits when a user updated notification should be posted
-  var postUserUpdatedNotification: Signal<Notification, NoError> { get }
-
-  /// Emits a bool determining whether or not the twitter button is hidden.
-  var twitterButtonIsHidden: Signal<Bool, NoError> { get }
 }
 
 public protocol ThanksViewModelType {
@@ -93,12 +81,11 @@ public protocol ThanksViewModelType {
 
 public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, ThanksViewModelOutputs {
 
-  // swiftlint:disable function_body_length
   public init() {
     let project = self.projectProperty.signal.skipNil()
 
     self.backedProjectText = project.map {
-      let string = Strings.project_checkout_share_you_just_backed_project_share_this_project_html(
+      let string = Strings.You_have_successfully_backed_project_html(
         project_name: $0.name
       )
 
@@ -127,7 +114,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
       .filter {
         $0 == false &&
         !AppEnvironment.current.userDefaults.hasSeenAppRating &&
-        AppEnvironment.current.config?.iTunesLink != nil
+        AppEnvironment.current.config?.iTunesLink != nil && shouldShowPledgeDialog() == false
       }
       .takeWhen(self.viewDidLoadProperty.signal)
       .ignoreValues()
@@ -141,18 +128,18 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     self.goToDiscovery = self.categoryCellTappedProperty.signal.skipNil()
       .map { DiscoveryParams.defaults |> DiscoveryParams.lens.category .~ $0 }
 
-    let rootCategory = project
-      .map { $0.category.rootId }
-      .skipNil()
+    let rootCategory: Signal<KsApi.Category, NoError> = project
+      .map { toBase64($0.category) }
       .flatMap {
-        return AppEnvironment.current.apiService.fetchCategory(param: .id($0))
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { $0.root ?? $0 }
-          .demoteErrors()
+        return AppEnvironment.current.apiService.fetchGraphCategory(query: categoryBy(id: $0))
+        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .map { (categoryEnvelope: KsApi.CategoryEnvelope) -> KsApi.Category
+            in categoryEnvelope.node.parent ?? categoryEnvelope.node }
+        .demoteErrors()
     }
 
     let projects = Signal.combineLatest(project, rootCategory)
-      .flatMap(relatedProjects(toProject:inCategory:))
+      .flatMap { relatedProjects(toProject: $0.0, inCategory: $0.1) }
       .filter { projects in !projects.isEmpty }
 
     self.showRecommendations = Signal.zip(projects, rootCategory)
@@ -171,14 +158,14 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
           .demoteErrors()
     }
 
+    self.postContextualNotification = self.viewDidLoadProperty.signal
+      .filter { shouldShowPledgeDialog() }
+
     self.postUserUpdatedNotification = self.userUpdatedProperty.signal
       .mapConst(Notification(name: .ksr_userUpdated))
 
     self.showGamesNewsletterAlert
       .observeValues { AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt = true }
-
-    self.facebookButtonIsHidden = self.facebookIsAvailableProperty.signal.map(negate)
-    self.twitterButtonIsHidden = self.twitterIsAvailableProperty.signal.map(negate)
 
     project
       .takeWhen(self.rateRemindLaterButtonTappedProperty.signal)
@@ -228,19 +215,18 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
         AppEnvironment.current.koala.trackTriggeredAppStoreRatingDialog(project: project)
     }
   }
-  // swiftlint:enable function_body_length
 
   // MARK: ThanksViewModelType
   public var inputs: ThanksViewModelInputs { return self }
   public var outputs: ThanksViewModelOutputs { return self }
 
   // MARK: ThanksViewModelInputs
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     viewDidLoadProperty.value = ()
   }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     closeButtonTappedProperty.value = ()
   }
@@ -260,37 +246,27 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     projectTappedProperty.value = project
   }
 
-  fileprivate let gamesNewsletterSignupButtonTappedProperty = MutableProperty()
+  fileprivate let gamesNewsletterSignupButtonTappedProperty = MutableProperty(())
   public func gamesNewsletterSignupButtonTapped() {
     gamesNewsletterSignupButtonTappedProperty.value = ()
   }
 
-  fileprivate let facebookIsAvailableProperty = MutableProperty(false)
-  public func facebookIsAvailable(_ available: Bool) {
-    self.facebookIsAvailableProperty.value = available
-  }
-
-  fileprivate let rateNowButtonTappedProperty = MutableProperty()
+  fileprivate let rateNowButtonTappedProperty = MutableProperty(())
   public func rateNowButtonTapped() {
     rateNowButtonTappedProperty.value = ()
   }
 
-  fileprivate let rateRemindLaterButtonTappedProperty = MutableProperty()
+  fileprivate let rateRemindLaterButtonTappedProperty = MutableProperty(())
   public func rateRemindLaterButtonTapped() {
     rateRemindLaterButtonTappedProperty.value = ()
   }
 
-  fileprivate let rateNoThanksButtonTappedProperty = MutableProperty()
+  fileprivate let rateNoThanksButtonTappedProperty = MutableProperty(())
   public func rateNoThanksButtonTapped() {
     rateNoThanksButtonTappedProperty.value = ()
   }
 
-  fileprivate let twitterIsAvailableProperty = MutableProperty(false)
-  public func twitterIsAvailable(_ available: Bool) {
-    self.twitterIsAvailableProperty.value = available
-  }
-
-  fileprivate let userUpdatedProperty = MutableProperty()
+  fileprivate let userUpdatedProperty = MutableProperty(())
   public func userUpdated() {
     userUpdatedProperty.value = ()
   }
@@ -300,18 +276,31 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   public let goToDiscovery: Signal<DiscoveryParams, NoError>
   public let goToAppStoreRating: Signal<String, NoError>
   public let backedProjectText: Signal<NSAttributedString, NoError>
-  public let facebookButtonIsHidden: Signal<Bool, NoError>
   public let goToProject: Signal<(Project, [Project], RefTag), NoError>
+  public let postContextualNotification: Signal<(), NoError>
+  public let postUserUpdatedNotification: Signal<Notification, NoError>
   public let showRatingAlert: Signal<(), NoError>
   public let showGamesNewsletterAlert: Signal<(), NoError>
   public let showGamesNewsletterOptInAlert: Signal<String, NoError>
   public let showRecommendations: Signal<([Project], KsApi.Category), NoError>
   public let updateUserInEnvironment: Signal<User, NoError>
-  public let postUserUpdatedNotification: Signal<Notification, NoError>
-  public let twitterButtonIsHidden: Signal<Bool, NoError>
 }
 
-private func relatedProjects(toProject project: Project, inCategory category: KsApi.Category) ->
+/*
+This is a work around that fixes the incompatibility between the types of category id returned by
+ the server (Int) and the type we need to send when requesting category by id
+ through GraphQL (base64 encoded String). This will be removed once we start consuming GraphQL to fetch
+ Discovery projects.
+
+ */
+private func toBase64(_ category: KsApi.Category) -> String {
+  let id = category.parentId ?? category.id
+  let decodedId = Category.decode(id: id)
+  return decodedId.toBase64()
+}
+
+private func relatedProjects(toProject project: Project,
+                             inCategory category: KsApi.Category) ->
   SignalProducer<[Project], NoError> {
 
     let base = DiscoveryParams.lens.perPage .~ 3 <> DiscoveryParams.lens.backed .~ false
@@ -347,6 +336,11 @@ private func relatedProjects(toProject project: Project, inCategory category: Ks
       .uniqueValues { $0.id }
       .take(first: 3)
       .collect()
+}
+
+private func shouldShowPledgeDialog() -> Bool {
+  return PushNotificationDialog.canShowDialog(for: .pledge) &&
+    AppEnvironment.current.currentUser?.stats.backedProjectsCount == 0
 }
 
 // Shuffle an array without mutating the input argument.

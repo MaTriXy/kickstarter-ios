@@ -1,4 +1,3 @@
-// swiftlint:disable type_name
 // swiftlint:disable force_unwrapping
 import Prelude
 import Result
@@ -37,41 +36,18 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
     super.tearDown()
   }
 
-  func testAllCategoryGroups() {
-
-    let project = self.cosmicSurgery
-      |> Project.lens.rewards .~ [self.cosmicSurgery.rewards.first!]
-      |> Project.lens.state .~ .live
-
-    let categories = [Category.art, Category.filmAndVideo, Category.games]
-    let devices = [Device.phone4_7inch, Device.pad]
-
-    combos(categories, devices).forEach { category, device in
-      let categorizedProject = project |> Project.lens.category .~ category
-      let vc = ProjectPamphletViewController.configuredWith(
-        projectOrParam: .left(categorizedProject), refTag: nil
-      )
-      let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
-      parent.view.frame.size.height = device == .pad ? 1_400 : 1_000
-
-      FBSnapshotVerifyView(
-        parent.view, identifier: "category_\(category.slug)_device_\(device)", tolerance: 0.0001
-      )
-    }
-  }
-
   func testNonBacker_LiveProject() {
     let project = self.cosmicSurgery
       |> Project.lens.state .~ .live
       |> Project.lens.stats.pledged .~ (self.cosmicSurgery.stats.goal * 3/4)
 
     combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
-      withEnvironment(language: language) {
+      withEnvironment(language: language, locale: .init(identifier: language.rawValue)) {
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
         parent.view.frame.size.height = device == .pad ? 2_300 : 2_200
 
-        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)", tolerance: 0.0001)
+        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)")
       }
     }
   }
@@ -85,7 +61,7 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
       |> Project.lens.state .~ .successful
 
     Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
+      withEnvironment(language: language, locale: .init(identifier: language.rawValue)) {
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
         parent.view.frame.size.height = 1_750
@@ -122,7 +98,7 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
     }
 
     combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
-      withEnvironment(language: language) {
+      withEnvironment(language: language, locale: .init(identifier: language.rawValue)) {
 
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
@@ -146,7 +122,10 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
     }
 
     Language.allLanguages.forEach { language in
-      withEnvironment(apiService: MockService(fetchProjectResponse: project), language: language) {
+      withEnvironment(
+      apiService: MockService(fetchProjectResponse: project),
+      language: language,
+      locale: .init(identifier: language.rawValue)) {
 
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
@@ -174,7 +153,7 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
       |> Project.lens.personalization.backing .~ backing
 
     combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
-      withEnvironment(language: language) {
+      withEnvironment(language: language, locale: .init(identifier: language.rawValue)) {
 
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
@@ -212,7 +191,7 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
       |> Project.lens.state .~ .failed
 
     Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
+      withEnvironment(language: language, locale: .init(identifier: language.rawValue)) {
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
         parent.view.frame.size.height = 1_700
@@ -300,7 +279,11 @@ internal final class ProjectPamphletContentViewControllerTests: TestCase {
     let apiService = MockService(fetchProjectResponse: project)
 
     combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
-      withEnvironment(apiService: apiService, language: language, liveStreamService: liveService) {
+      withEnvironment(
+      apiService: apiService,
+      language: language,
+      liveStreamService: liveService,
+      locale: .init(identifier: language.rawValue)) {
 
         let vc = ProjectPamphletViewController.configuredWith(projectOrParam: .left(project), refTag: nil)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)

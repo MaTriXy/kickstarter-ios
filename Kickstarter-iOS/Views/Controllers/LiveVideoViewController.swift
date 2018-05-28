@@ -13,6 +13,8 @@ public protocol LiveVideoViewControllerDelegate: class {
 }
 
 public final class LiveVideoViewController: UIViewController {
+  private var applicationDidEnterBackgroundObserver: Any?
+  private var applicationWillEnterForegroundObserver: Any?
   private var playerController: AVPlayerViewController?
   fileprivate let viewModel: LiveVideoViewModelType = LiveVideoViewModel()
   private var session: OTSession?
@@ -36,13 +38,25 @@ public final class LiveVideoViewController: UIViewController {
     self.subscribers.forEach(self.removeSubscriber(subscriber:))
     self.playerController?.player?.currentItem?.removeObserver(self, forKeyPath: statusKeyPath)
     self.playerController?.player?.replaceCurrentItem(with: nil)
+    self.applicationDidEnterBackgroundObserver.doIfSome(NotificationCenter.default.removeObserver)
+    self.applicationWillEnterForegroundObserver.doIfSome(NotificationCenter.default.removeObserver)
   }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.view.backgroundColor = .black
+    self.view.backgroundColor = .ksr_dark_grey_900
     self.view.addSubview(self.videoGridView)
+
+    self.applicationDidEnterBackgroundObserver = NotificationCenter.default
+      .addObserver(forName: .UIApplicationDidEnterBackground, object: nil, queue: nil) { [weak self] _ in
+      self?.viewModel.inputs.didEnterBackground()
+    }
+
+    self.applicationWillEnterForegroundObserver = NotificationCenter.default
+      .addObserver(forName: .UIApplicationWillEnterForeground, object: nil, queue: nil) { [weak self] _ in
+      self?.viewModel.inputs.willEnterForeground()
+    }
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -64,7 +78,6 @@ public final class LiveVideoViewController: UIViewController {
     self.videoGridView.frame = self.view.bounds
   }
 
-  //swiftlint:disable:next function_body_length
   public override func bindViewModel() {
     super.bindViewModel()
 
@@ -138,7 +151,7 @@ public final class LiveVideoViewController: UIViewController {
     let player = AVPlayer(url: url)
     let controller = AVPlayerViewController()
     controller.player = player
-    controller.videoGravity = AVLayerVideoGravityResizeAspectFill
+    controller.videoGravity = AVLayerVideoGravity.resizeAspectFill.rawValue
 
     player.currentItem?.addObserver(self, forKeyPath: statusKeyPath, options: .new, context: nil)
 
@@ -153,7 +166,7 @@ public final class LiveVideoViewController: UIViewController {
 
   public override func observeValue(forKeyPath keyPath: String?,
                                     of object: Any?,
-                                    change: [NSKeyValueChangeKey : Any]?,
+                                    change: [NSKeyValueChangeKey: Any]?,
                                     context: UnsafeMutableRawPointer?) {
     guard let status = self.playerController?.player?.currentItem?.status else { return }
 
@@ -198,6 +211,7 @@ public final class LiveVideoViewController: UIViewController {
   }
 
   private func removeSubscriber(subscriber: OTSubscriber) {
+    subscriber.delegate = nil
     subscriber.view.doIfSome { self.removeVideoView(view: $0) }
     self.session?.unsubscribe(subscriber, error: nil)
     self.subscribers.index(of: subscriber).doIfSome { self.subscribers.remove(at: $0) }

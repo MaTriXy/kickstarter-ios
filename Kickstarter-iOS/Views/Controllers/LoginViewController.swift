@@ -99,7 +99,10 @@ internal final class LoginViewController: UIViewController {
 
     self.viewModel.outputs.postNotification
       .observeForUI()
-      .observeValues(NotificationCenter.default.post)
+      .observeValues {
+        NotificationCenter.default.post($0.0)
+        NotificationCenter.default.post($0.1)
+    }
 
     self.viewModel.outputs.logIntoEnvironment
       .observeValues { [weak self] env in
@@ -183,7 +186,7 @@ internal final class LoginViewController: UIViewController {
     self.viewModel.inputs.onePasswordButtonTapped()
   }
 
-  internal func dismissKeyboard() {
+  @objc internal func dismissKeyboard() {
     self.view.endEditing(true)
   }
 }

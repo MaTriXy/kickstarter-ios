@@ -25,6 +25,8 @@ internal final class SearchViewContollerTests: TestCase {
         |> Project.lens.id .~ $0
         |> Project.lens.photo.full .~ ""
         |> Project.lens.photo.med .~ ""
+        |> Project.lens.stats.goal .~ ($0 * 20)
+        |> Project.lens.stats.pledged .~ ($0 * $0 * 4)
     }
 
     let discoveryResponse = .template
@@ -36,6 +38,7 @@ internal final class SearchViewContollerTests: TestCase {
           apiService: MockService(fetchDiscoveryResponse: discoveryResponse), language: language) {
 
           let controller = Storyboard.Search.instantiate(SearchViewController.self)
+          controller.viewWillAppear(true)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
           self.scheduler.run()
@@ -72,6 +75,8 @@ internal final class SearchViewContollerTests: TestCase {
         |> Project.lens.id .~ $0
         |> Project.lens.photo.full .~ ""
         |> Project.lens.photo.med .~ ""
+        |> Project.lens.stats.goal .~ ($0 * 20)
+        |> Project.lens.stats.pledged .~ ($0 * $0 * 4)
     }
 
     let discoveryResponse = .template
@@ -83,6 +88,7 @@ internal final class SearchViewContollerTests: TestCase {
         apiService: MockService(fetchDiscoveryResponse: discoveryResponse), language: language) {
 
           let controller = Storyboard.Search.instantiate(SearchViewController.self)
+          controller.viewWillAppear(true)
           let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
           controller.viewModel.inputs.searchTextChanged("abcdefgh")

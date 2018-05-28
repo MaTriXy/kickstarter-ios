@@ -28,9 +28,6 @@ public protocol LiveStreamCountdownViewModelInputs {
 }
 
 public protocol LiveStreamCountdownViewModelOutputs {
-  /// Emits the project's root category ID
-  var categoryId: Signal<Int, NoError> { get }
-
   /// Emits the accessibility label string for the live stream countdown
   var countdownAccessibilityLabel: Signal<String, NoError> { get }
 
@@ -74,7 +71,6 @@ public protocol LiveStreamCountdownViewModelOutputs {
 public final class LiveStreamCountdownViewModel: LiveStreamCountdownViewModelType,
 LiveStreamCountdownViewModelInputs, LiveStreamCountdownViewModelOutputs {
 
-  //swiftlint:disable:next function_body_length
   public init() {
     let configData = Signal.combineLatest(
       self.configData.signal.skipNil(),
@@ -122,7 +118,6 @@ LiveStreamCountdownViewModelInputs, LiveStreamCountdownViewModelOutputs {
         .prefix(value: nil)
     }
 
-    self.categoryId = project.map { $0.category.rootId }.skipNil()
     self.dismiss = self.closeButtonTappedProperty.signal
     self.viewControllerTitle = viewDidLoadProperty.signal.mapConst(
       Strings.Live_stream_countdown()
@@ -173,7 +168,7 @@ LiveStreamCountdownViewModelInputs, LiveStreamCountdownViewModelOutputs {
     }
   }
 
-  private let closeButtonTappedProperty = MutableProperty()
+  private let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     self.closeButtonTappedProperty.value = ()
   }
@@ -186,17 +181,16 @@ LiveStreamCountdownViewModelInputs, LiveStreamCountdownViewModelOutputs {
     self.configData.value = (project, liveStreamEvent, refTag, presentedFromProject)
   }
 
-  private let goToProjectButtonTappedProperty = MutableProperty()
+  private let goToProjectButtonTappedProperty = MutableProperty(())
   public func goToProjectButtonTapped() {
     self.goToProjectButtonTappedProperty.value = ()
   }
 
-  private let viewDidLoadProperty = MutableProperty()
+  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
 
-  public let categoryId: Signal<Int, NoError>
   public let countdownAccessibilityLabel: Signal<String, NoError>
   public let countdownDateLabelText: Signal<String, NoError>
   public let daysString: Signal<String, NoError>
@@ -221,9 +215,5 @@ private func flipLiveStreamEventToLive(liveStreamEvent: LiveStreamEvent) -> Live
 
 private func formattedDateString(date: Date) -> String {
 
-  let format = DateFormatter.dateFormat(fromTemplate: "dMMMhmzzz",
-                                        options: 0,
-                                        locale: AppEnvironment.current.locale) ?? "MMM d, h:mm a zzz"
-
-  return Format.date(secondsInUTC: date.timeIntervalSince1970, dateFormat: format)
+  return Format.date(secondsInUTC: date.timeIntervalSince1970, template: "dMMMhmzzz")
 }

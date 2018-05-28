@@ -15,7 +15,7 @@ import Prelude
 public func localizedString(key: String,
                             defaultValue: String = "",
                             count: Int? = nil,
-                            substitutions: [String:String] = [:],
+                            substitutions: [String: String] = [:],
                             env: Environment = AppEnvironment.current,
                             bundle: NSBundleType = stringsBundle) -> String {
 
@@ -68,4 +68,4 @@ private func substitute(_ string: String, with substitutions: [String: String]) 
 }
 
 private class Pin {}
-private let stringsBundle = Bundle(for: Pin.self)
+public let stringsBundle = Bundle(for: Pin.self)

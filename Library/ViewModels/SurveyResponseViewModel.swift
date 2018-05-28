@@ -44,8 +44,7 @@ public protocol SurveyResponseViewModelType: SurveyResponseViewModelInputs, Surv
 
 public final class SurveyResponseViewModel: SurveyResponseViewModelType {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let initialRequest = self.surveyResponseProperty.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
       .map { surveyResponse -> URLRequest? in
@@ -101,12 +100,11 @@ public final class SurveyResponseViewModel: SurveyResponseViewModelType {
       )
       .map { request in AppEnvironment.current.apiService.preparedRequest(forRequest: request) }
   }
-  // swiftlint:enable function_body_length
 
-  fileprivate let alertButtonTappedProperty = MutableProperty()
+  fileprivate let alertButtonTappedProperty = MutableProperty(())
   public func alertButtonTapped() { self.alertButtonTappedProperty.value = () }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() { self.closeButtonTappedProperty.value = () }
 
   fileprivate let shouldStartLoadProperty = MutableProperty<(URLRequest, UIWebViewNavigationType)?>(nil)
@@ -122,7 +120,7 @@ public final class SurveyResponseViewModel: SurveyResponseViewModelType {
     self.surveyResponseProperty.value = surveyResponse
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() { self.viewDidLoadProperty.value = () }
 
   public let dismissViewController: Signal<Void, NoError>

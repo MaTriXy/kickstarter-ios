@@ -1,4 +1,3 @@
-// swiftlint:disable function_body_length
 import XCTest
 @testable import Library
 @testable import KsApi
@@ -183,8 +182,9 @@ final class ProjectActivitiesViewModelTests: TestCase {
     let project = Project.template
     let activities = [.template |> Activity.lens.project .~ project]
 
+    let isVoiceOverRunning = { false }
     withEnvironment(apiService: MockService(fetchProjectActivitiesResponse: activities),
-                    isVoiceOverRunning: { false }) {
+                    isVoiceOverRunning: isVoiceOverRunning) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()
@@ -196,8 +196,9 @@ final class ProjectActivitiesViewModelTests: TestCase {
     let project = Project.template
     let activities = [.template |> Activity.lens.project .~ project]
 
+    let isVoiceOverRunning = { true }
     withEnvironment(apiService: MockService(fetchProjectActivitiesResponse: activities),
-                    isVoiceOverRunning: { true }) {
+                    isVoiceOverRunning: isVoiceOverRunning) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()

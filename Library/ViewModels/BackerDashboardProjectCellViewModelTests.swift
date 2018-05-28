@@ -21,7 +21,6 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
     self.vm.outputs.metadataIconIsHidden.observe(self.metadataIconIsHidden.observer)
     self.vm.outputs.metadataText.observe(self.metadataText.observer)
     self.vm.outputs.percentFundedText.map { $0.string }.observe(self.percentFundedText.observer)
@@ -48,7 +47,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
     self.percentFundedText.assertValues(["50%"])
     self.photoURL.assertValues(["http://www.lazybathtubcat.com/vespa.jpg"])
     self.progress.assertValues([0.5])
-    self.progressBarColor.assertValues([UIColor.ksr_green_500])
+    self.progressBarColor.assertValues([UIColor.ksr_green_700])
     self.projectTitleText.assertValues(["Best of Lazy Bathtub Cat"])
     self.savedIconIsHidden.assertValues([true])
   }
@@ -67,7 +66,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
     self.percentFundedText.assertValues(["110%"])
     self.photoURL.assertValues(["http://www.lazybathtubcat.com/vespa.jpg"])
     self.progress.assertValues([1.1])
-    self.progressBarColor.assertValues([UIColor.ksr_green_500])
+    self.progressBarColor.assertValues([UIColor.ksr_green_700])
     self.projectTitleText.assertValues(["Best of Lazy Bathtub Cat"])
     self.savedIconIsHidden.assertValues([true])
   }
@@ -86,7 +85,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
     self.percentFundedText.assertValues(["20%"])
     self.photoURL.assertValues(["http://www.lazybathtubcat.com/vespa.jpg"])
     self.progress.assertValues([0.2])
-    self.progressBarColor.assertValues([UIColor.ksr_navy_500])
+    self.progressBarColor.assertValues([UIColor.ksr_grey_400])
     self.projectTitleText.assertValues(["Best of Lazy Bathtub Cat"])
     self.savedIconIsHidden.assertValues([true])
   }
@@ -106,7 +105,7 @@ internal final class BackerDashboardProjectCellViewModelTests: TestCase {
     self.percentFundedText.assertValues(["110%"])
     self.photoURL.assertValues(["http://www.lazybathtubcat.com/vespa.jpg"])
     self.progress.assertValues([1.1])
-    self.progressBarColor.assertValues([UIColor.ksr_green_500])
+    self.progressBarColor.assertValues([UIColor.ksr_green_700])
     self.projectTitleText.assertValues(["Best of Lazy Bathtub Cat"])
     self.savedIconIsHidden.assertValues([false])
   }

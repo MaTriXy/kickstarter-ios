@@ -13,10 +13,12 @@ and read more about our journey to open source [here](https://kickstarter.engine
 
 ## Getting Started
 
-1. [Download](https://developer.apple.com/xcode/download/) the Xcode 8.3 release.
+1. [Download](https://developer.apple.com/xcode/download/) the Xcode 9 release.
 1. Clone this repository.
 1. Run `make bootstrap` to install tools and dependencies.
-1. Run `make test-all` to build and run tests on all platforms.
+1. Run `make test-all` to build and run tests on all platforms.  
+
+&#42; To provide a mock version that serves up hard-coded data immediately, set `KsApi.Secrets.isOSS` = `true`.
 
 ## Some fun things to explore
 
@@ -60,10 +62,6 @@ familiar with them:
 [Prelude](https://github.com/kickstarter/Kickstarter-Prelude): Foundation of
 types and functions we feel are missing from the Swift standard library.
 
-* [![CircleCI](https://circleci.com/gh/kickstarter/ios-ksapi.svg?style=svg)](https://circleci.com/gh/kickstarter/ios-ksapi)
-[KsApi](https://github.com/kickstarter/ios-ksapi): Models and reactive
-networking layer for fetching data from Kickstarter’s API.
-
 * [![Circle CI](https://circleci.com/gh/kickstarter/Kickstarter-ReactiveExtensions.svg?style=svg&)](https://circleci.com/gh/kickstarter/Kickstarter-ReactiveExtensions)
 [ReactiveExtensions](https://github.com/kickstarter/Kickstarter-ReactiveExtensions):
 A collection of operators we like to add to ReactiveCocoa.
@@ -74,6 +72,9 @@ A collection of operators we like to add to ReactiveCocoa.
 * [Argo](https://github.com/thoughtbot/Argo)
 * [FBSnapshotTestCase](https://github.com/facebook/ios-snapshot-test-case)
 * [ReactiveSwift](https://github.com/ReactiveCocoa/ReactiveSwift)
+
+Notices for 3rd party libraries in this repository are contained in
+`NOTICE.md`.
 
 ## Contributing
 
@@ -102,7 +103,7 @@ We do too, and we’re [hiring](https://www.kickstarter.com/jobs?ref=gh_ios_oss)
 ## License
 
 ```
-Copyright 2017 Kickstarter, PBC.
+Copyright 2018 Kickstarter, PBC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

@@ -31,8 +31,7 @@ public protocol ProjectNotificationCellViewModelType {
 public final class ProjectNotificationCellViewModel: ProjectNotificationCellViewModelType,
   ProjectNotificationCellViewModelInputs, ProjectNotificationCellViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let notification = self.notificationProperty.signal.skipNil()
       .map(cached(notification:))
 
@@ -84,7 +83,6 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
       .takeWhen(self.notificationTappedProperty.signal)
       .observeValues { AppEnvironment.current.koala.trackChangeProjectNotification($0.project) }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let notificationProperty = MutableProperty<ProjectNotification?>(nil)
   public func configureWith(notification: ProjectNotification) {

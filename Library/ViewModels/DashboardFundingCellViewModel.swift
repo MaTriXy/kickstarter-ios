@@ -72,8 +72,7 @@ public final class DashboardFundingCellViewModel: DashboardFundingCellViewModelI
 
   public static let tickCount = 4
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let statsProject = self.statsProjectProperty.signal.skipNil()
 
     self.backersText = statsProject.map { _, project in Format.wholeNumber(project.stats.backersCount) }
@@ -141,7 +140,6 @@ public final class DashboardFundingCellViewModel: DashboardFundingCellViewModelI
             pledged: pledged, goal: goal, backers_count: backersCount, time_left: timeLeft
         )
     }
-    // swiftlint:enable function_body_length
   }
 
   private let statsProjectProperty = MutableProperty<([ProjectStatsEnvelope.FundingDateStats], Project)?>(nil)

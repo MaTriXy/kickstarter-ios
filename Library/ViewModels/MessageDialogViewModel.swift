@@ -51,8 +51,7 @@ public protocol MessageDialogViewModelType {
 public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDialogViewModelInputs,
 MessageDialogViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let messageSubject = self.messageSubjectProperty.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
 
@@ -134,13 +133,12 @@ MessageDialogViewModelOutputs {
       .takeWhen(self.notifyPresenterCommentWasPostedSuccesfully)
       .observeValues { AppEnvironment.current.koala.trackMessageSent(project: $0, context: $1) }
   }
-  // swiftlint:enable function_body_length
 
   fileprivate let bodyTextChangedProperty = MutableProperty<String?>(nil)
   public func bodyTextChanged(_ body: String) {
     self.bodyTextChangedProperty.value = body
   }
-  fileprivate let cancelButtonPressedProperty = MutableProperty()
+  fileprivate let cancelButtonPressedProperty = MutableProperty(())
   public func cancelButtonPressed() {
     self.cancelButtonPressedProperty.value = ()
   }
@@ -151,11 +149,11 @@ MessageDialogViewModelOutputs {
     self.messageSubjectProperty.value = messageSubject
     self.contextProperty.value = context
   }
-  fileprivate let postButtonPressedProperty = MutableProperty()
+  fileprivate let postButtonPressedProperty = MutableProperty(())
   public func postButtonPressed() {
     self.postButtonPressedProperty.value = ()
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

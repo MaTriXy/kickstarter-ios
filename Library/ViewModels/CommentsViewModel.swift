@@ -59,8 +59,7 @@ public protocol CommentsViewModelType {
 public final class CommentsViewModel: CommentsViewModelType, CommentsViewModelInputs,
 CommentsViewModelOutputs {
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let projectOrUpdate = Signal.combineLatest(
       self.projectAndUpdateProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -171,9 +170,8 @@ CommentsViewModelOutputs {
         )
     }
   }
-  // swiftlint:enable function_body_length
 
-  fileprivate let commentButtonPressedProperty = MutableProperty()
+  fileprivate let commentButtonPressedProperty = MutableProperty(())
   public func commentButtonPressed() {
     self.commentButtonPressedProperty.value = ()
   }
@@ -183,7 +181,7 @@ CommentsViewModelOutputs {
     self.commentPostedProperty.value = comment
   }
 
-  fileprivate let loginButtonPressedProperty = MutableProperty()
+  fileprivate let loginButtonPressedProperty = MutableProperty(())
   public func loginButtonPressed() {
     self.loginButtonPressedProperty.value = ()
   }
@@ -193,17 +191,17 @@ CommentsViewModelOutputs {
     self.projectAndUpdateProperty.value = (project, update)
   }
 
-  fileprivate let refreshProperty = MutableProperty()
+  fileprivate let refreshProperty = MutableProperty(())
   public func refresh() {
     self.refreshProperty.value = ()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }

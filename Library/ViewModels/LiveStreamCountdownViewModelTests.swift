@@ -10,7 +10,6 @@ import XCTest
 internal final class LiveStreamCountdownViewModelTests: TestCase {
   private let vm: LiveStreamCountdownViewModelType = LiveStreamCountdownViewModel()
 
-  private let categoryId = TestObserver<Int, NoError>()
   private let countdownAccessibilityLabel = TestObserver<String, NoError>()
   private let countdownDateLabelText = TestObserver<String, NoError>()
   private let days = TestObserver<String, NoError>()
@@ -29,7 +28,6 @@ internal final class LiveStreamCountdownViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.categoryId.observe(self.categoryId.observer)
     self.vm.outputs.countdownAccessibilityLabel.observe(self.countdownAccessibilityLabel.observer)
     self.vm.outputs.countdownDateLabelText.observe(self.countdownDateLabelText.observer)
     self.vm.outputs.daysString.observe(self.days.observer)
@@ -215,19 +213,6 @@ internal final class LiveStreamCountdownViewModelTests: TestCase {
     XCTAssertEqual([nil, 50], self.trackingClient.properties(forKey: "duration", as: Double.self))
   }
 
-  func testCategoryId() {
-    let project = Project.template
-      |> Project.lens.category.id .~ 123
-
-    self.vm.inputs.configureWith(project: project,
-                                 liveStreamEvent: .template,
-                                 refTag: .projectPage,
-                                 presentedFromProject: true)
-    self.vm.inputs.viewDidLoad()
-
-    self.categoryId.assertValue(123)
-  }
-
   func testProjectImageUrl() {
     let event = .template
       |> LiveStreamEvent.lens.backgroundImage.smallCropped .~ "http://www.background.jpg"
@@ -248,7 +233,7 @@ internal final class LiveStreamCountdownViewModelTests: TestCase {
                                  presentedFromProject: true)
     self.vm.inputs.viewDidLoad()
 
-    self.viewControllerTitle.assertValue("Live stream countdown")
+    self.viewControllerTitle.assertValues(["Live stream countdown"])
   }
 
   func testGoToProjectButtonContainerHidden_WhenPresentedFromProject() {

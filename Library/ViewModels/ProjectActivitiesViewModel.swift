@@ -69,7 +69,6 @@ public protocol ProjectActivitiesViewModelType {
 public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
   ProjectActivitiesViewModelInputs, ProjectActivitiesViewModelOutputs {
 
-  // swiftlint:disable function_body_length
   public init() {
     let project = self.projectProperty.signal.skipNil()
 
@@ -173,7 +172,6 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
         AppEnvironment.current.koala.trackLoadedOlderProjectActivity(project: project, page: pageCount)
     }
   }
-  // swiftlint:enable function_body_length
 
   private let activityAndProjectCellTappedProperty = MutableProperty<(Activity, Project)?>(nil)
   public func activityAndProjectCellTapped(activity: Activity, project: Project) {
@@ -206,10 +204,10 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
     self.projectActivityCommentCellGoToSendReplyProperty.value = (project, update, comment)
   }
 
-  private let refreshProperty = MutableProperty()
+  private let refreshProperty = MutableProperty(())
   public func refresh() { self.refreshProperty.value = () }
 
-  private let viewDidLoadProperty = MutableProperty()
+  private let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() { self.viewDidLoadProperty.value = () }
 
   private let willDisplayRowProperty = MutableProperty<(row: Int, totalRows: Int)?>(nil)

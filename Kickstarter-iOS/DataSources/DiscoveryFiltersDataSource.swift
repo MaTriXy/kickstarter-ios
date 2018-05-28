@@ -24,7 +24,7 @@ internal final class DiscoveryFiltersDataSource: ValueCellDataSource {
   }
 
   internal func load(favoriteRows rows: [SelectableRow], categoryId: Int?) {
-    self.set(values: [(title: Strings.discovery_filters_favorites_title(), categoryId: categoryId)],
+    self.set(values: [(title: Strings.Bookmarks(), categoryId: categoryId)],
              cellClass: DiscoveryFiltersStaticRowCell.self,
              inSection: Section.favoritesHeader.rawValue)
 
@@ -66,10 +66,15 @@ internal final class DiscoveryFiltersDataSource: ValueCellDataSource {
              inSection: Section.categoriesLoader.rawValue)
   }
 
-  internal func deleteCategoriesLoaderRow() -> [IndexPath] {
-    self.clearValues(section: Section.categoriesLoader.rawValue)
+  internal func deleteCategoriesLoaderRow(_ tableView: UITableView) -> [IndexPath]? {
+    if self.numberOfSections(in: tableView) > Section.categoriesLoader.rawValue
+      && !self[section: Section.categoriesLoader.rawValue].isEmpty {
+      self.clearValues(section: Section.categoriesLoader.rawValue)
 
-    return [IndexPath(row: 0, section: Section.categoriesLoader.rawValue)]
+      return [IndexPath(row: 0, section: Section.categoriesLoader.rawValue)]
+    }
+
+    return nil
   }
 
   internal func selectableRow(indexPath: IndexPath) -> SelectableRow? {
@@ -89,7 +94,7 @@ internal final class DiscoveryFiltersDataSource: ValueCellDataSource {
   internal func indexPath(forCategoryId categoryId: Int?) -> IndexPath? {
     for (idx, value) in self[section: Section.categories.rawValue].enumerated() {
       guard let (row, _) = value as? (ExpandableRow, Int?) else { continue }
-      if row.params.category?.id == categoryId {
+      if row.params.category?.intID == categoryId {
         return IndexPath(item: idx, section: Section.categories.rawValue)
       }
     }

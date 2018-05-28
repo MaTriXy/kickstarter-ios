@@ -5,7 +5,6 @@ import Prelude
 import Result
 import XCTest
 
-// swiftlint:disable:next type_name
 internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
 
   let initialParams = .defaults
@@ -45,7 +44,7 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
     }
   }
 
-  func testDiscoveryNavigationHeaderView_Culture_All() {
+  func testDiscoveryNavigationHeaderView_Art_All() {
     Language.allLanguages.forEach { language in
       withEnvironment(language: language) {
         let controller = DiscoveryNavigationHeaderViewController.instantiate()
@@ -60,37 +59,7 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
     }
   }
 
-  func testDiscoveryNavigationHeaderView_Story() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: storyParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Entertainment() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: entertainmentParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Culture_Subcategory() {
+  func testDiscoveryNavigationHeaderView_Art_Subcategory() {
     Language.allLanguages.forEach { language in
       withEnvironment(language: language) {
         let controller = DiscoveryNavigationHeaderViewController.instantiate()
@@ -99,36 +68,6 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
 
         controller.viewDidLoad()
         controller.configureWith(params: cultureSubParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Story_Subcategory() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: storySubParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Entertainment_Subcategory() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: entertainmentSubParams)
 
         FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
       }
@@ -150,7 +89,7 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
     }
   }
 
-  func testDiscoveryNavigationHeaderView_Culture_All_iPad() {
+  func testDiscoveryNavigationHeaderView_Art_All_iPad() {
     Language.allLanguages.forEach { language in
       withEnvironment(language: language) {
         let controller = DiscoveryNavigationHeaderViewController.instantiate()
@@ -165,37 +104,7 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
     }
   }
 
-  func testDiscoveryNavigationHeaderView_Story_iPad() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: storyParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Entertainment_iPad() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: entertainmentParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Culture_Subcategory_iPad() {
+  func testDiscoveryNavigationHeaderView_Art_Subcategory_iPad() {
     Language.allLanguages.forEach { language in
       withEnvironment(language: language) {
         let controller = DiscoveryNavigationHeaderViewController.instantiate()
@@ -204,36 +113,6 @@ internal final class DiscoveryNavigationHeaderViewControllerTests: TestCase {
 
         controller.viewDidLoad()
         controller.configureWith(params: cultureSubParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Story_Subcategory_iPad() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: storySubParams)
-
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
-      }
-    }
-  }
-
-  func testDiscoveryNavigationHeaderView_Entertainment_Subcategory_iPad() {
-    Language.allLanguages.forEach { language in
-      withEnvironment(language: language) {
-        let controller = DiscoveryNavigationHeaderViewController.instantiate()
-        let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 65
-
-        controller.viewDidLoad()
-        controller.configureWith(params: entertainmentSubParams)
 
         FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
       }

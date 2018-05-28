@@ -1,6 +1,3 @@
-// swiftlint:disable file_length
-// swiftlint:disable type_body_length
-// swiftlint:disable function_body_length
 import Prelude
 import ReactiveSwift
 import Result
@@ -17,6 +14,7 @@ internal final class DiscoveryNavigationHeaderViewModelTests: TestCase {
   fileprivate let arrowOpacity = TestObserver<CGFloat, NoError>()
   fileprivate let arrowOpacityAnimated = TestObserver<Bool, NoError>()
   fileprivate let dividerIsHidden = TestObserver<Bool, NoError>()
+  fileprivate let exploreLabelIsHidden = TestObserver<Bool, NoError>()
   fileprivate let primaryLabelOpacity = TestObserver<CGFloat, NoError>()
   fileprivate let primaryLabelOpacityAnimated = TestObserver<Bool, NoError>()
   fileprivate let primaryLabelText = TestObserver<String, NoError>()
@@ -51,6 +49,7 @@ internal final class DiscoveryNavigationHeaderViewModelTests: TestCase {
     self.vm.outputs.arrowOpacityAnimated.map(second).observe(self.arrowOpacityAnimated.observer)
     self.vm.outputs.dismissDiscoveryFilters.observe(self.dismissDiscoveryFilters.observer)
     self.vm.outputs.dividerIsHidden.observe(self.dividerIsHidden.observer)
+    self.vm.outputs.exploreLabelIsHidden.observe(self.exploreLabelIsHidden.observer)
     self.vm.outputs.primaryLabelOpacityAnimated.map(first).observe(self.primaryLabelOpacity.observer)
     self.vm.outputs.primaryLabelOpacityAnimated.map(second).observe(self.primaryLabelOpacityAnimated.observer)
     self.vm.outputs.primaryLabelText.observe(self.primaryLabelText.observer)
@@ -297,8 +296,28 @@ internal final class DiscoveryNavigationHeaderViewModelTests: TestCase {
       Strings.Filter_by_category_name(category_name: categoryParams.category?.name ?? ""),
       Strings.Filter_by_subcategory_name_in_category_name(
         subcategory_name: subcategoryParams.category?.name ?? "",
-        category_name: subcategoryParams.category?.root?.name ?? "")
+        category_name: subcategoryParams.category?._parent?.name ?? "")
       ])
+  }
+
+  func testExploreLabelIsHidden_ifSelectedFilterIsNotDefault() {
+    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.configureWith(params: initialParams)
+
+    self.vm.inputs.filtersSelected(
+      row: selectableRow |> SelectableRow.lens.params .~ categoryParams
+    )
+
+    self.exploreLabelIsHidden.assertValues([true])
+  }
+
+  func testExploreLabelIsNotHidden_ifSelectedFilterIsDefault() {
+    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.configureWith(params: initialParams)
+
+    self.vm.inputs.filtersSelected(row: selectableRow)
+
+    self.exploreLabelIsHidden.assertValues([false])
   }
 
   func testNotifyFilterSelectedParams() {

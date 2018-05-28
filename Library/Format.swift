@@ -1,4 +1,3 @@
-//swiftlint:disable file_length
 import Foundation
 import KsApi
 import Prelude
@@ -98,7 +97,7 @@ public enum Format {
 
     let formatter = DateFormatterConfig.cachedFormatter(
       forConfig: .init(
-        dateFormat: nil,
+        template: nil,
         dateStyle: dateStyle,
         locale: env.locale,
         timeStyle: timeStyle,
@@ -113,16 +112,17 @@ public enum Format {
    Format a date into a string.
 
    - parameter secondsInUTC: Seconds represention of the date as measured from UTC.
-   - parameter dateFormat: A format string.
+   - parameter template: A localized template string.
 
    - returns: A formatted string.
    */
   public static func date(secondsInUTC seconds: TimeInterval,
-                          dateFormat: String,
+                          template: String,
                           timeZone: TimeZone? = nil) -> String {
 
     let formatter = DateFormatterConfig.cachedFormatter(
-      forConfig: .init(dateFormat: dateFormat,
+      forConfig: .init(
+        template: template,
         dateStyle: nil,
         locale: AppEnvironment.current.locale,
         timeStyle: nil,
@@ -179,7 +179,10 @@ public enum Format {
       string = ""
     }
 
-    let split = string.components(separatedBy: " ")
+    let split = string
+      .replacingOccurrences(of: "(\\d+) *", with: "$1 ", options: .regularExpression)
+      .components(separatedBy: " ")
+
     guard split.count >= 1 else { return ("", "") }
 
     let result = (
@@ -259,10 +262,10 @@ public enum Format {
   }
 }
 
-fileprivate let defaultThresholdInDays = 30 // days
+public let defaultThresholdInDays = 30 // days
 
-fileprivate struct DateFormatterConfig {
-  fileprivate let dateFormat: String?
+private struct DateFormatterConfig {
+  fileprivate let template: String?
   fileprivate let dateStyle: DateFormatter.Style?
   fileprivate let locale: Locale
   fileprivate let timeStyle: DateFormatter.Style?
@@ -270,11 +273,11 @@ fileprivate struct DateFormatterConfig {
 
   fileprivate func formatter() -> DateFormatter {
     let formatter = DateFormatter()
-    if let dateFormat = self.dateFormat {
-      formatter.dateFormat = dateFormat
-    }
-    formatter.timeZone = self.timeZone
     formatter.locale = self.locale
+    formatter.timeZone = self.timeZone
+    if let template = self.template {
+      formatter.setLocalizedDateFormatFromTemplate(template)
+    }
     if let dateStyle = self.dateStyle {
       formatter.dateStyle = dateStyle
     }
@@ -284,7 +287,7 @@ fileprivate struct DateFormatterConfig {
     return formatter
   }
 
-  fileprivate static var formatters: [DateFormatterConfig:DateFormatter] = [:]
+  fileprivate static var formatters: [DateFormatterConfig: DateFormatter] = [:]
 
   fileprivate static func cachedFormatter(forConfig config: DateFormatterConfig) -> DateFormatter {
     let formatter = self.formatters[config] ?? config.formatter()
@@ -296,7 +299,7 @@ fileprivate struct DateFormatterConfig {
 extension DateFormatterConfig: Hashable {
   fileprivate var hashValue: Int {
     return
-      (self.dateFormat?.hashValue ?? 0)
+      (self.template?.hashValue ?? 0)
         ^ (self.dateStyle?.hashValue ?? 0)
         ^ self.locale.hashValue
         ^ (self.timeStyle?.hashValue ?? 0)
@@ -304,16 +307,16 @@ extension DateFormatterConfig: Hashable {
   }
 }
 
-fileprivate func == (lhs: DateFormatterConfig, rhs: DateFormatterConfig) -> Bool {
+private func == (lhs: DateFormatterConfig, rhs: DateFormatterConfig) -> Bool {
   return
-    lhs.dateFormat == rhs.dateFormat
+    lhs.template == rhs.template
       && lhs.dateStyle == rhs.dateStyle
       && lhs.locale == rhs.locale
       && lhs.timeStyle == rhs.timeStyle
       && lhs.timeZone == rhs.timeZone
 }
 
-fileprivate struct NumberFormatterConfig {
+private struct NumberFormatterConfig {
   fileprivate let numberStyle: NumberFormatter.Style
   fileprivate let roundingMode: NumberFormatter.RoundingMode
   fileprivate let maximumFractionDigits: Int
@@ -332,7 +335,7 @@ fileprivate struct NumberFormatterConfig {
     return formatter
   }
 
-  fileprivate static var formatters: [NumberFormatterConfig:NumberFormatter] = [:]
+  fileprivate static var formatters: [NumberFormatterConfig: NumberFormatter] = [:]
 
   fileprivate static let defaultWholeNumberConfig = NumberFormatterConfig(numberStyle: .decimal,
                                                                           roundingMode: .down,
@@ -374,7 +377,7 @@ extension NumberFormatterConfig: Hashable {
   }
 }
 
-fileprivate func == (lhs: NumberFormatterConfig, rhs: NumberFormatterConfig) -> Bool {
+private func == (lhs: NumberFormatterConfig, rhs: NumberFormatterConfig) -> Bool {
   return
     lhs.numberStyle == rhs.numberStyle
       && lhs.roundingMode == rhs.roundingMode
@@ -384,7 +387,6 @@ fileprivate func == (lhs: NumberFormatterConfig, rhs: NumberFormatterConfig) -> 
       && lhs.currencySymbol == rhs.currencySymbol
 }
 
-// swiftlint:disable type_name
 extension NumberFormatterConfig {
   fileprivate enum lens {
     fileprivate static let numberStyle = Lens<NumberFormatterConfig, NumberFormatter.Style>(

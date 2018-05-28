@@ -64,12 +64,13 @@ public final class DashboardTitleViewViewModel: DashboardTitleViewViewModelType,
       .map { Strings.tabbar_dashboard() + ", " + $0 }
 
     self.titleAccessibilityHint = self.updateArrowState
-      .map { switch $0 {
-      case .open:
-        return Strings.dashboard_switcher_accessibility_label_closes_list_of_projects()
-      case .closed:
-        return Strings.dashboard_switcher_accessibility_label_opens_list_of_projects()
-      }
+      .map {
+        switch $0 {
+        case .open:
+          return Strings.dashboard_switcher_accessibility_label_closes_list_of_projects()
+        case .closed:
+          return Strings.dashboard_switcher_accessibility_label_opens_list_of_projects()
+        }
     }
   }
 
@@ -90,7 +91,7 @@ public final class DashboardTitleViewViewModel: DashboardTitleViewViewModelType,
     self.currentProjectIndexProperty.value = data.currentProjectIndex
     self.updateDrawerStateHideArrowProperty.value = (data.drawerState, data.isArrowHidden)
   }
-  fileprivate let titleButtonTappedProperty = MutableProperty()
+  fileprivate let titleButtonTappedProperty = MutableProperty(())
   public func titleButtonTapped() {
     titleButtonTappedProperty.value = ()
   }

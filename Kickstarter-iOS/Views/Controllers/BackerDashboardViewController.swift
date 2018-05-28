@@ -8,7 +8,6 @@ internal final class BackerDashboardViewController: UIViewController {
   @IBOutlet private weak var avatarImageView: CircleAvatarImageView!
   @IBOutlet private weak var backedMenuButton: UIButton!
   @IBOutlet private weak var backerNameLabel: UILabel!
-  @IBOutlet private weak var backerLocationLabel: UILabel!
   @IBOutlet private weak var dividerView: UIView!
   @IBOutlet private weak var embeddedViewTopLayoutConstraint: NSLayoutConstraint!
   @IBOutlet private weak var headerTopContainerView: UIView!
@@ -30,6 +29,8 @@ internal final class BackerDashboardViewController: UIViewController {
   fileprivate let viewModel: BackerDashboardViewModelType = BackerDashboardViewModel()
   fileprivate var pagesDataSource: BackerDashboardPagesDataSource!
 
+  private var panGesture = UIPanGestureRecognizer()
+
   internal static func instantiate() -> BackerDashboardViewController {
     return Storyboard.BackerDashboard.instantiate(BackerDashboardViewController.self)
   }
@@ -38,7 +39,13 @@ internal final class BackerDashboardViewController: UIViewController {
     super.viewDidLoad()
 
     self.pageViewController = self.childViewControllers
-      .flatMap { $0 as? UIPageViewController }.first
+      .compactMap { $0 as? UIPageViewController }.first
+    self.pageViewController.setViewControllers(
+      [.init()],
+      direction: .forward,
+      animated: false,
+      completion: nil
+    )
     self.pageViewController.delegate = self
 
     _ = self.backedMenuButton
@@ -53,6 +60,10 @@ internal final class BackerDashboardViewController: UIViewController {
     _ = self.settingsButtonItem
       |> UIBarButtonItem.lens.targetAction .~ (self, #selector(settingsButtonTapped))
 
+    panGesture.addTarget(self, action: #selector(handlePan))
+    panGesture.delegate = self
+    self.view.addGestureRecognizer(panGesture)
+
     self.viewModel.inputs.viewDidLoad()
   }
 
@@ -62,13 +73,11 @@ internal final class BackerDashboardViewController: UIViewController {
     self.viewModel.inputs.viewWillAppear(animated)
   }
 
-  // swiftlint:disable:next function_body_length
   internal override func bindViewModel() {
     super.bindViewModel()
 
     self.avatarImageView.rac.imageUrl = self.viewModel.outputs.avatarURL
     self.backerNameLabel.rac.text = self.viewModel.outputs.backerNameText
-    self.backerLocationLabel.rac.text = self.viewModel.outputs.backerLocationText
     self.embeddedViewTopLayoutConstraint.rac.constant =
       self.viewModel.outputs.embeddedViewTopConstraintConstant
     self.sortBar.rac.hidden = self.viewModel.outputs.sortBarIsHidden
@@ -97,7 +106,7 @@ internal final class BackerDashboardViewController: UIViewController {
       .observeForControllerAction()
       .observeValues { [weak self] _ in
         guard let _self = self else { return }
-        let vc = MessageThreadsViewController.configuredWith(project: nil)
+        let vc = MessageThreadsViewController.configuredWith(project: nil, refTag: .profile)
         _self.navigationController?.pushViewController(vc, animated: true)
     }
 
@@ -128,10 +137,21 @@ internal final class BackerDashboardViewController: UIViewController {
         self?.pinSelectedIndicator(to: tab, animated: animated)
     }
 
+    self.viewModel.outputs.postNotification
+      .observeForUI()
+      .observeValues(NotificationCenter.default.post)
+
     self.viewModel.outputs.setSelectedButton
       .observeForUI()
       .observeValues { [weak self] in
         self?.selectButton(atTab: $0)
+    }
+
+    self.viewModel.outputs.updateCurrentUserInEnvironment
+      .observeForUI()
+      .observeValues { [weak self] user in
+        AppEnvironment.updateCurrentUser(user)
+        self?.viewModel.inputs.currentUserUpdatedInEnvironment()
     }
   }
 
@@ -143,7 +163,7 @@ internal final class BackerDashboardViewController: UIViewController {
     _ = self.navigationItem
       |> UINavigationItem.lens.title %~ { _ in Strings.tabbar_profile() }
 
-    _ = self.messagesButtonItem
+        _ = self.messagesButtonItem
       |> UIBarButtonItem.lens.image .~ image(named: "inbox-icon")
       |> UIBarButtonItem.lens.accessibilityLabel %~ { _ in Strings.profile_buttons_messages() }
 
@@ -162,12 +182,8 @@ internal final class BackerDashboardViewController: UIViewController {
     }
 
     _ = self.backerNameLabel
-      |> UILabel.lens.textColor .~ .black
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
       |> UILabel.lens.font .~ .ksr_headline(size: 18)
-
-    _ = self.backerLocationLabel
-      |> UILabel.lens.textColor .~ .ksr_text_navy_600
-      |> UILabel.lens.font .~ .ksr_subhead(size: 14)
   }
 
   private func configurePagesDataSource(tab: BackerDashboardTab, sort: DiscoveryParams.Sort) {
@@ -184,22 +200,22 @@ internal final class BackerDashboardViewController: UIViewController {
 
   private func setAttributedTitles(for button: UIButton, with string: String) {
     let normalTitleString = NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: self.traitCollection.isRegularRegular
+      NSAttributedStringKey.font: self.traitCollection.isRegularRegular
         ? UIFont.ksr_headline(size: 16.0)
         : UIFont.ksr_headline(size: 13.0),
-      NSForegroundColorAttributeName: UIColor.ksr_text_navy_500
-    ])
+      NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_500
+      ])
 
     let selectedTitleString = NSAttributedString(string: string, attributes: [
-      NSFontAttributeName: self.traitCollection.isRegularRegular
+      NSAttributedStringKey.font: self.traitCollection.isRegularRegular
         ? UIFont.ksr_headline(size: 16.0)
         : UIFont.ksr_headline(size: 13.0),
-      NSForegroundColorAttributeName: UIColor.black
-    ])
+      NSAttributedStringKey.foregroundColor: UIColor.ksr_dark_grey_900
+      ])
 
     _ = button
-      |> UIButton.lens.attributedTitle(forState: .normal) %~ { _ in normalTitleString }
-      |> UIButton.lens.attributedTitle(forState: .selected) %~ { _ in selectedTitleString }
+      |> UIButton.lens.attributedTitle(for: .normal) %~ { _ in normalTitleString }
+      |> UIButton.lens.attributedTitle(for: .selected) %~ { _ in selectedTitleString }
       |> (UIButton.lens.titleLabel..UILabel.lens.lineBreakMode) .~ .byWordWrapping
   }
 
@@ -208,7 +224,7 @@ internal final class BackerDashboardViewController: UIViewController {
 
     for (idx, button) in self.menuButtonsStackView.arrangedSubviews.enumerated() {
       _ = (button as? UIButton)
-        ?|> UIButton.lens.selected .~ (idx == index)
+        ?|> UIButton.lens.isSelected .~ (idx == index)
     }
   }
 
@@ -259,6 +275,92 @@ internal final class BackerDashboardViewController: UIViewController {
   @objc private func savedButtonTapped() {
     self.viewModel.inputs.savedProjectsButtonTapped()
   }
+
+  @objc private func handlePan(gesture: UIPanGestureRecognizer) {
+    let selectedTab = self.viewModel.outputs.currentSelectedTab
+    guard let controller = self.pagesDataSource.controllerFor(tab: selectedTab) as?
+      BackerDashboardProjectsViewController else { return }
+
+    let minHeaderHeight = self.topBackgroundView.frame.size.height
+      - self.menuButtonsStackView.frame.size.height - Styles.grid(3)
+
+    switch gesture.state {
+    case .began:
+      self.viewModel.inputs.beganPanGestureWith(headerTopConstant: self.headerViewTopConstraint.constant,
+                                                scrollViewYOffset: controller.tableView.contentOffset.y)
+    case.changed:
+      let translation = gesture.translation(in: self.view)
+      let newConstant = min(0.0, self.viewModel.outputs.initialTopConstant + translation.y)
+
+      if newConstant >= -minHeaderHeight {
+        self.headerViewTopConstraint.constant = newConstant
+      }
+
+    case .ended:
+      let shouldCollapse = self.headerViewTopConstraint.constant < (-minHeaderHeight / 2.0)
+
+      if shouldCollapse {
+        UIView.animate(
+          withDuration: 0.3,
+          delay: 0.0,
+          options: .curveEaseOut,
+          animations: {
+            self.headerViewTopConstraint.constant = -minHeaderHeight
+            self.view.layoutIfNeeded()
+        },
+          completion: nil)
+      } else {
+        UIView.animate(
+          withDuration: 0.3,
+          delay: 0.0,
+          options: .curveEaseOut,
+          animations: {
+            self.headerViewTopConstraint.constant = 0.0
+            self.view.layoutIfNeeded()
+        },
+          completion: nil)
+      }
+    default: ()
+    }
+  }
 }
 
-extension BackerDashboardViewController: UIPageViewControllerDelegate {}
+extension BackerDashboardViewController: UIPageViewControllerDelegate {
+  internal func pageViewController(_ pageViewController: UIPageViewController,
+                                   didFinishAnimating finished: Bool,
+                                   previousViewControllers: [UIViewController],
+                                   transitionCompleted completed: Bool) {
+
+    self.viewModel.inputs.pageTransition(completed: completed)
+  }
+
+  internal func pageViewController(
+    _ pageViewController: UIPageViewController,
+    willTransitionTo pendingViewControllers: [UIViewController]) {
+
+    guard let idx = pendingViewControllers.first.flatMap(self.pagesDataSource.indexFor(controller:)) else {
+      return
+    }
+
+    self.viewModel.inputs.willTransition(toPage: idx)
+  }
+}
+
+extension BackerDashboardViewController: UIGestureRecognizerDelegate {
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard let gestureRecognizer = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+
+    let translation = gestureRecognizer.translation(in: self.view)
+    if translation.x != 0 { // only respond to horizontal movement.
+      return false
+    }
+
+    return true
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer)
+    -> Bool {
+      return true
+  }
+}

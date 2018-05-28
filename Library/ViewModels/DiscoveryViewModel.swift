@@ -69,11 +69,15 @@ public protocol DiscoveryViewModelType {
   var outputs: DiscoveryViewModelOutputs { get }
 }
 
+private func initialParam() -> DiscoveryParams {
+
+    return DiscoveryParams.defaults
+      |> DiscoveryParams.lens.includePOTD .~ true
+}
+
 public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewModelInputs,
 DiscoveryViewModelOutputs {
-  fileprivate static let defaultParams = .defaults |> DiscoveryParams.lens.includePOTD .~ true
 
-  // swiftlint:disable:next function_body_length
   public init() {
     let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon, .mostFunded]
 
@@ -81,10 +85,10 @@ DiscoveryViewModelOutputs {
     self.configureSortPager = self.configurePagerDataSource
 
     let currentParams = Signal.merge(
-      self.viewWillAppearProperty.signal.take(first: 1).mapConst(DiscoveryViewModel.defaultParams),
+      self.viewWillAppearProperty.signal.take(first: 1).map { _ in initialParam() },
       self.filterWithParamsProperty.signal.skipNil()
       )
-      .skipRepeats()
+    .skipRepeats()
 
     self.configureNavigationHeader = currentParams
 
@@ -119,7 +123,7 @@ DiscoveryViewModelOutputs {
     }
 
     self.updateSortPagerStyle = self.filterWithParamsProperty.signal.skipNil()
-      .map { $0.category?.root?.id }
+      .map { $0.category?.intID }
       .skipRepeats(==)
 
     self.sortsAreEnabled = self.setSortsEnabledProperty.signal.skipNil()
@@ -167,10 +171,11 @@ DiscoveryViewModelOutputs {
   public func willTransition(toPage nextPage: Int) {
     self.willTransitionToPageProperty.value = nextPage
   }
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
+
   fileprivate let viewWillAppearProperty = MutableProperty<Bool?>(nil)
   public func viewWillAppear(animated: Bool) {
     self.viewWillAppearProperty.value = animated

@@ -18,14 +18,17 @@ internal final class DiscoveryViewModelTests: TestCase {
   fileprivate let selectSortPage = TestObserver<DiscoveryParams.Sort, NoError>()
   fileprivate let updateSortPagerStyle = TestObserver<Int?, NoError>()
 
+  let recsInitialParams = .defaults
+    |> DiscoveryParams.lens.recommended .~ true
+    |> DiscoveryParams.lens.backed .~ false
   let initialParams = .defaults |> DiscoveryParams.lens.includePOTD .~ true
+
   let categoryParams = .defaults |> DiscoveryParams.lens.category .~ .art
   let subcategoryParams = .defaults |> DiscoveryParams.lens.category .~ .documentary
   let starredParams = .defaults |> DiscoveryParams.lens.starred .~ true
 
   internal override func setUp() {
     super.setUp()
-
     self.vm.outputs.loadFilterIntoDataSource.observe(self.loadFilterIntoDataSource.observer)
     self.vm.outputs.configurePagerDataSource.observe(self.configureDataSource.observer)
     self.vm.outputs.navigateToSort.map { $0.0 }.observe(self.navigateToSort.observer)
@@ -224,6 +227,6 @@ internal final class DiscoveryViewModelTests: TestCase {
 
     self.vm.inputs.filter(withParams: subcategoryParams)
 
-    self.updateSortPagerStyle.assertValues([1, 11], "Emits root category id.")
+    self.updateSortPagerStyle.assertValues([1, 30], "Emits root category id.")
   }
 }

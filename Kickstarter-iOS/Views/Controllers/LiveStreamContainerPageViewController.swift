@@ -35,9 +35,14 @@ internal final class LiveStreamContainerPageViewController: UIViewController {
     self.infoPagerButton.addTarget(self, action: #selector(infoButtonTapped), for: .touchUpInside)
 
     self.pageViewController = self.childViewControllers
-      .flatMap { $0 as? UIPageViewController }
+      .compactMap { $0 as? UIPageViewController }
       .first
-
+    self.pageViewController?.setViewControllers(
+      [.init()],
+      direction: .forward,
+      animated: false,
+      completion: nil
+    )
     self.pageViewController?.dataSource = self.pagesDataSource
     self.pageViewController?.delegate = self
 
@@ -49,7 +54,7 @@ internal final class LiveStreamContainerPageViewController: UIViewController {
 
     _ = self
       |> baseLiveStreamControllerStyle()
-      |> UIViewController.lens.view.backgroundColor .~ .ksr_navy_700
+      |> UIViewController.lens.view.backgroundColor .~ .ksr_dark_grey_900
 
     _ = self.separatorView
       |> UIView.lens.backgroundColor .~ UIColor.white.withAlphaComponent(0.2)
@@ -58,14 +63,14 @@ internal final class LiveStreamContainerPageViewController: UIViewController {
       |> UIView.lens.backgroundColor .~ .white
 
     _ = self.pagerTabStripStackView
-      |> UIStackView.lens.layoutMarginsRelativeArrangement .~ true
+      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
       |> UIStackView.lens.layoutMargins .~ .init(topBottom: Styles.grid(2))
 
     _ = self.infoPagerButton
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.Info() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.Info() }
 
     _ = self.chatPagerButton
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.Chat() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.Chat() }
   }
 
   internal override func bindViewModel() {

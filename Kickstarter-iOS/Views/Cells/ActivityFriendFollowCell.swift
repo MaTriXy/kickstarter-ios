@@ -40,18 +40,18 @@ internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
       |> feedTableViewCellStyle
 
     _ = self.cardView
-      |> dropShadowStyle()
+      |> cardStyle()
 
     _ = self.containerView
       |> UIView.lens.layoutMargins .~ .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
 
     _ = self.friendLabel
-      |> UILabel.lens.textColor .~ .ksr_text_navy_700
+      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
 
     _ = self.followButton
       |> navyButtonStyle
       |> UIButton.lens.targets .~ [(self, action: #selector(followButtonTapped), .touchUpInside)]
-      |> UIButton.lens.title(forState: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
+      |> UIButton.lens.title(for: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
       |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
       |> UIButton.lens.contentEdgeInsets .~ .init(topBottom: Styles.gridHalf(3),
                                                   leftRight: Styles.gridHalf(5))

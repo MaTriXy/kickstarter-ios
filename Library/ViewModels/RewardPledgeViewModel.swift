@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import KsApi
 import PassKit
 import Prelude
@@ -207,14 +206,12 @@ public protocol RewardPledgeViewModelType {
   var outputs: RewardPledgeViewModelOutputs { get }
 }
 
-// swiftlint:disable type_body_length
 public final class RewardPledgeViewModel: RewardPledgeViewModelType, RewardPledgeViewModelInputs,
 RewardPledgeViewModelOutputs {
 
   fileprivate let rewardViewModel: RewardCellViewModelType = RewardCellViewModel()
 
-  // swiftlint:disable function_body_length
-  public init() {
+    public init() {
     let projectAndRewardAndApplePayCapable = Signal.combineLatest(
       self.projectAndRewardAndApplePayCapableProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal
@@ -240,7 +237,8 @@ RewardPledgeViewModelOutputs {
       .skipRepeats(==)
 
     let shippingRulesEvent = projectAndReward
-      .switchMap { (project, reward) -> SignalProducer<Event<[ShippingRule], ErrorEnvelope>, NoError> in
+      .switchMap { (project, reward)
+        -> SignalProducer<Signal<[ShippingRule], ErrorEnvelope>.Event, NoError> in
         guard reward != Reward.noReward else {
           return SignalProducer(value: .value([]))
         }
@@ -319,7 +317,7 @@ RewardPledgeViewModelOutputs {
 
     self.countryLabelText = Signal.merge(
       self.viewDidLoadProperty.signal.mapConst(""),
-      selectedShipping.skipNil().map { $0.location.displayableName }
+      selectedShipping.skipNil().map { $0.location.localizedName }
     )
 
     let shippingAmount = Signal.combineLatest(
@@ -365,13 +363,12 @@ RewardPledgeViewModelOutputs {
     self.expandRewardDescription = self.expandDescriptionTappedProperty.signal
 
     self.shippingLocationsLabelText = reward
-      .map { $0.shipping.summary }
-      .skipNil()
+      .map { $0.shipping.summary ?? "" }
 
     self.estimatedDeliveryDateLabelText = reward
       .map { reward in
         reward.estimatedDeliveryOn.map {
-          Format.date(secondsInUTC: $0, dateFormat: "MMM yyyy", timeZone: UTCTimeZone)
+          Format.date(secondsInUTC: $0, template: "MMMyyyy", timeZone: UTCTimeZone)
         }
       }
       .skipNil()
@@ -769,17 +766,17 @@ RewardPledgeViewModelOutputs {
   }
   // swiftlint:enable function_body_length
 
-  fileprivate let applePayButtonTappedProperty = MutableProperty()
+  fileprivate let applePayButtonTappedProperty = MutableProperty(())
   public func applePayButtonTapped() {
     self.applePayButtonTappedProperty.value = ()
   }
 
-  fileprivate let cancelPledgeButtonTappedProperty = MutableProperty()
+  fileprivate let cancelPledgeButtonTappedProperty = MutableProperty(())
   public func cancelPledgeButtonTapped() {
     self.cancelPledgeButtonTappedProperty.value = ()
   }
 
-  fileprivate let changePaymentMethodButtonTappedProperty = MutableProperty()
+  fileprivate let changePaymentMethodButtonTappedProperty = MutableProperty(())
   public func changePaymentMethodButtonTapped() {
     self.changePaymentMethodButtonTappedProperty.value = ()
   }
@@ -789,12 +786,12 @@ RewardPledgeViewModelOutputs {
     self.changedShippingRuleProperty.value = shippingRule
   }
 
-  fileprivate let closeButtonTappedProperty = MutableProperty()
+  fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
     self.closeButtonTappedProperty.value = ()
   }
 
-  fileprivate let continueToPaymentsButtonTappedProperty = MutableProperty()
+  fileprivate let continueToPaymentsButtonTappedProperty = MutableProperty(())
   public func continueToPaymentsButtonTapped() {
     self.continueToPaymentsButtonTappedProperty.value = ()
   }
@@ -809,12 +806,12 @@ RewardPledgeViewModelOutputs {
     self.didAuthorizePaymentProperty.value = payment
   }
 
-  fileprivate let differentPaymentMethodButtonTappedProperty = MutableProperty()
+  fileprivate let differentPaymentMethodButtonTappedProperty = MutableProperty(())
   public func differentPaymentMethodButtonTapped() {
     self.differentPaymentMethodButtonTappedProperty.value = ()
   }
 
-  fileprivate let disclaimerButtonTappedProperty = MutableProperty()
+  fileprivate let disclaimerButtonTappedProperty = MutableProperty(())
   public func disclaimerButtonTapped() {
     self.disclaimerButtonTappedProperty.value = ()
   }
@@ -824,17 +821,17 @@ RewardPledgeViewModelOutputs {
     self.errorAlertTappedShouldDismissProperty.value = shouldDismiss
   }
 
-  fileprivate let expandDescriptionTappedProperty = MutableProperty()
+  fileprivate let expandDescriptionTappedProperty = MutableProperty(())
   public func expandDescriptionTapped() {
     self.expandDescriptionTappedProperty.value = ()
   }
 
-  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty()
+  fileprivate let paymentAuthorizationFinishedProperty = MutableProperty(())
   public func paymentAuthorizationDidFinish() {
     self.paymentAuthorizationFinishedProperty.value = ()
   }
 
-  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty()
+  fileprivate let paymentAuthorizationWillAuthorizeProperty = MutableProperty(())
   public func paymentAuthorizationWillAuthorizePayment() {
     self.paymentAuthorizationWillAuthorizeProperty.value = ()
   }
@@ -844,7 +841,7 @@ RewardPledgeViewModelOutputs {
     self.pledgeTextChangedProperty.value = text
   }
 
-  fileprivate let pledgeTextFieldDidEndEditingProperty = MutableProperty()
+  fileprivate let pledgeTextFieldDidEndEditingProperty = MutableProperty(())
   public func pledgeTextFieldDidEndEditing() {
     self.pledgeTextFieldDidEndEditingProperty.value = ()
   }
@@ -854,12 +851,12 @@ RewardPledgeViewModelOutputs {
     self.projectAndRewardAndApplePayCapableProperty.value = (project, reward, applePayCapable)
   }
 
-  fileprivate let shippingButtonTappedProperty = MutableProperty()
+  fileprivate let shippingButtonTappedProperty = MutableProperty(())
   public func shippingButtonTapped() {
     self.shippingButtonTappedProperty.value = ()
   }
 
-  fileprivate let stripeTokenAndErrorProperty = MutableProperty(String?.none, Error?.none)
+  fileprivate let stripeTokenAndErrorProperty = MutableProperty((String?.none, Error?.none))
   fileprivate let paymentAuthorizationStatusProperty = MutableProperty(PKPaymentAuthorizationStatus.failure)
   public func stripeCreatedToken(stripeToken: String?, error: Error?)
     -> PKPaymentAuthorizationStatus {
@@ -868,17 +865,17 @@ RewardPledgeViewModelOutputs {
       return self.paymentAuthorizationStatusProperty.value
   }
 
-  fileprivate let updatePledgeButtonTappedProperty = MutableProperty()
+  fileprivate let updatePledgeButtonTappedProperty = MutableProperty(())
   public func updatePledgeButtonTapped() {
     self.updatePledgeButtonTappedProperty.value = ()
   }
 
-  fileprivate let userSessionStartedProperty = MutableProperty()
+  fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
   }
 
-  fileprivate let viewDidLoadProperty = MutableProperty()
+  fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
   }
@@ -942,7 +939,6 @@ RewardPledgeViewModelOutputs {
   public var inputs: RewardPledgeViewModelInputs { return self }
   public var outputs: RewardPledgeViewModelOutputs { return self }
 }
-// swiftlint:enable type_body_length
 
 private func paymentRequest(forProject project: Project,
                             reward: Reward,
@@ -1184,7 +1180,7 @@ private func navigationTitle(forProject project: Project, reward: Reward) -> Str
   )
 }
 
-fileprivate enum PledgeError: Error {
+private enum PledgeError: Error {
   case maximumAmount(ErrorEnvelope)
   case minimumAmount(ErrorEnvelope)
   case other(ErrorEnvelope)
