@@ -5,10 +5,10 @@ import Prelude_UIKit
 import UIKit
 
 internal final class DashboardContextCell: UITableViewCell, ValueCell {
-  @IBOutlet fileprivate weak var containerView: UIView!
-  @IBOutlet fileprivate weak var projectNameLabel: UILabel!
-  @IBOutlet fileprivate weak var separatorView: UIView!
-  @IBOutlet fileprivate weak var viewProjectButton: UIButton!
+  @IBOutlet fileprivate var containerView: UIView!
+  @IBOutlet fileprivate var projectNameLabel: UILabel!
+  @IBOutlet fileprivate var separatorView: UIView!
+  @IBOutlet fileprivate var viewProjectButton: UIButton!
 
   internal override func bindStyles() {
     super.bindStyles()
@@ -16,10 +16,10 @@ internal final class DashboardContextCell: UITableViewCell, ValueCell {
     _ = self
       |> dashboardContextCellStyle
       |> UITableViewCell.lens.selectionStyle .~ .gray
-      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraits.button
       |> UITableViewCell.lens.accessibilityHint %~ { _ in
         Strings.dashboard_tout_accessibility_hint_opens_project()
-    }
+      }
 
     _ = self.containerView
       |> containerViewBackgroundStyle

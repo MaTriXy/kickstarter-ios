@@ -1,18 +1,34 @@
 import UIKit
 
 public extension UITableView {
-  public func registerCellClass <CellClass: UITableViewCell> (_ cellClass: CellClass.Type) {
-    register(cellClass, forCellReuseIdentifier: cellClass.description())
+  // MARK: - Registration
+
+  func registerHeaderFooterClass(_ headerFooterClass: UITableViewHeaderFooterView.Type) {
+    let className = classNameWithoutModule(headerFooterClass)
+    self.register(headerFooterClass, forHeaderFooterViewReuseIdentifier: className)
   }
 
-  public func registerCellNibForClass(_ cellClass: AnyClass) {
-    let classNameWithoutModule = cellClass
-      .description()
-      .components(separatedBy: ".")
-      .dropFirst()
-      .joined(separator: ".")
+  func registerCellClass(_ cellClass: UITableViewCell.Type) {
+    let className = classNameWithoutModule(cellClass)
+    self.register(cellClass, forCellReuseIdentifier: className)
+  }
 
-    register(UINib(nibName: classNameWithoutModule, bundle: nil),
-             forCellReuseIdentifier: classNameWithoutModule)
+  func registerCellNibForClass(_ cellClass: AnyClass) {
+    let className = classNameWithoutModule(cellClass)
+    self.register(UINib(nibName: className, bundle: nil), forCellReuseIdentifier: className)
+  }
+
+  // MARK: - Reuse
+
+  func dequeueReusableHeaderFooterView(withClass headerFooterClass: UITableViewHeaderFooterView.Type)
+    -> UITableViewHeaderFooterView? {
+    let className = classNameWithoutModule(headerFooterClass)
+    return self.dequeueReusableHeaderFooterView(withIdentifier: className)
+  }
+
+  func dequeueReusableCell(withClass cellClass: UITableViewCell.Type, for indexPath: IndexPath)
+    -> UITableViewCell {
+    let className = classNameWithoutModule(cellClass)
+    return self.dequeueReusableCell(withIdentifier: className, for: indexPath)
   }
 }

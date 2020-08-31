@@ -4,7 +4,6 @@ public enum Storyboard: String {
   case Activity
   case Backing
   case BackerDashboard
-  case Checkout
   case Comments
   case Dashboard
   case DashboardProjectsDrawer
@@ -15,29 +14,29 @@ public enum Storyboard: String {
   case Friends
   case Help
   case LaunchScreen
-  case LiveStream
-  case LiveStreamDiscovery
   case Login
   case Main
   case Messages
+  case PaymentMethods
   case Profile
   case ProjectActivity
   case ProjectPamphlet
-  case RewardPledge
   case Search
   case Settings
+  case SettingsNewsletters
+  case SettingsNotifications
+  case SettingsPrivacy
   case Thanks
   case Update
   case UpdateDraft
   case Video
   case WebModal
 
-  public func instantiate<VC: UIViewController>(_ viewController: VC.Type,
-                                                inBundle bundle: Bundle = .framework) -> VC {
+  public func instantiate<VC: UIViewController>(_: VC.Type, inBundle bundle: Bundle = .framework) -> VC {
     guard
       let vc = UIStoryboard(name: self.rawValue, bundle: Bundle(identifier: bundle.identifier))
-        .instantiateViewController(withIdentifier: VC.storyboardIdentifier) as? VC
-      else { fatalError("Couldn't instantiate \(VC.storyboardIdentifier) from \(self.rawValue)") }
+      .instantiateViewController(withIdentifier: VC.storyboardIdentifier) as? VC
+    else { fatalError("Couldn't instantiate \(VC.storyboardIdentifier) from \(self.rawValue)") }
 
     return vc
   }

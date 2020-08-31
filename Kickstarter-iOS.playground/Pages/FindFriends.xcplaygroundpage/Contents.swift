@@ -1,11 +1,11 @@
-import Library
-import Prelude
-import PlaygroundSupport
 @testable import Kickstarter_Framework
 @testable import KsApi
+import Library
+import PlaygroundSupport
+import Prelude
 
 let currentUser = .template
-  |> User.lens.facebookConnected .~ true
+  |> \.facebookConnected .~ true
 
 let friendsResponse = .template
   |> FindFriendsEnvelope.lens.users .~ [User.brando]

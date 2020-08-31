@@ -4,7 +4,6 @@ import Prelude_UIKit
 import UIKit
 
 public func projectAttributedNameAndBlurb(_ project: Project) -> NSAttributedString {
-
   let isProjectNamePunctuated = project.name.unicodeScalars.last
     .map(CharacterSet.punctuationCharacters.contains)
     .coalesceWith(false)
@@ -14,16 +13,16 @@ public func projectAttributedNameAndBlurb(_ project: Project) -> NSAttributedStr
   let baseNameAttributedString = NSMutableAttributedString(
     string: "\(projectName) ",
     attributes: [
-      NSAttributedStringKey.font: UIFont.ksr_title3(size: 18.0),
-      NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_900
+      NSAttributedString.Key.font: UIFont.ksr_title3(size: 18.0),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
     ]
   )
 
   let blurbAttributedString = NSAttributedString(
     string: project.blurb,
     attributes: [
-      NSAttributedStringKey.font: UIFont.ksr_title3(size: 18.0),
-      NSAttributedStringKey.foregroundColor: UIColor.ksr_text_dark_grey_400
+      NSAttributedString.Key.font: UIFont.ksr_title3(size: 18.0),
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_400
     ]
   )
 

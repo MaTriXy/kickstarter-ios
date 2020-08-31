@@ -1,8 +1,7 @@
-import XCTest
 @testable import KsApi
+import XCTest
 
 final class NewsletterSubscriptionsTests: XCTestCase {
-
   func testJsonEncoding() {
     let json: [String: Any] = [
       "games_newsletter": false,
@@ -13,7 +12,12 @@ final class NewsletterSubscriptionsTests: XCTestCase {
 
     let newsletter = User.NewsletterSubscriptions.decodeJSONDictionary(json)
 
-    XCTAssertEqual(newsletter.value?.encode().description, json.description)
+    let newsletterDescription = newsletter.value!.encode().description
+
+    XCTAssertTrue(newsletterDescription.contains("games_newsletter\": false"))
+    XCTAssertTrue(newsletterDescription.contains("happening_newsletter\": false"))
+    XCTAssertTrue(newsletterDescription.contains("promo_newsletter\": false"))
+    XCTAssertTrue(newsletterDescription.contains("weekly_newsletter\": false"))
 
     XCTAssertEqual(false, newsletter.value?.weekly)
     XCTAssertEqual(false, newsletter.value?.promo)
@@ -31,7 +35,12 @@ final class NewsletterSubscriptionsTests: XCTestCase {
 
     let newsletter = User.NewsletterSubscriptions.decodeJSONDictionary(json)
 
-    XCTAssertEqual(newsletter.value?.encode().description, json.description)
+    let newsletterDescription = newsletter.value!.encode().description
+
+    XCTAssertTrue(newsletterDescription.contains("games_newsletter\": true"))
+    XCTAssertTrue(newsletterDescription.contains("promo_newsletter\": true"))
+    XCTAssertTrue(newsletterDescription.contains("happening_newsletter\": true"))
+    XCTAssertTrue(newsletterDescription.contains("weekly_newsletter\": true"))
 
     XCTAssertEqual(true, newsletter.value?.weekly)
     XCTAssertEqual(true, newsletter.value?.promo)
@@ -49,7 +58,9 @@ final class NewsletterSubscriptionsTests: XCTestCase {
 
     let newsletters = json.value
 
-    XCTAssertEqual(newsletters,
-                   User.NewsletterSubscriptions.decodeJSONDictionary(newsletters?.encode() ?? [:]).value)
+    XCTAssertEqual(
+      newsletters,
+      User.NewsletterSubscriptions.decodeJSONDictionary(newsletters?.encode() ?? [:]).value
+    )
   }
 }

@@ -1,12 +1,10 @@
-import Library
-import Prelude
-import Result
-import XCTest
 @testable import Kickstarter_Framework
 @testable import KsApi
+import Library
+import Prelude
+import XCTest
 
 internal final class MessageThreadViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     UIView.setAnimationsEnabled(false)
@@ -20,16 +18,16 @@ internal final class MessageThreadViewControllerTests: TestCase {
   func testView() {
     let project = Project.template
 
-    let backer = .template
-      |> User.lens.avatar.large .~ ""
-      |> User.lens.avatar.medium .~ ""
-      |> User.lens.avatar.small .~ ""
+    let backer = User.template
+      |> \.avatar.large .~ ""
+      |> \.avatar.medium .~ ""
+      |> \.avatar.small .~ ""
 
-    let nativeSquadTheCreator = .template
-      |> User.lens.name .~ "Native Squad"
+    let nativeSquadTheCreator = User.template
+      |> \.name .~ "Native Squad"
 
-    let bobTheCreator = .template
-      |> User.lens.name .~ "Bob"
+    let bobTheCreator = User.template
+      |> \.name .~ "Bob"
 
     let unreadMessage = .template
       |> Message.lens.body .~ "Hello there. You have not read this message."
@@ -43,11 +41,11 @@ internal final class MessageThreadViewControllerTests: TestCase {
       |> Message.lens.body .~ "Hey there. You replied to this message."
       |> Message.lens.sender .~ backer
 
-    let unreadMessageThread =  .template
+    let unreadMessageThread = .template
       |> MessageThread.lens.participant .~ nativeSquadTheCreator
       |> MessageThread.lens.lastMessage .~ unreadMessage
 
-    let readMessageThread =  .template
+    let readMessageThread = .template
       |> MessageThread.lens.participant .~ bobTheCreator
       |> MessageThread.lens.lastMessage .~ readMessage
       |> MessageThread.lens.unreadMessagesCount .~ 0
@@ -66,7 +64,7 @@ internal final class MessageThreadViewControllerTests: TestCase {
       mainBundle: Bundle.framework
     )
 
-    [Device.phone4_7inch, Device.pad].forEach { device in
+    [Device.phone4_7inch, Device.phone5_8inch, Device.pad].forEach { device in
 
       let controller = MessageThreadsViewController.configuredWith(project: project, refTag: nil)
 

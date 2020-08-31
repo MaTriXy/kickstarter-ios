@@ -7,7 +7,8 @@ public enum Mailbox: String {
   case sent
 }
 
-/**
+/*
+ *
  A type that knows how to perform requests for Kickstarter data.
  */
 public protocol ServiceType {
@@ -17,13 +18,17 @@ public protocol ServiceType {
   var language: String { get }
   var currency: String { get }
   var buildVersion: String { get }
+  var deviceIdentifier: String { get }
 
-  init(appId: String,
-       serverConfig: ServerConfigType,
-       oauthToken: OauthTokenAuthType?,
-       language: String,
-       currency: String,
-       buildVersion: String)
+  init(
+    appId: String,
+    serverConfig: ServerConfigType,
+    oauthToken: OauthTokenAuthType?,
+    language: String,
+    currency: String,
+    buildVersion: String,
+    deviceIdentifier: String
+  )
 
   /// Returns a new service with the oauth token replaced.
   func login(_ oauthToken: OauthTokenAuthType) -> Self
@@ -42,15 +47,38 @@ public protocol ServiceType {
   func addVideo(file fileURL: URL, toDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Video, ErrorEnvelope>
 
+  /// Cancels a backing
+  func cancelBacking(input: CancelBackingInput)
+    -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  func changeEmail(input: ChangeEmailInput) ->
+    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  func changePassword(input: ChangePasswordInput) ->
+    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  func changeCurrency(input: ChangeCurrencyInput) ->
+    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  /// Clears the user's unseen activity count.
+  func clearUserUnseenActivity(input: EmptyInput)
+    -> SignalProducer<ClearUserUnseenActivityEnvelope, GraphError>
+
+  func createBacking(input: CreateBackingInput) ->
+    SignalProducer<CreateBackingEnvelope, GraphError>
+
+  func createPassword(input: CreatePasswordInput) ->
+    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  func addNewCreditCard(input: CreatePaymentSourceInput) ->
+    SignalProducer<CreatePaymentSourceEnvelope, GraphError>
+
   func changePaymentMethod(project: Project)
     -> SignalProducer<ChangePaymentMethodEnvelope, ErrorEnvelope>
 
-  /// Performs the first step of checkout by creating a pledge on the server.
-  func createPledge(project: Project,
-                    amount: Double,
-                    reward: Reward?,
-                    shippingLocation: Location?,
-                    tappedReward: Bool) -> SignalProducer<CreatePledgeEnvelope, ErrorEnvelope>
+  /// Deletes a payment method
+  func deletePaymentMethod(input: PaymentSourceDeleteInput) ->
+    SignalProducer<DeletePaymentMethodEnvelope, GraphError>
 
   /// Removes an image from a project update draft.
   func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
@@ -62,7 +90,7 @@ public protocol ServiceType {
 
   func exportData() -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
-  func exportDataState(state: String, downloadUrl: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
+  func exportDataState() -> SignalProducer<ExportDataEnvelope, ErrorEnvelope>
 
   /// Fetch a page of activities.
   func fetchActivities(count: Int?) -> SignalProducer<ActivityEnvelope, ErrorEnvelope>
@@ -73,9 +101,6 @@ public protocol ServiceType {
   /// Fetches the current user's backing for the project, if it exists.
   func fetchBacking(forProject project: Project, forUser user: User)
     -> SignalProducer<Backing, ErrorEnvelope>
-
-  /// Fetch a checkout's status.
-  func fetchCheckout(checkoutUrl url: String) -> SignalProducer<CheckoutEnvelope, ErrorEnvelope>
 
   /// Fetch comments from a pagination url.
   func fetchComments(paginationUrl url: String) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
@@ -111,6 +136,26 @@ public protocol ServiceType {
   func fetchGraphCategory(query: NonEmptySet<Query>)
     -> SignalProducer<CategoryEnvelope, GraphError>
 
+  /// Fetch User's stored cards.
+  func fetchGraphCreditCards(query: NonEmptySet<Query>)
+    -> SignalProducer<UserEnvelope<GraphUserCreditCard>, GraphError>
+
+  /// Fetch a User's account fields
+  func fetchGraphUserAccountFields(query: NonEmptySet<Query>)
+    -> SignalProducer<UserEnvelope<GraphUser>, GraphError>
+
+  /// Fetch User's backings with a specific status.
+  func fetchGraphUserBackings(query: NonEmptySet<Query>)
+    -> SignalProducer<UserEnvelope<GraphBackingEnvelope>, GraphError>
+
+  /// Fetch User's email fields object using graphQL.
+  func fetchGraphUserEmailFields(query: NonEmptySet<Query>)
+    -> SignalProducer<UserEnvelope<UserEmailFields>, GraphError>
+
+  /// Fetch Backing data for ManagePledgeViewController
+  func fetchManagePledgeViewBacking(query: NonEmptySet<Query>)
+    -> SignalProducer<ManagePledgeViewBackingEnvelope, GraphError>
+
   /// Fetches all of the messages in a particular message thread.
   func fetchMessageThread(messageThreadId: Int)
     -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope>
@@ -143,6 +188,10 @@ public protocol ServiceType {
   func fetchProjectActivities(paginationUrl: String) ->
     SignalProducer<ProjectActivityEnvelope, ErrorEnvelope>
 
+  /// Fetch the project creator details for a project with a given query.
+  func fetchProjectCreatorDetails(query: NonEmptySet<Query>)
+    -> SignalProducer<ProjectCreatorDetailsEnvelope, GraphError>
+
   /// Fetch the user's project notifications.
   func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope>
 
@@ -154,6 +203,10 @@ public protocol ServiceType {
 
   /// Fetches the stats for a particular project.
   func fetchProjectStats(projectId: Int) -> SignalProducer<ProjectStatsEnvelope, ErrorEnvelope>
+
+  /// Fetch the project summary for a project with a given query.
+  func fetchProjectSummary(query: NonEmptySet<Query>)
+    -> SignalProducer<ProjectSummaryEnvelope, GraphError>
 
   /// Fetches a reward for a project and reward id.
   func fetchRewardShippingRules(projectId: Int, rewardId: Int)
@@ -240,35 +293,38 @@ public protocol ServiceType {
   func sendMessage(body: String, toSubject subject: MessageSubject)
     -> SignalProducer<Message, ErrorEnvelope>
 
+  /// Sends a verification email (after updating the email from account settings).
+  func sendVerificationEmail(input: EmptyInput)
+    -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+
+  /// Signin with Apple
+  func signInWithApple(input: SignInWithAppleInput)
+    -> SignalProducer<SignInWithAppleEnvelope, GraphError>
+
   /// Signup with email.
-  func signup(name: String, email: String, password: String, passwordConfirmation: String,
-              sendNewsletters: Bool) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
+  func signup(
+    name: String, email: String, password: String, passwordConfirmation: String,
+    sendNewsletters: Bool
+  ) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
 
   /// Signup with Facebook access token and newsletter bool.
   func signup(facebookAccessToken: String, sendNewsletters: Bool) ->
     SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
 
-  /// Star a project.
-  func star(_ project: Project) -> SignalProducer<StarEnvelope, ErrorEnvelope>
-
-  func submitApplePay(checkoutUrl: String,
-                      stripeToken: String,
-                      paymentInstrumentName: String,
-                      paymentNetwork: String,
-                      transactionIdentifier: String) -> SignalProducer<SubmitApplePayEnvelope, ErrorEnvelope>
-
-  /// Toggle the starred state on a project.
-  func toggleStar(_ project: Project) -> SignalProducer<StarEnvelope, ErrorEnvelope>
-
   /// Unfollow a user with their id.
   func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
+  /// Updates a backing
+  func updateBacking(input: UpdateBackingInput) -> SignalProducer<UpdateBackingEnvelope, GraphError>
+
   /// Performs the first step of checkout by creating a pledge on the server.
-  func updatePledge(project: Project,
-                    amount: Double,
-                    reward: Reward?,
-                    shippingLocation: Location?,
-                    tappedReward: Bool) -> SignalProducer<UpdatePledgeEnvelope, ErrorEnvelope>
+  func updatePledge(
+    project: Project,
+    amount: Double,
+    reward: Reward?,
+    shippingLocation: Location?,
+    tappedReward: Bool
+  ) -> SignalProducer<UpdatePledgeEnvelope, ErrorEnvelope>
 
   /// Update the project notification setting.
   func updateProjectNotification(_ notification: ProjectNotification)
@@ -280,6 +336,12 @@ public protocol ServiceType {
   /// Updates the draft of a project update.
   func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope>
+
+  func unwatchProject(input: WatchProjectInput) ->
+    SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError>
+
+  func watchProject(input: WatchProjectInput) ->
+    SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError>
 }
 
 extension ServiceType {
@@ -292,10 +354,10 @@ extension ServiceType {
 public func == (lhs: ServiceType, rhs: ServiceType) -> Bool {
   return
     type(of: lhs) == type(of: rhs) &&
-      lhs.serverConfig == rhs.serverConfig &&
-      lhs.oauthToken == rhs.oauthToken &&
-      lhs.language == rhs.language &&
-      lhs.buildVersion == rhs.buildVersion
+    lhs.serverConfig == rhs.serverConfig &&
+    lhs.oauthToken == rhs.oauthToken &&
+    lhs.language == rhs.language &&
+    lhs.buildVersion == rhs.buildVersion
 }
 
 public func != (lhs: ServiceType, rhs: ServiceType) -> Bool {
@@ -303,7 +365,6 @@ public func != (lhs: ServiceType, rhs: ServiceType) -> Bool {
 }
 
 extension ServiceType {
-
   /**
    Prepares a URL request to be sent to the server.
 
@@ -314,39 +375,37 @@ extension ServiceType {
    */
   public func preparedRequest(forRequest originalRequest: URLRequest, query: [String: Any] = [:])
     -> URLRequest {
+    var request = originalRequest
+    guard let URL = request.url else {
+      return originalRequest
+    }
 
-      var request = originalRequest
-      guard let URL = request.url else {
-        return originalRequest
+    var headers = self.defaultHeaders
+
+    let method = request.httpMethod?.uppercased()
+    var components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
+    var queryItems = components.queryItems ?? []
+    queryItems.append(contentsOf: self.defaultQueryParams.map(URLQueryItem.init(name:value:)))
+
+    if method == .some("POST") || method == .some("PUT") {
+      if request.httpBody == nil {
+        headers["Content-Type"] = "application/json; charset=utf-8"
+        request.httpBody = try? JSONSerialization.data(withJSONObject: query, options: [])
       }
+    } else {
+      queryItems.append(
+        contentsOf: query
+          .flatMap(self.queryComponents)
+          .map(URLQueryItem.init(name:value:))
+      )
+    }
+    components.queryItems = queryItems.sorted { $0.name < $1.name }
+    request.url = components.url
 
-      var headers = self.defaultHeaders
+    let currentHeaders = request.allHTTPHeaderFields ?? [:]
+    request.allHTTPHeaderFields = currentHeaders.withAllValuesFrom(headers)
 
-      let method = request.httpMethod?.uppercased()
-      // swiftlint:disable:next force_unwrapping
-      var components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
-      var queryItems = components.queryItems ?? []
-      queryItems.append(contentsOf: self.defaultQueryParams.map(URLQueryItem.init(name:value:)))
-
-      if method == .some("POST") || method == .some("PUT") {
-        if request.httpBody == nil {
-          headers["Content-Type"] = "application/json; charset=utf-8"
-          request.httpBody = try? JSONSerialization.data(withJSONObject: query, options: [])
-        }
-      } else {
-        queryItems.append(
-          contentsOf: query
-            .flatMap(queryComponents)
-            .map(URLQueryItem.init(name:value:))
-        )
-      }
-      components.queryItems = queryItems.sorted { $0.name < $1.name }
-      request.url = components.url
-
-      let currentHeaders = request.allHTTPHeaderFields ?? [:]
-      request.allHTTPHeaderFields = currentHeaders.withAllValuesFrom(headers)
-
-      return request
+    return request
   }
 
   /**
@@ -360,10 +419,9 @@ extension ServiceType {
    */
   public func preparedRequest(forURL url: URL, method: Method = .GET, query: [String: Any] = [:])
     -> URLRequest {
-
-      var request = URLRequest(url: url)
-      request.httpMethod = method.rawValue
-      return self.preparedRequest(forRequest: request, query: query)
+    var request = URLRequest(url: url)
+    request.httpMethod = method.rawValue
+    return self.preparedRequest(forRequest: request, query: query)
   }
 
   /**
@@ -376,32 +434,64 @@ extension ServiceType {
    */
   public func preparedRequest(forRequest originalRequest: URLRequest, queryString: String)
     -> URLRequest {
+    var request = originalRequest
+    guard let URL = request.url else {
+      return originalRequest
+    }
 
-      var request = originalRequest
-      guard let URL = request.url else {
-        return originalRequest
-      }
+    request.httpBody = "query=\(queryString)".data(using: .utf8)
 
-      request.httpBody = "query=\(queryString)".data(using: .utf8)
+    let components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
+    request.url = components.url
+    request.allHTTPHeaderFields = self.defaultHeaders
 
-      // swiftlint:disable:next force_unwrapping
-      let components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
-      request.url = components.url
-      request.allHTTPHeaderFields = self.defaultHeaders
-
-      return request
+    return request
   }
 
   public func preparedRequest(forURL url: URL, queryString: String)
     -> URLRequest {
+    var request = URLRequest(url: url)
+    request.httpMethod = Method.POST.rawValue
+    return self.preparedRequest(forRequest: request, queryString: queryString)
+  }
 
-      var request = URLRequest(url: url)
-      request.httpMethod = Method.POST.rawValue
-      return self.preparedRequest(forRequest: request, queryString: queryString)
+  /**
+     Prepares a URL request to be sent to the server.
+     - parameter originalRequest: The request that should be prepared
+     - parameter queryString: The GraphQL mutation string description
+     - parameter input: The input for the mutation
+
+     - returns: A new URL request that is properly configured for the server
+   **/
+  public func preparedGraphRequest(
+    forURL url: URL,
+    queryString: String,
+    input: [String: Any]
+  ) throws -> URLRequest {
+    var request = URLRequest(url: url)
+    request.httpMethod = Method.POST.rawValue
+
+    guard let URL = request.url else {
+      return request
+    }
+
+    let requestBody = self.graphMutationRequestBody(mutation: queryString, input: input)
+    let jsonData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
+
+    request.httpBody = jsonData
+
+    var headers = self.defaultHeaders
+    headers["Content-Type"] = "application/json; charset=utf-8"
+
+    let components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
+    request.url = components.url
+    request.allHTTPHeaderFields = headers
+
+    return request
   }
 
   public func isPrepared(request: URLRequest) -> Bool {
-    return request.value(forHTTPHeaderField: "Authorization") == authorizationHeader
+    return request.value(forHTTPHeaderField: "Authorization") == self.authorizationHeader
       && request.value(forHTTPHeaderField: "Kickstarter-iOS-App") != nil
   }
 
@@ -412,12 +502,20 @@ extension ServiceType {
     headers["Kickstarter-App-Id"] = self.appId
     headers["Kickstarter-iOS-App"] = self.buildVersion
     headers["User-Agent"] = Self.userAgent
+    headers["X-KICKSTARTER-CLIENT"] = self.serverConfig.apiClientAuth.clientId
+    headers["Kickstarter-iOS-App-UUID"] = self.deviceIdentifier
 
     return headers
   }
 
-  public static var userAgent: String {
+  func graphMutationRequestBody(mutation: String, input: [String: Any]) -> [String: Any] {
+    return [
+      "query": mutation,
+      "variables": ["input": input]
+    ]
+  }
 
+  public static var userAgent: String {
     let executable = Bundle.main.infoDictionary?["CFBundleExecutable"] as? String
     let bundleIdentifier = Bundle.main.infoDictionary?["CFBundleIdentifier"] as? String
     let app: String = executable ?? bundleIdentifier ?? "Kickstarter"
@@ -450,11 +548,11 @@ extension ServiceType {
 
     if let dictionary = value as? [String: Any] {
       for (nestedKey, value) in dictionary {
-        components += queryComponents("\(key)[\(nestedKey)]", value)
+        components += self.queryComponents("\(key)[\(nestedKey)]", value)
       }
     } else if let array = value as? [Any] {
       for value in array {
-        components += queryComponents("\(key)[]", value)
+        components += self.queryComponents("\(key)[]", value)
       }
     } else {
       components.append((key, String(describing: value)))

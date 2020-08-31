@@ -1,8 +1,7 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import ReactiveExtensions
-import Result
+import ReactiveSwift
 
 public protocol TwoFactorViewModelInputs {
   /// Call when code textfield is updated
@@ -32,25 +31,25 @@ public protocol TwoFactorViewModelInputs {
 
 public protocol TwoFactorViewModelOutputs {
   /// Emits when the code text field is the first responder.
-  var codeTextFieldBecomeFirstResponder: Signal<(), NoError> { get }
+  var codeTextFieldBecomeFirstResponder: Signal<(), Never> { get }
 
   /// Emits whether the form is valid or not
-  var isFormValid: Signal<Bool, NoError> { get }
+  var isFormValid: Signal<Bool, Never> { get }
 
   /// Emits whether a request is loading or not
-  var isLoading: Signal<Bool, NoError> { get }
+  var isLoading: Signal<Bool, Never> { get }
 
   /// Emits an access token envelope that can be used to update the environment.
-  var logIntoEnvironment: Signal<AccessTokenEnvelope, NoError> { get }
+  var logIntoEnvironment: Signal<AccessTokenEnvelope, Never> { get }
 
   /// Emits when a login success notification should be posted.
-  var postNotification: Signal<(Notification, Notification), NoError> { get }
+  var postNotification: Signal<(Notification, Notification), Never> { get }
 
   /// Emits when code was resent successfully
-  var resendSuccess: Signal<(), NoError> { get }
+  var resendSuccess: Signal<(), Never> { get }
 
   /// Emits a message when the code submitted is not correct or login fails
-  var showError: Signal<String, NoError> { get }
+  var showError: Signal<String, Never> { get }
 }
 
 public protocol TwoFactorViewModelType {
@@ -60,7 +59,6 @@ public protocol TwoFactorViewModelType {
 
 public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewModelInputs,
   TwoFactorViewModelOutputs {
-
   // A simple type to hold all the data needed to login.
   fileprivate struct TfaData {
     fileprivate let email: String?
@@ -68,16 +66,15 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     fileprivate let facebookToken: String?
     fileprivate let code: String?
 
-        fileprivate enum lens {
+    fileprivate enum lens {
       fileprivate static let code = Lens<TfaData, String?>(
         view: { $0.code },
         set: { TfaData(email: $1.email, password: $1.password, facebookToken: $1.facebookToken, code: $0) }
       )
     }
-    // swiftlint:enable type_name
   }
 
-    public init() {
+  public init() {
     let isLoading = MutableProperty(false)
 
     let loginData = SignalProducer.combineLatest(
@@ -85,8 +82,8 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
       self.passwordProperty.producer,
       self.facebookTokenProperty.producer,
       self.codeProperty.producer
-      )
-      .map(TfaData.init)
+    )
+    .map(TfaData.init)
 
     let resendData = loginData.map(TfaData.lens.code .~ nil)
 
@@ -95,7 +92,7 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
       .switchMap { data in
         login(data, apiService: AppEnvironment.current.apiService, isLoading: isLoading)
           .materialize()
-    }
+      }
 
     self.codeTextFieldBecomeFirstResponder = self.viewDidLoadProperty.signal
 
@@ -114,9 +111,9 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.isLoading = isLoading.signal
 
     self.isFormValid = Signal.merge([
-      codeProperty.signal.map { code in code?.count == 6 },
-      viewWillAppearProperty.signal.mapConst(false)
-      ])
+      self.codeProperty.signal.map { code in code?.count == 6 },
+      self.viewWillAppearProperty.signal.mapConst(false)
+    ])
       .skipRepeats()
 
     let codeMismatch = loginEvent.errors()
@@ -130,31 +127,16 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.showError = Signal.merge([codeMismatch, genericFail])
 
     self.postNotification = self.environmentLoggedInProperty.signal
-      .mapConst((Notification(name: .ksr_sessionStarted),
-                 Notification(name: .ksr_showNotificationsDialog,
-                              userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login])))
+      .mapConst((
+        Notification(name: .ksr_sessionStarted),
+        Notification(
+          name: .ksr_showNotificationsDialog,
+          userInfo: [UserInfoKeys.context: PushNotificationDialog.Context.login]
+        )
+      ))
 
-    self.viewWillAppearProperty.signal
-      .observeValues { AppEnvironment.current.koala.trackTfa() }
-
-    self.facebookTokenProperty.signal.ignoreValues()
-      .takeWhen(self.logIntoEnvironment)
-      .observeValues { AppEnvironment.current.koala.trackLoginSuccess(authType: Koala.AuthType.facebook) }
-
-    self.passwordProperty.signal.ignoreValues()
-      .takeWhen(self.logIntoEnvironment)
-      .observeValues { AppEnvironment.current.koala.trackLoginSuccess(authType: Koala.AuthType.email) }
-
-    self.resendPressedProperty.signal
-      .observeValues { AppEnvironment.current.koala.trackTfaResendCode() }
-
-    self.facebookTokenProperty.signal
-      .takeWhen(self.showError)
-      .observeValues { _ in AppEnvironment.current.koala.trackLoginError(authType: Koala.AuthType.facebook) }
-
-    self.emailProperty.signal
-      .takeWhen(self.showError)
-      .observeValues { _ in AppEnvironment.current.koala.trackLoginError(authType: Koala.AuthType.email) }
+    self.viewDidLoadProperty.signal
+      .observeValues { AppEnvironment.current.koala.track2FAViewed() }
   }
 
   fileprivate let codeProperty = MutableProperty<String?>(nil)
@@ -199,22 +181,23 @@ public final class TwoFactorViewModel: TwoFactorViewModelType, TwoFactorViewMode
     self.viewWillAppearProperty.value = ()
   }
 
-  public let codeTextFieldBecomeFirstResponder: Signal<(), NoError>
-  public let isFormValid: Signal<Bool, NoError>
-  public let isLoading: Signal<Bool, NoError>
-  public let logIntoEnvironment: Signal<AccessTokenEnvelope, NoError>
-  public let postNotification: Signal<(Notification, Notification), NoError>
-  public let resendSuccess: Signal<(), NoError>
-  public let showError: Signal<String, NoError>
+  public let codeTextFieldBecomeFirstResponder: Signal<(), Never>
+  public let isFormValid: Signal<Bool, Never>
+  public let isLoading: Signal<Bool, Never>
+  public let logIntoEnvironment: Signal<AccessTokenEnvelope, Never>
+  public let postNotification: Signal<(Notification, Notification), Never>
+  public let resendSuccess: Signal<(), Never>
+  public let showError: Signal<String, Never>
 
   public var inputs: TwoFactorViewModelInputs { return self }
   public var outputs: TwoFactorViewModelOutputs { return self }
 }
 
-private func login(_ tfaData: TwoFactorViewModel.TfaData,
-                   apiService: ServiceType,
-                   isLoading: MutableProperty<Bool>) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-
+private func login(
+  _ tfaData: TwoFactorViewModel.TfaData,
+  apiService: ServiceType,
+  isLoading: MutableProperty<Bool>
+) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
   let login: SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
 
   if let email = tfaData.email, let password = tfaData.password {
@@ -226,6 +209,8 @@ private func login(_ tfaData: TwoFactorViewModel.TfaData,
   }
 
   return login
-    .on(starting: { isLoading.value = true },
-      terminated: { isLoading.value = false })
+    .on(
+      starting: { isLoading.value = true },
+      terminated: { isLoading.value = false }
+    )
 }

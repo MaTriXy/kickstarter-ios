@@ -1,36 +1,40 @@
-// swiftlint:disable force_unwrapping
-import XCTest
-@testable import Library
 @testable import KsApi
-@testable import ReactiveExtensions_TestHelpers
-import Result
-import KsApi
+@testable import Library
 import Prelude
+import ReactiveExtensions_TestHelpers
+import XCTest
 
 final class ActivitiesViewModelTests: TestCase {
   fileprivate let vm: ActivitiesViewModelType! = ActivitiesViewModel()
 
-  fileprivate let activitiesPresent = TestObserver<Bool, NoError>()
-  fileprivate let isRefreshing = TestObserver<Bool, NoError>()
-  fileprivate let goToProject = TestObserver<Project, NoError>()
-  fileprivate let goToSurveyResponse = TestObserver<SurveyResponse, NoError>()
-  fileprivate let showRefTag = TestObserver<RefTag, NoError>()
-  fileprivate let deleteFacebookConnectSection = TestObserver<(), NoError>()
-  fileprivate let deleteFindFriendsSection = TestObserver<(), NoError>()
-  fileprivate let hideEmptyState = TestObserver<(), NoError>()
-  fileprivate let goToFriends = TestObserver<FriendsSource, NoError>()
-  fileprivate let showEmptyStateIsLoggedIn = TestObserver<Bool, NoError>()
-  fileprivate let showFacebookConnectSection = TestObserver<Bool, NoError>()
-  fileprivate let showFacebookConnectSectionSource = TestObserver<FriendsSource, NoError>()
-  fileprivate let showFindFriendsSection = TestObserver<Bool, NoError>()
-  fileprivate let showFindFriendsSectionSource = TestObserver<FriendsSource, NoError>()
-  fileprivate let showFacebookConnectErrorAlert = TestObserver<AlertError, NoError>()
-  fileprivate let unansweredSurveyResponse = TestObserver<[SurveyResponse], NoError>()
+  fileprivate let activitiesPresent = TestObserver<Bool, Never>()
+  fileprivate let clearBadgeValue = TestObserver<(), Never>()
+  fileprivate let erroredBackings = TestObserver<[GraphBacking], Never>()
+  fileprivate let isRefreshing = TestObserver<Bool, Never>()
+  fileprivate let goToProject = TestObserver<Project, Never>()
+  fileprivate let goToSurveyResponse = TestObserver<SurveyResponse, Never>()
+  fileprivate let showRefTag = TestObserver<RefTag, Never>()
+  fileprivate let deleteFacebookConnectSection = TestObserver<(), Never>()
+  fileprivate let deleteFindFriendsSection = TestObserver<(), Never>()
+  fileprivate let hideEmptyState = TestObserver<(), Never>()
+  fileprivate let goToFriends = TestObserver<FriendsSource, Never>()
+  fileprivate let goToManagePledgeProjectParam = TestObserver<Param, Never>()
+  fileprivate let goToManagePledgeBackingParam = TestObserver<Param?, Never>()
+  fileprivate let showEmptyStateIsLoggedIn = TestObserver<Bool, Never>()
+  fileprivate let showFacebookConnectSection = TestObserver<Bool, Never>()
+  fileprivate let showFacebookConnectSectionSource = TestObserver<FriendsSource, Never>()
+  fileprivate let showFindFriendsSection = TestObserver<Bool, Never>()
+  fileprivate let showFindFriendsSectionSource = TestObserver<FriendsSource, Never>()
+  fileprivate let showFacebookConnectErrorAlert = TestObserver<AlertError, Never>()
+  fileprivate let unansweredSurveyResponse = TestObserver<[SurveyResponse], Never>()
+  fileprivate let updateUserInEnvironment = TestObserver<User, Never>()
 
   override func setUp() {
     super.setUp()
 
     self.vm.outputs.activities.map { !$0.isEmpty }.observe(self.activitiesPresent.observer)
+    self.vm.outputs.clearBadgeValue.observe(self.clearBadgeValue.observer)
+    self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
     self.vm.outputs.hideEmptyState.observe(self.hideEmptyState.observer)
     self.vm.outputs.isRefreshing.observe(self.isRefreshing.observer)
     self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
@@ -39,6 +43,8 @@ final class ActivitiesViewModelTests: TestCase {
     self.vm.outputs.deleteFindFriendsSection.observe(self.deleteFindFriendsSection.observer)
     self.vm.outputs.goToFriends.observe(self.goToFriends.observer)
     self.vm.outputs.goToSurveyResponse.observe(self.goToSurveyResponse.observer)
+    self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
+    self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
     self.vm.outputs.showEmptyStateIsLoggedIn.observe(self.showEmptyStateIsLoggedIn.observer)
     self.vm.outputs.showFacebookConnectSection.map { $0.1 }.observe(self.showFacebookConnectSection.observer)
     self.vm.outputs.showFacebookConnectSection.map { $0.0 }
@@ -47,6 +53,7 @@ final class ActivitiesViewModelTests: TestCase {
     self.vm.outputs.showFindFriendsSection.map { $0.0 }.observe(self.showFindFriendsSectionSource.observer)
     self.vm.outputs.showFacebookConnectErrorAlert.observe(self.showFacebookConnectErrorAlert.observer)
     self.vm.outputs.unansweredSurveys.observe(self.unansweredSurveyResponse.observer)
+    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
   }
 
   // Tests the flow of logging in with a user that has activities.
@@ -64,7 +71,7 @@ final class ActivitiesViewModelTests: TestCase {
     self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity1, activity2])) {
+    withEnvironment(apiService: MockService(fetchActivitiesResponse: [self.activity1, self.activity2])) {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
 
@@ -143,7 +150,7 @@ final class ActivitiesViewModelTests: TestCase {
   func testInvalidatedTokenFlow_ActivitiesClearAfterSessionCleared() {
     self.vm.inputs.viewDidLoad()
 
-    hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
+    self.hideEmptyState.assertValueCount(1, "Dismiss empty state emits.")
 
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
     self.vm.inputs.userSessionStarted()
@@ -151,28 +158,28 @@ final class ActivitiesViewModelTests: TestCase {
 
     self.scheduler.advance()
 
-    activitiesPresent.assertValues([true], "Activities show right away.")
-    showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
-    hideEmptyState.assertValueCount(2, "Dismiss empty state emits.")
+    self.activitiesPresent.assertValues([true], "Activities show right away.")
+    self.showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
+    self.hideEmptyState.assertValueCount(2, "Dismiss empty state emits.")
 
     AppEnvironment.logout()
     self.vm.inputs.userSessionEnded()
 
-    showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
+    self.showEmptyStateIsLoggedIn.assertValueCount(0, "Empty state does not emit.")
 
     self.vm.inputs.viewWillAppear(animated: false)
 
     self.scheduler.advance()
 
-    activitiesPresent.assertValues([true, false], "Activities clear right away.")
-    showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
-    hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
+    self.activitiesPresent.assertValues([true, false], "Activities clear right away.")
+    self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state emits.")
+    self.hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
 
     self.vm.inputs.viewWillAppear(animated: false)
 
-    activitiesPresent.assertValues([true, false], "Activities does not emit again.")
-    showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state does not emit again.")
-    hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
+    self.activitiesPresent.assertValues([true, false], "Activities does not emit again.")
+    self.showEmptyStateIsLoggedIn.assertValues([false], "Logged out empty state does not emit again.")
+    self.hideEmptyState.assertValueCount(2, "Dismiss empty state does not emit.")
   }
 
   // Tests the flow:
@@ -185,18 +192,18 @@ final class ActivitiesViewModelTests: TestCase {
     self.vm.inputs.userSessionStarted()
     self.scheduler.advance()
 
-    activitiesPresent.assertValues([], "Activities don't load after session starts.")
+    self.activitiesPresent.assertValues([], "Activities don't load after session starts.")
 
     self.vm.inputs.viewWillAppear(animated: false)
 
-    activitiesPresent.assertValues([true], "Activities load once view appears.")
+    self.activitiesPresent.assertValues([true], "Activities load once view appears.")
   }
 
   func testRefreshActivities() {
-
-    withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity1, activity2]),
-                    currentUser: .template) {
-
+    withEnvironment(
+      apiService: MockService(fetchActivitiesResponse: [self.activity1, self.activity2]),
+      currentUser: .template
+    ) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
@@ -211,11 +218,96 @@ final class ActivitiesViewModelTests: TestCase {
 
       // New fetchActivitiesResponse
       withEnvironment(apiService: MockService(fetchActivitiesResponse: [activity1, activity2, activity3])) {
-
         self.vm.inputs.refresh()
         self.scheduler.advance()
 
         self.activitiesPresent.assertValues([true, true, true], "New activities emit on refresh.")
+      }
+    }
+  }
+
+  func testClearBadgeValueOnRefreshActivities() {
+    self.updateUserInEnvironment.assertValues([])
+    self.clearBadgeValue.assertValueCount(0)
+
+    let mockService1 = MockService(
+      clearUserUnseenActivityResult: Result.success(.init(activityIndicatorCount: 0)),
+      fetchActivitiesResponse: [self.activity1, self.activity2]
+    )
+
+    let mockService2 = MockService(
+      clearUserUnseenActivityResult: Result.success(.init(activityIndicatorCount: 0)),
+      fetchActivitiesResponse: [self.activity1, self.activity2, self.activity3]
+    )
+
+    let user = User.template
+      |> User.lens.unseenActivityCount .~ 100
+
+    withEnvironment(
+      apiService: mockService1,
+      currentUser: user
+    ) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.userSessionStarted()
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.scheduler.advance()
+
+      self.updateUserInEnvironment.assertValues([])
+      self.activitiesPresent.assertValues([true], "Activities load immediately after session starts.")
+      self.clearBadgeValue.assertValueCount(0)
+
+      withEnvironment(apiService: mockService2) {
+        self.vm.inputs.refresh()
+        self.scheduler.advance()
+
+        self.activitiesPresent.assertValues([true, true], "New activities emit on refresh.")
+        self.clearBadgeValue.assertValueCount(1)
+        XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
+
+        self.scheduler.advance()
+
+        XCTAssertEqual(self.updateUserInEnvironment.values.map { $0.id }, [user.id])
+      }
+    }
+  }
+
+  func testClearBadgeValueOnRefreshActivities_LoggedOut() {
+    self.updateUserInEnvironment.assertValues([])
+    self.clearBadgeValue.assertValueCount(0)
+
+    let mockService1 = MockService(
+      clearUserUnseenActivityResult: Result.success(.init(activityIndicatorCount: 0)),
+      fetchActivitiesResponse: [self.activity1, self.activity2]
+    )
+
+    let mockService2 = MockService(
+      clearUserUnseenActivityResult: Result.success(.init(activityIndicatorCount: 0)),
+      fetchActivitiesResponse: [self.activity1, self.activity2, self.activity3]
+    )
+
+    withEnvironment(
+      apiService: mockService1
+    ) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.userSessionStarted()
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.scheduler.advance()
+
+      self.updateUserInEnvironment.assertValues([])
+      self.activitiesPresent.assertValues([])
+      self.clearBadgeValue.assertValueCount(0)
+
+      withEnvironment(apiService: mockService2) {
+        self.vm.inputs.refresh()
+        self.scheduler.advance()
+
+        self.activitiesPresent.assertValues([])
+        self.clearBadgeValue.assertValueCount(0)
+        self.updateUserInEnvironment.assertValues([])
+
+        self.scheduler.advance()
+
+        self.updateUserInEnvironment.assertValues([])
       }
     }
   }
@@ -235,12 +327,14 @@ final class ActivitiesViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: false)
 
-    showFacebookConnectSection.assertValueCount(0)
+    self.showFacebookConnectSection.assertValueCount(0)
 
     self.goToFriends.assertValueCount(0)
 
-    withEnvironment(apiService: MockService(fetchUnansweredSurveyResponsesResponse: []),
-                    currentUser: .template) {
+    withEnvironment(
+      apiService: MockService(fetchUnansweredSurveyResponsesResponse: []),
+      currentUser: .template
+    ) {
       self.vm.inputs.userSessionStarted()
       self.scheduler.advance()
       self.vm.inputs.viewWillAppear(animated: false)
@@ -272,8 +366,8 @@ final class ActivitiesViewModelTests: TestCase {
     self.showFacebookConnectSectionSource.assertValueCount(0)
     self.showFacebookConnectSection.assertValueCount(0)
 
-    // logged in && Facebook connected
-    let user = User.template |> User.lens.facebookConnected .~ true
+    // logged in && Facebook connected && doesn't need new token
+    let user = User.template |> \.facebookConnected .~ true
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
     self.vm.inputs.userSessionStarted()
     self.scheduler.advance()
@@ -294,6 +388,19 @@ final class ActivitiesViewModelTests: TestCase {
     self.showFacebookConnectSectionSource.assertValues([FriendsSource.activity, FriendsSource.activity])
     self.showFacebookConnectSection.assertValues([false, true], "Show Facebook Connect Section")
 
+    // logged in && FB connected, needs new token
+
+    let facebookReconnectUser = User.template
+      |> \.facebookConnected .~ true
+      |> \.needsFreshFacebookToken .~ true
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: facebookReconnectUser))
+    self.vm.inputs.userSessionStarted()
+    self.scheduler.advance()
+
+    self.vm.inputs.viewWillAppear(animated: false)
+
+    self.showFacebookConnectSection.assertValues([false, true, true], "Show Facebook Section")
+
     // delete section
     self.deleteFacebookConnectSection.assertValueCount(0)
 
@@ -303,8 +410,10 @@ final class ActivitiesViewModelTests: TestCase {
 
     self.vm.inputs.viewWillAppear(animated: false)
 
-    showFacebookConnectSection.assertValues([false, true, false],
-                                            "Don't show Facebook Connect Section on return")
+    self.showFacebookConnectSection.assertValues(
+      [false, true, true, false],
+      "Don't show Facebook Connect Section on return"
+    )
   }
 
   func testFindFriendsSection() {
@@ -327,17 +436,37 @@ final class ActivitiesViewModelTests: TestCase {
     self.showFindFriendsSectionSource.assertValues([FriendsSource.activity])
     self.showFindFriendsSection.assertValues([false], "Don't show Find Friends Section")
 
-    // logged in && Facebook connected
+    // logged in && FB connected but needs fresh token
     AppEnvironment.logout()
     self.vm.inputs.userSessionEnded()
-    let userConnected = User.template |> User.lens.facebookConnected .~ true
+    let userConnected = User.template
+      |> \.facebookConnected .~ true
+      |> \.needsFreshFacebookToken .~ true
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: userConnected))
     self.vm.inputs.userSessionStarted()
     self.scheduler.advance()
     self.vm.inputs.viewWillAppear(animated: false)
 
     self.showFindFriendsSectionSource.assertValues([FriendsSource.activity, FriendsSource.activity])
-    self.showFindFriendsSection.assertValues([false, true], "Show Find Friends Section")
+    self.showFindFriendsSection.assertValues([false, false], "Hide find friends section")
+
+    // logged in && Facebook connected & doesn't needs fresh token
+    AppEnvironment.logout()
+    self.vm.inputs.userSessionEnded()
+    let fbConnected = User.template
+      |> \.facebookConnected .~ true
+      |> \.needsFreshFacebookToken .~ false
+    AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: fbConnected))
+    self.vm.inputs.userSessionStarted()
+    self.scheduler.advance()
+    self.vm.inputs.viewWillAppear(animated: false)
+
+    self.showFindFriendsSectionSource.assertValues([
+      FriendsSource.activity,
+      FriendsSource.activity,
+      FriendsSource.activity
+    ])
+    self.showFindFriendsSection.assertValues([false, false, true], "Show Find Friends Section")
 
     // delete section
     self.deleteFindFriendsSection.assertValueCount(0)
@@ -348,7 +477,12 @@ final class ActivitiesViewModelTests: TestCase {
 
     self.vm.inputs.viewWillAppear(animated: false)
 
-    showFindFriendsSection.assertValues([false, true, false], "Don't show Find Friends Section on return")
+    self.showFindFriendsSection.assertValues([
+      false,
+      false,
+      true,
+      false
+    ], "Don't show Find Friends Section on return")
   }
 
   func testFacebookErrorAlerts() {
@@ -366,8 +500,10 @@ final class ActivitiesViewModelTests: TestCase {
 
     self.unansweredSurveyResponse.assertValueCount(0, "Survey does not emit when logged out.")
 
-    withEnvironment(apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse]),
-      currentUser: .template) {
+    withEnvironment(
+      apiService: MockService(fetchUnansweredSurveyResponsesResponse: [surveyResponse]),
+      currentUser: .template
+    ) {
       self.vm.inputs.userSessionStarted()
       self.vm.inputs.viewWillAppear(animated: false)
 
@@ -386,8 +522,90 @@ final class ActivitiesViewModelTests: TestCase {
 
       // Exited survey modal.
       self.vm.inputs.surveyResponseViewControllerDismissed()
-      self.unansweredSurveyResponse.assertValues([[surveyResponse], [surveyResponse]],
-                                                 "Same unanswered survey emits.")
+      self.unansweredSurveyResponse.assertValues(
+        [[surveyResponse], [surveyResponse]],
+        "Same unanswered survey emits."
+      )
+    }
+  }
+
+  func testGoToManagePledge() {
+    self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+    self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+
+    let backing = GraphBacking.template
+      |> \.project .~ .template
+
+    self.vm.inputs.erroredBackingViewDidTapManage(with: backing)
+
+    guard
+      let projectId = backing.project?.pid,
+      let backingId = decompose(id: backing.id)
+    else {
+      XCTFail("Should have projectId and backingId")
+      return
+    }
+
+    self.goToManagePledgeProjectParam.assertValues([.id(projectId)])
+    self.goToManagePledgeBackingParam.assertValues([.id(backingId)])
+  }
+
+  func testTracking_GoToManagePledge() {
+    withEnvironment(
+      apiService: MockService(fetchActivitiesResponse: [.template]),
+      currentUser: .template
+    ) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.vm.inputs.userSessionStarted()
+      self.scheduler.advance()
+
+      let backing = GraphBacking.template
+        |> \.project .~ .template
+
+      XCTAssertEqual(self.trackingClient.events, ["Activity Feed Viewed"])
+
+      self.vm.inputs.erroredBackingViewDidTapManage(with: backing)
+
+      XCTAssertEqual(
+        self.trackingClient.events,
+        ["Activity Feed Viewed", "Manage Pledge Button Clicked"]
+      )
+    }
+  }
+
+  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish() {
+    let user = User.template
+
+    let backing = GraphBacking.template
+      |> \.project .~ .template
+
+    let backings = GraphBackingEnvelope.GraphBackingConnection(nodes: [backing])
+
+    let envelope = GraphBackingEnvelope.template
+      |> \.backings .~ backings
+
+    let backingsResponse = UserEnvelope<GraphBackingEnvelope>(me: envelope)
+
+    let mockService = MockService(fetchGraphUserBackingsResponse: backingsResponse)
+
+    withEnvironment(apiService: mockService, currentUser: user) {
+      self.updateUserInEnvironment.assertDidNotEmitValue()
+      self.erroredBackings.assertDidNotEmitValue()
+
+      self.vm.inputs.managePledgeViewControllerDidFinish()
+
+      self.scheduler.advance()
+
+      self.updateUserInEnvironment.assertValues([user])
+      self.erroredBackings.assertDidNotEmitValue()
+
+      self.vm.inputs.currentUserUpdated()
+
+      self.scheduler.advance()
+
+      self.updateUserInEnvironment.assertValues([user])
+      self.erroredBackings.assertValues([backingsResponse.me.backings.nodes])
     }
   }
 
@@ -417,7 +635,7 @@ final class ActivitiesViewModelTests: TestCase {
     ]
 
     let page2 = [
-      .template |> Activity.lens.id .~ 40 ,
+      .template |> Activity.lens.id .~ 40,
       .template |> Activity.lens.id .~ 41 |> Activity.lens.category .~ .backing,
       .template |> Activity.lens.id .~ 42 |> Activity.lens.category .~ .success
     ]
@@ -429,42 +647,52 @@ final class ActivitiesViewModelTests: TestCase {
       self.vm.inputs.viewWillAppear(animated: false)
       self.scheduler.advance()
 
-      XCTAssertEqual(["Activities", "Viewed Activity"], self.trackingClient.events)
+      XCTAssertEqual([], self.trackingClient.events, "Tracking waits for results")
 
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
       self.vm.inputs.userSessionStarted()
       self.scheduler.advance()
 
+      XCTAssertEqual(
+        ["Activity Feed Viewed"],
+        self.trackingClient.events, "Impression is tracked"
+      )
+      XCTAssertEqual([3], self.trackingClient.properties(forKey: "activities_count", as: Int.self))
+
       self.vm.inputs.viewWillAppear(animated: false)
       self.scheduler.advance()
 
-      XCTAssertEqual(["Activities", "Viewed Activity", "Activities", "Viewed Activity"],
-                     self.trackingClient.events, "Activity view emits on view will appear if not animated.")
+      XCTAssertEqual(
+        ["Activity Feed Viewed"],
+        self.trackingClient.events, "Impression is not tracked when the view doesn't animate"
+      )
 
       self.vm.inputs.refresh()
       self.scheduler.advance()
 
-      XCTAssertEqual(["Activities", "Viewed Activity", "Activities", "Viewed Activity",
-        "Loaded Newer Activity"], self.trackingClient.events)
+      XCTAssertEqual(
+        ["Activity Feed Viewed", "Activity Feed Viewed"],
+        self.trackingClient.events, "Impression tracked when view refreshes"
+      )
 
       self.vm.inputs.viewWillAppear(animated: true)
       self.scheduler.advance()
 
-      XCTAssertEqual(["Activities", "Viewed Activity", "Activities", "Viewed Activity",
-        "Loaded Newer Activity"], self.trackingClient.events,
-        "Activity view does not emit without animated appearance.")
+      XCTAssertEqual(
+        ["Activity Feed Viewed", "Activity Feed Viewed", "Activity Feed Viewed"], self.trackingClient.events,
+        "Impression tracked when view re-appears with animation"
+      )
 
       withEnvironment(apiService: MockService(fetchActivitiesResponse: page2)) {
         // Scroll down a bit and advance scheduler
         self.vm.inputs.willDisplayRow(3, outOf: 5)
         self.scheduler.advance()
 
-        XCTAssertEqual(["Activities", "Viewed Activity", "Activities", "Viewed Activity",
-          "Loaded Newer Activity", "Loaded Older Activity"],
-                       self.trackingClient.events)
-        XCTAssertEqual([nil, nil, nil, nil, nil, 2],
-                       self.trackingClient.properties(forKey: "page", as: Int.self),
-                       "Page property tracks.")
+        XCTAssertEqual(
+          ["Activity Feed Viewed", "Activity Feed Viewed", "Activity Feed Viewed"],
+          self.trackingClient.events,
+          "Impression is not tracked on pagination"
+        )
       }
     }
   }

@@ -1,9 +1,8 @@
-import XCTest
-@testable import KsApi
 import Argo
+@testable import KsApi
+import XCTest
 
-final internal class ActivityTests: XCTestCase {
-
+internal final class ActivityTests: XCTestCase {
   func testEquatable() {
     XCTAssertEqual(Activity.template, Activity.template)
   }
@@ -19,9 +18,9 @@ final internal class ActivityTests: XCTestCase {
   func testJSONDecoding_WithGoodData() {
     let activity = Activity.decodeJSONDictionary([
       "category": "update",
-      "created_at": 123123123,
-      "id": 1,
-      ])
+      "created_at": 123_123_123,
+      "id": 1
+    ])
 
     XCTAssertNil(activity.error)
     XCTAssertEqual(activity.value?.id, 1)
@@ -33,9 +32,10 @@ final internal class ActivityTests: XCTestCase {
       "backing": [
         "amount": 1.0,
         "backer_id": 1,
+        "cancelable": true,
         "id": 1,
         "location_id": 1,
-        "pledged_at": 1000,
+        "pledged_at": 1_000,
         "project_country": "US",
         "project_id": 1,
         "sequence": 1,
@@ -46,7 +46,7 @@ final internal class ActivityTests: XCTestCase {
       "new_amount": 25.0,
       "new_reward_id": 2,
       "reward_id": 2
-      ])
+    ])
 
     XCTAssertNil(memberData.error)
     XCTAssertEqual(25, memberData.value?.amount)
@@ -61,7 +61,7 @@ final internal class ActivityTests: XCTestCase {
   func testJSONDecoding_WithNestedGoodData() {
     let activity = Activity.decodeJSONDictionary([
       "category": "update",
-      "created_at": 123123123,
+      "created_at": 123_123_123,
       "id": 1,
       "user": [
         "id": 2,
@@ -69,10 +69,10 @@ final internal class ActivityTests: XCTestCase {
         "avatar": [
           "medium": "img.jpg",
           "small": "img.jpg",
-          "large": "img.jpg",
+          "large": "img.jpg"
         ]
       ]
-      ])
+    ])
 
     XCTAssertNil(activity.error)
     XCTAssertEqual(activity.value?.id, 1)
@@ -82,9 +82,9 @@ final internal class ActivityTests: XCTestCase {
   func testJSONDecoding_WithIncorrectCategory() {
     let activity = Activity.decodeJSONDictionary([
       "category": "incorrect_category",
-      "created_at": 123123123,
-      "id": 1,
-      ])
+      "created_at": 123_123_123,
+      "id": 1
+    ])
 
     XCTAssertNil(activity.error)
     XCTAssertEqual(.some(.unknown), activity.value?.category)

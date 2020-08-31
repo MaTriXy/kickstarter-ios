@@ -1,15 +1,14 @@
-@testable import ReactiveExtensions_TestHelpers
 @testable import KsApi
 @testable import Library
-@testable import Prelude
+import Prelude
+import ReactiveExtensions_TestHelpers
 import ReactiveSwift
-import Result
 import XCTest
 
 internal final class EmptyStatesViewModelTests: TestCase {
   internal let vm: EmptyStatesViewModelType = EmptyStatesViewModel()
-  internal let notifyDelegateToGoToDiscovery = TestObserver<DiscoveryParams?, NoError>()
-  internal let notifyDelegateToGoToFriends = TestObserver<(), NoError>()
+  internal let notifyDelegateToGoToDiscovery = TestObserver<DiscoveryParams?, Never>()
+  internal let notifyDelegateToGoToFriends = TestObserver<(), Never>()
 
   internal override func setUp() {
     super.setUp()
@@ -57,13 +56,9 @@ internal final class EmptyStatesViewModelTests: TestCase {
   func testTracking() {
     self.vm.inputs.configureWith(emptyState: .activity)
     self.vm.inputs.viewWillAppear()
-
-    XCTAssertEqual(["Viewed Empty State"], self.trackingClient.events)
-    XCTAssertEqual(["activity"], self.trackingClient.properties(forKey: "type", as: String.self))
-
     self.vm.inputs.mainButtonTapped()
 
-    XCTAssertEqual(["Viewed Empty State", "Tapped Empty State Button"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "activity"], self.trackingClient.properties(forKey: "type", as: String.self))
+    XCTAssertEqual(["Tapped Empty State Button"], self.trackingClient.events)
+    XCTAssertEqual(["activity"], self.trackingClient.properties(forKey: "type", as: String.self))
   }
 }

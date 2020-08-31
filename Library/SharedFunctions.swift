@@ -1,8 +1,7 @@
 import KsApi
-import LiveStream
 import Prelude
 import ReactiveSwift
-import Result
+import UserNotifications
 
 /**
  Determines if the personalization data in the project implies that the current user is backing the
@@ -23,18 +22,64 @@ internal func userIsBacking(reward: Reward, inProject project: Project) -> Bool 
 }
 
 /**
- Computes the pledge context (i.e. new pledge, managing reward, changing reward) from a project and reward.
+ Determines if the personalization data in the project implies that the current user is backing the
+ project passed in.
 
  - parameter project: A project.
- - parameter reward:  A reward.
 
- - returns: A pledge context.
+ - returns: A boolean.
  */
-internal func pledgeContext(forProject project: Project, reward: Reward) -> Koala.PledgeContext {
-  if project.personalization.isBacking == .some(true) {
-    return userIsBacking(reward: reward, inProject: project) ? .manageReward : .changeReward
+internal func userIsBackingProject(_ project: Project) -> Bool {
+  return project.personalization.backing != nil || project.personalization.isBacking == .some(true)
+}
+
+/**
+ Determines if the current user is the creator for a given project.
+
+ - parameter project: A project.
+
+ - returns: A boolean.
+ */
+public func currentUserIsCreator(of project: Project) -> Bool {
+  guard let user = AppEnvironment.current.currentUser else { return false }
+
+  return project.creator.id == user.id
+}
+
+/**
+ Returns a reward from a backing in a given project
+
+ - parameter backing: A backing
+ - parameter project: A project
+
+ - returns: A reward
+ */
+
+internal func reward(from backing: Backing, inProject project: Project) -> Reward {
+  if let backingReward = backing.reward {
+    return backingReward
   }
-  return .newPledge
+
+  guard let rewardId = backing.rewardId else { return Reward.noReward }
+
+  return reward(withId: rewardId, inProject: project)
+}
+
+/**
+ Returns a reward for a backing ID in a given project
+
+ - parameter backing: A backing ID
+ - parameter project: A project
+
+ - returns: A reward
+ */
+
+internal func reward(withId rewardId: Int, inProject project: Project) -> Reward {
+  let noRewardFromProject = project.rewards.first { $0.id == Reward.noReward.id }
+
+  return project.rewards.first { $0.id == rewardId }
+    ?? noRewardFromProject
+    ?? Reward.noReward
 }
 
 /**
@@ -46,8 +91,8 @@ internal func pledgeContext(forProject project: Project, reward: Reward) -> Koal
 
  - returns: A pair of the minimum and maximum amount that can be pledged to a reward.
  */
-internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?) -> (min: Int, max: Int) {
-
+internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?)
+  -> (min: Double, max: Double) {
   // The country on the project cannot be trusted to have the min/max values, so first try looking
   // up the country in our launched countries array that we get back from the server config.
   let country = AppEnvironment.current.launchedCountries.countries
@@ -57,9 +102,9 @@ internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?
 
   switch reward {
   case .none, .some(Reward.noReward):
-    return (country.minPledge ?? 1, country.maxPledge ?? 10_000)
+    return (Double(country.minPledge ?? 1), Double(country.maxPledge ?? 10_000))
   case let .some(reward):
-    return (reward.minimum, country.maxPledge ?? 10_000)
+    return (reward.minimum, Double(country.maxPledge ?? 10_000))
   }
 }
 
@@ -72,8 +117,7 @@ internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?
 
  - returns: The minimum amount needed to pledge to the reward.
  */
-internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> Int {
-
+internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> Double {
   return minAndMaxPledgeAmount(forProject: project, reward: reward).min
 }
 
@@ -82,17 +126,22 @@ internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> I
  with country/currency codes based on a variety of factors.
 
  - parameter country: The country.
+ - parameter omitCurrencyCode: Safe to omit the US currencyCode
+ - parameter env: Current Environment.
 
  - returns: The currency symbol that can be used for currency display.
  */
-public func currencySymbol(forCountry country: Project.Country) -> String {
-
-  guard AppEnvironment.current.launchedCountries.currencyNeedsCode(country.currencySymbol) else {
+public func currencySymbol(
+  forCountry country: Project.Country,
+  omitCurrencyCode: Bool = true,
+  env: Environment = AppEnvironment.current
+) -> String {
+  guard env.launchedCountries.currencyNeedsCode(country.currencySymbol) else {
     // Currencies that dont have ambigious currencies can just use their symbol.
     return country.currencySymbol
   }
 
-  if country == .us && AppEnvironment.current.countryCode == "US" {
+  if country == .us && env.countryCode == Project.Country.us.countryCode && omitCurrencyCode {
     // US people looking at US projects just get the currency symbol
     return country.currencySymbol
   } else if country == .sg {
@@ -107,45 +156,107 @@ public func currencySymbol(forCountry country: Project.Country) -> String {
   }
 }
 
-/// Returns a signal producer that emits, every second, the number of days/hours/minutes/seconds until 
-/// a date is reached, at which point it completes.
-///
-/// - parameter untilDate: The date to countdown to.
-///
-/// - returns: A signal producer.
-public func countdownProducer(to date: Date)
-  -> SignalProducer<(day: String, hour: String, minute: String, second: String), NoError> {
+public func updatedUserWithClearedActivityCountProducer() -> SignalProducer<User, Never> {
+  return AppEnvironment.current.apiService.clearUserUnseenActivity(input: .init())
+    .filter { _ in AppEnvironment.current.currentUser != nil }
+    .map { $0.activityIndicatorCount }
+    .map { count in AppEnvironment.current.currentUser ?|> User.lens.unseenActivityCount .~ count }
+    .skipNil()
+    .demoteErrors()
+}
 
-    func formattedComponents(dateComponents: DateComponents)
-      -> (day: String, hour: String, minute: String, second: String) {
+public func defaultShippingRule(fromShippingRules shippingRules: [ShippingRule]) -> ShippingRule? {
+  let shippingRuleFromCurrentLocation = shippingRules
+    .filter { shippingRule in shippingRule.location.country == AppEnvironment.current.config?.countryCode }
+    .first
 
-        return (
-          day: String(format: "%02d", max(0, dateComponents.day ?? 0)),
-          hour: String(format: "%02d", max(0, dateComponents.hour ?? 0)),
-          minute: String(format: "%02d", max(0, dateComponents.minute ?? 0)),
-          second: String(format: "%02d", max(0, dateComponents.second ?? 0))
-        )
-    }
+  if let shippingRuleFromCurrentLocation = shippingRuleFromCurrentLocation {
+    return shippingRuleFromCurrentLocation
+  }
 
-    let now = AppEnvironment.current.scheduler.currentDate
-    let timeUntilNextRoundSecond = ceil(now.timeIntervalSince1970) - now.timeIntervalSince1970
+  let shippingRuleInUSA = shippingRules
+    .filter { shippingRule in shippingRule.location.country == "US" }
+    .first
 
-    // A timer that emits every second, but with a small delay so that it emits on a roundeded second.
-    let everySecond = SignalProducer<(), NoError>(value: ())
-      .ksr_delay(.milliseconds(Int(timeUntilNextRoundSecond * 1000)), on: AppEnvironment.current.scheduler)
-      .flatMap { SignalProducer.timer(interval: .seconds(1), on: AppEnvironment.current.scheduler) }
+  return shippingRuleInUSA ?? shippingRules.first
+}
 
-    return SignalProducer.merge(
-      SignalProducer<Date, NoError>(value: now),
-      everySecond
-      )
-      .map { currentDate in
-        AppEnvironment.current.calendar.dateComponents(
-          [.day, .hour, .minute, .second],
-          from: currentDate,
-          to: Date(timeIntervalSince1970: ceil(date.timeIntervalSince1970))
-        )
-      }
-      .take(while: { ($0.second ?? 0) >= 0 })
-      .map(formattedComponents(dateComponents:))
+public func formattedAmountForRewardOrBacking(
+  project: Project,
+  rewardOrBacking: Either<Reward, Backing>
+) -> String {
+  switch rewardOrBacking {
+  case let .left(reward):
+    let min = minPledgeAmount(forProject: project, reward: reward)
+    return Format.currency(
+      min,
+      country: project.country,
+      omitCurrencyCode: project.stats.omitUSCurrencyCode
+    )
+  case let .right(backing):
+    return Format.formattedCurrency(
+      backing.amount,
+      country: project.country,
+      omitCurrencyCode: project.stats.omitUSCurrencyCode
+    )
+  }
+}
+
+internal func classNameWithoutModule(_ class: AnyClass) -> String {
+  return `class`
+    .description()
+    .components(separatedBy: ".")
+    .dropFirst()
+    .joined(separator: ".")
+}
+
+public func deviceIdentifier(uuid: UUIDType, env: Environment = AppEnvironment.current) -> String {
+  guard let identifier = env.device.identifierForVendor else {
+    return uuid.uuidString
+  }
+
+  return identifier.uuidString
+}
+
+typealias SanitizedPledgeParams = (pledgeTotal: String, rewardId: String, locationId: String?)
+
+internal func sanitizedPledgeParameters(
+  from reward: Reward,
+  pledgeAmount: Double,
+  shippingRule: ShippingRule?
+) -> SanitizedPledgeParams {
+  var pledgeTotal = pledgeAmount
+  var shippingLocationId: String?
+
+  if let shippingRule = shippingRule {
+    pledgeTotal = pledgeAmount.addingCurrency(shippingRule.cost)
+    shippingLocationId = String(shippingRule.location.id)
+  }
+
+  let formattedPledgeTotal = Format.decimalCurrency(for: pledgeTotal)
+  let rewardId = reward.graphID
+
+  return (formattedPledgeTotal, rewardId, shippingLocationId)
+}
+
+public func ksr_pledgeAmount(
+  _ pledgeAmount: Double,
+  subtractingShippingAmount shippingAmount: Double?
+) -> Double {
+  guard let shippingAmount = shippingAmount, shippingAmount > 0 else { return pledgeAmount }
+
+  let pledgeAmount = Decimal(pledgeAmount) - Decimal(shippingAmount)
+
+  return (pledgeAmount as NSDecimalNumber).doubleValue
+}
+
+public func discoveryPageBackgroundColor() -> UIColor {
+  let variant = OptimizelyExperiment.nativeProjectCardsExperimentVariant()
+
+  switch variant {
+  case .variant1:
+    return UIColor.ksr_grey_200
+  case .variant2, .control:
+    return UIColor.white
+  }
 }

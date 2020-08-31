@@ -5,8 +5,8 @@ import Runes
 public struct PushEnvelope {
   public let activity: Activity?
   public let aps: ApsEnvelope
+  public let erroredPledge: ErroredPledge?
   public let forCreator: Bool?
-  public let liveStream: LiveStream?
   public let message: Message?
   public let project: Project?
   public let survey: Survey?
@@ -26,8 +26,8 @@ public struct PushEnvelope {
     public let alert: String
   }
 
-  public struct LiveStream {
-    public let id: Int
+  public struct ErroredPledge {
+    public let projectId: Int
   }
 
   public struct Message {
@@ -53,16 +53,16 @@ public struct PushEnvelope {
 
 extension PushEnvelope: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<PushEnvelope> {
-
     let update: Decoded<Update> = json <| "update" <|> json <| "post"
     let optionalUpdate: Decoded<Update?> = update.map(Optional.some) <|> .success(nil)
 
     let tmp = curry(PushEnvelope.init)
       <^> json <|? "activity"
       <*> json <| "aps"
-      <*> json <|? "for_creator"
-      <*> json <|? "live_stream"
+      <*> json <|? "errored_pledge"
+
     return tmp
+      <*> json <|? "for_creator"
       <*> json <|? "message"
       <*> json <|? "project"
       <*> json <|? "survey"
@@ -91,10 +91,10 @@ extension PushEnvelope.ApsEnvelope: Argo.Decodable {
   }
 }
 
-extension PushEnvelope.LiveStream: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<PushEnvelope.LiveStream> {
-    return curry(PushEnvelope.LiveStream.init)
-      <^> json <| "id"
+extension PushEnvelope.ErroredPledge: Argo.Decodable {
+  public static func decode(_ json: JSON) -> Decoded<PushEnvelope.ErroredPledge> {
+    return curry(PushEnvelope.ErroredPledge.init)
+      <^> json <| "project_id"
   }
 }
 

@@ -1,19 +1,19 @@
 import Argo
-import Runes
 import Curry
 import Foundation
 import KsApi
+import Runes
 
 public enum Navigation {
   case checkout(Int, Navigation.Checkout)
   case creatorMessages(Param, messageThreadId: Int)
   case projectActivity(Param)
-  case emailClick(qs: String)
-  case emailLink
+  case emailClick
   case messages(messageThreadId: Int)
   case signup
   case tab(Tab)
   case project(Param, Navigation.Project, refTag: RefTag?)
+  case projectPreview(Param, Navigation.Project, refTag: RefTag?, token: String)
   case user(Param, Navigation.User)
 
   public enum Checkout {
@@ -28,7 +28,7 @@ public enum Navigation {
   }
 
   public enum Tab {
-    case discovery([String:String]?)
+    case discovery([String: String]?)
     case search
     case activity
     case dashboard(project: Param?)
@@ -44,7 +44,6 @@ public enum Navigation {
     case faqs
     case friends
     case messageCreator
-    case liveStream(eventId: Int)
     case pledge(Navigation.Project.Pledge)
     case updates
     case update(Int, Navigation.Project.Update)
@@ -59,6 +58,7 @@ public enum Navigation {
       case changeMethod
       case destroy
       case edit
+      case manage
       case new
       case root
     }
@@ -79,9 +79,7 @@ public func == (lhs: Navigation, rhs: Navigation) -> Bool {
   switch (lhs, rhs) {
   case let (.checkout(lhsId, lhsCheckout), .checkout(rhsId, rhsCheckout)):
     return lhsId == rhsId && lhsCheckout == rhsCheckout
-  case let (.emailClick(lhs), .emailClick(rhs)):
-    return lhs == rhs
-  case (.emailLink, .emailLink):
+  case (.emailClick, .emailClick):
     return true
   case let (.messages(lhs), .messages(rhs)):
     return lhs == rhs
@@ -91,6 +89,11 @@ public func == (lhs: Navigation, rhs: Navigation) -> Bool {
     return lhs == rhs
   case let (.project(lhsParam, lhsProject, lhsRefTag), .project(rhsParam, rhsProject, rhsRefTag)):
     return lhsParam == rhsParam && lhsProject == rhsProject && lhsRefTag == rhsRefTag
+  case let (
+    .projectPreview(lhsParam, lhsProject, lhsRefTag, lhsToken),
+    .projectPreview(rhsParam, rhsProject, rhsRefTag, rhsToken)
+  ):
+    return lhsParam == rhsParam && lhsProject == rhsProject && lhsRefTag == rhsRefTag && lhsToken == rhsToken
   case let (.user(lhsParam, lhsUser), .user(rhsParam, rhsUser)):
     return lhsParam == rhsParam && lhsUser == rhsUser
   default:
@@ -118,7 +121,6 @@ public func == (lhs: Navigation.Checkout.Payment, rhs: Navigation.Checkout.Payme
   }
 }
 
-// swiftlint:disable cyclomatic_complexity
 extension Navigation.Project: Equatable {}
 public func == (lhs: Navigation.Project, rhs: Navigation.Project) -> Bool {
   switch (lhs, rhs) {
@@ -136,8 +138,6 @@ public func == (lhs: Navigation.Project, rhs: Navigation.Project) -> Bool {
     return true
   case (.messageCreator, .messageCreator):
     return true
-  case let (.liveStream(eventId: lhs), .liveStream(eventId: rhs)):
-    return lhs == rhs
   case let (.pledge(lhsPledge), .pledge(rhsPledge)):
     return lhsPledge == rhsPledge
   case (.updates, .updates):
@@ -150,7 +150,6 @@ public func == (lhs: Navigation.Project, rhs: Navigation.Project) -> Bool {
     return false
   }
 }
-// swiftlint:enable cyclomatic_complexity
 
 extension Navigation.Project.Checkout: Equatable {}
 public func == (lhs: Navigation.Project.Checkout, rhs: Navigation.Project.Checkout) -> Bool {
@@ -164,7 +163,7 @@ extension Navigation.Project.Pledge: Equatable {}
 public func == (lhs: Navigation.Project.Pledge, rhs: Navigation.Project.Pledge) -> Bool {
   switch (lhs, rhs) {
   case (.bigPrint, .bigPrint), (.changeMethod, .changeMethod), (.destroy, .destroy), (.edit, .edit),
-       (.new, .new), (.root, .root):
+       (.manage, .manage), (.new, .new), (.root, .root):
     return true
   default:
     return false
@@ -229,13 +228,12 @@ extension Navigation {
   }
 
   public static func match(_ request: URLRequest) -> Navigation? {
-    return request.url.flatMap(match)
+    return request.url.flatMap(self.match)
   }
 }
 
 private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
   "/": emailClick,
-  "/mpss/:a/:b/:c/:d/:e/:f/:g": emailLink,
   "/activity": activity,
   "/authorize": authorize,
   "/checkouts/:checkout_param/payments": paymentsRoot,
@@ -276,7 +274,6 @@ private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
 private let deepLinkRoutes: [String: (RouteParams) -> Decoded<Navigation>] = allRoutes.restrict(
   keys: [
     "/",
-    "/mpss/:a/:b/:c/:d/:e/:f/:g",
     "/activity",
     "/discover",
     "/discover/advanced",
@@ -290,44 +287,38 @@ private let deepLinkRoutes: [String: (RouteParams) -> Decoded<Navigation>] = all
     "/projects/:creator_param/:project_param/posts/:update_param",
     "/projects/:creator_param/:project_param/posts/:update_param/comments",
     "/projects/:creator_param/:project_param/surveys/:survey_param",
+    "/projects/:creator_param/:project_param/pledge",
     "/users/:user_param/surveys/:survey_response_id"
   ]
 )
 
 extension Navigation.Project {
-  // swiftlint:disable conditional_binding_cascade
   public static func withRequest(_ request: URLRequest) -> (Param, RefTag?)? {
     guard let nav = Navigation.match(request), case let .project(project, .root, refTag) = nav
-      else { return nil }
+    else { return nil }
     return (project, refTag)
   }
 
   public static func updateWithRequest(_ request: URLRequest) -> (Param, Int)? {
     guard let nav = Navigation.match(request), case let .project(project, .update(update, .root), _) = nav
-      else { return nil }
+    else { return nil }
     return (project, update)
   }
 
   public static func updateCommentsWithRequest(_ request: URLRequest) -> (Param, Int)? {
     guard let nav = Navigation.match(request), case let .project(project, .update(update, .comments), _) = nav
-      else { return nil }
+    else { return nil }
     return (project, update)
   }
-  // swiftlint:enable conditional_binding_cascade
 }
 
-// MARK: Router
+// MARK: - Router
 
 // Argo calls their nebulous data blob `JSON`, but we will interpret it as route params.
 public typealias RouteParams = JSON
 
-private func emailClick(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.emailClick)
-   <^> params <| "qs"
-}
-
-private func emailLink(_ params: RouteParams) -> Decoded<Navigation> {
-  return .success(.emailLink)
+private func emailClick(_: RouteParams) -> Decoded<Navigation> {
+  return .success(Navigation.emailClick)
 }
 
 private func activity(_: RouteParams) -> Decoded<Navigation> {
@@ -350,7 +341,6 @@ private func paymentsNew(_ params: RouteParams) -> Decoded<Navigation> {
 }
 
 private func paymentsApplePay(_ params: RouteParams) -> Decoded<Navigation> {
-
   return curry(Navigation.checkout)
     <^> (params <| "checkout_param" >>- stringToInt)
     <*> (curry(Navigation.Checkout.payments)
@@ -372,12 +362,12 @@ private func paymentsUseStoredCard(_ params: RouteParams) -> Decoded<Navigation>
 
 private func discovery(_ params: RouteParams) -> Decoded<Navigation> {
   guard case let .object(object) = params
-    else { return .failure(.custom("Failed to extact discovery params")) }
+  else { return .failure(.custom("Failed to extact discovery params")) }
 
   var discoveryParams: [String: String] = [:]
   for (key, value) in object {
     guard case let .string(stringValue) = value
-      else { return .failure(.custom("Failed to extact discovery params")) }
+    else { return .failure(.custom("Failed to extact discovery params")) }
     discoveryParams[key] = stringValue
   }
 
@@ -401,10 +391,22 @@ private func signup(_: RouteParams) -> Decoded<Navigation> {
 }
 
 private func project(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
+  let projectPreview = curry(Navigation.projectPreview)
     <^> params <| "project_param"
     <*> .success(.root)
     <*> params <|? "ref"
+    <*> params <| "token"
+
+  // If we're certain this is not a project preview link, try to decode it as a normal project link.
+  if case .failure = projectPreview {
+    return curry(Navigation.project)
+      <^> params <| "project_param"
+      <*> .success(.root)
+      <*> params <|? "ref"
+  }
+
+  // Fail here as we don't currently support project preview links.
+  return .failure(.custom("Project preview links are unsupported"))
 }
 
 private func thanks(_ params: RouteParams) -> Decoded<Navigation> {
@@ -437,7 +439,7 @@ private func creatorBio(_ params: RouteParams) -> Decoded<Navigation> {
 
 private func dashboard(_ params: RouteParams) -> Decoded<Navigation> {
   guard let dashboard = (Navigation.Tab.dashboard <^> params <|? "project_param").value
-    else { return .failure(.custom("Failed to extract project param")) }
+  else { return .failure(.custom("Failed to extract project param")) }
 
   return .success(.tab(dashboard))
 }
@@ -499,9 +501,21 @@ private func pledgeNew(_ params: RouteParams) -> Decoded<Navigation> {
 }
 
 private func pledgeRoot(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
+  let parseRoot = curry(Navigation.project)
     <^> params <| "project_param"
     <*> .success(.pledge(.root))
+    <*> params <|? "ref"
+
+  guard
+    let value = parseRoot.value,
+    // inspect 'ref' to determine if this is an errored pledge.
+    case Navigation.project(_, _, .emailBackerFailedTransaction) = value else {
+    return parseRoot
+  }
+
+  return curry(Navigation.project)
+    <^> params <| "project_param"
+    <*> .success(.pledge(.manage))
     <*> params <|? "ref"
 }
 
@@ -546,31 +560,36 @@ private func updates(_ params: RouteParams) -> Decoded<Navigation> {
 
 private func userSurvey(_ params: RouteParams) -> Decoded<Navigation> {
   return curry(Navigation.user)
-  <^> params <| "user_param"
-  <*> (Navigation.User.survey <^> (params <| "survey_response_id" >>- stringToInt))
+    <^> params <| "user_param"
+    <*> (Navigation.User.survey <^> (params <| "survey_response_id" >>- stringToInt))
 }
 
-// MARK: Helpers
+// MARK: - Helpers
 
 private func parsedParams(url: URL, fromTemplate template: String) -> RouteParams? {
-
-  // early out on URL's that are not recognized as kickstarter URL's
-
-  let recognizedHosts = [
-    AppEnvironment.current.apiService.serverConfig.apiBaseUrl.host,
-    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host,
+  let recognizedEmailHosts = [
     "click.e.kickstarter.com",
+    "click.em.kickstarter.com",
     "emails.kickstarter.com",
     "email.kickstarter.com",
     "e2.kickstarter.com",
-    "e3.kickstarter.com",
-  ].compact()
+    "e3.kickstarter.com"
+  ]
 
-  let isRecognizedHost = recognizedHosts.reduce(false) { accum, host in
+  let hostRecognizer = { accum, host in
     accum || url.host.map { $0.hasPrefix(host) } == .some(true)
   }
 
-  guard isRecognizedHost else { return nil }
+  let isRecognizedEmailHost = recognizedEmailHosts.reduce(false, hostRecognizer)
+
+  let recognizedHosts = [
+    AppEnvironment.current.apiService.serverConfig.apiBaseUrl.host,
+    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host
+  ].compact()
+
+  let isRecognizedHost = recognizedHosts.reduce(false, hostRecognizer)
+
+  guard isRecognizedHost || isRecognizedEmailHost else { return nil }
 
   let templateComponents = template
     .components(separatedBy: "/")
@@ -579,6 +598,12 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
     .path
     .components(separatedBy: "/")
     .filter { $0 != "" && !$0.hasPrefix("?") }
+
+  // if we're parsing against the '/' emailClick template and this is a recognized email host
+  // return the expected params for that route to be resolved
+  if templateComponents.isEmpty, isRecognizedEmailHost {
+    return .object([:])
+  }
 
   guard templateComponents.count == urlComponents.count else { return nil }
 
@@ -598,7 +623,7 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
     .queryItems?
     .forEach { item in
       params[item.name] = item.value
-  }
+    }
 
   var object: [String: RouteParams] = [:]
   params.forEach { key, value in

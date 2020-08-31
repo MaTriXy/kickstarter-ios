@@ -1,9 +1,8 @@
-import KsApi
-import ReactiveSwift
-import ReactiveExtensions
-import Result
-import Prelude
 import FBSDKLoginKit
+import KsApi
+import Prelude
+import ReactiveExtensions
+import ReactiveSwift
 
 public protocol FindFriendsFacebookConnectCellViewModelInputs {
   /// Call when close button tapped to dismiss this view if used as a header
@@ -19,7 +18,7 @@ public protocol FindFriendsFacebookConnectCellViewModelInputs {
   func facebookLoginFail(error: Error?)
 
   /// Call when Facebook login completed successfully with a result
-  func facebookLoginSuccess(result: FBSDKLoginManagerLoginResult)
+  func facebookLoginSuccess(result: LoginManagerLoginResult)
 
   /// Call when the current user has been updated in the environment
   func userUpdated()
@@ -27,28 +26,37 @@ public protocol FindFriendsFacebookConnectCellViewModelInputs {
 
 public protocol FindFriendsFacebookConnectCellViewModelOutputs {
   /// Emits when Facebook login should start
-  var attemptFacebookLogin: Signal<(), NoError> { get }
+  var attemptFacebookLogin: Signal<(), Never> { get }
 
   /// Emits whether close button should hide
-  var hideCloseButton: Signal<Bool, NoError> { get }
+  var hideCloseButton: Signal<Bool, Never> { get }
 
   /// Emits whether a request is loading or not
-  var isLoading: Signal<Bool, NoError> { get }
+  var isLoading: Signal<Bool, Never> { get }
 
   /// Emits when should notify delegate to dismiss this view if used as a header
-  var notifyDelegateToDismissHeader: Signal<(), NoError> { get }
+  var notifyDelegateToDismissHeader: Signal<(), Never> { get }
 
   /// Emits when should notify delegate that user successfully connected to Facebook
-  var notifyDelegateUserFacebookConnected: Signal<(), NoError> { get }
+  var notifyDelegateUserFacebookConnected: Signal<(), Never> { get }
 
   /// Emits when a user updated notification should be posted
-  var postUserUpdatedNotification: Signal<Notification, NoError> { get }
+  var postUserUpdatedNotification: Signal<Notification, Never> { get }
 
   /// Emits when should error alert with AlertError
-  var showErrorAlert: Signal<AlertError, NoError> { get }
+  var showErrorAlert: Signal<AlertError, Never> { get }
 
   /// Emits a User that can be used to replace the current user in the environment
-  var updateUserInEnvironment: Signal<User, NoError> { get }
+  var updateUserInEnvironment: Signal<User, Never> { get }
+
+  /// Emits the cell's title
+  var facebookConnectCellTitle: Signal<String, Never> { get }
+
+  /// Emits the cell's description
+  var facebookConnectCellSubtitle: Signal<String, Never> { get }
+
+  /// Emits the button's title
+  var facebookConnectButtonTitle: Signal<String, Never> { get }
 }
 
 public protocol FindFriendsFacebookConnectCellViewModelType {
@@ -58,7 +66,7 @@ public protocol FindFriendsFacebookConnectCellViewModelType {
 
 public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookConnectCellViewModelType,
   FindFriendsFacebookConnectCellViewModelInputs, FindFriendsFacebookConnectCellViewModelOutputs {
-    public init() {
+  public init() {
     self.notifyDelegateToDismissHeader = self.closeButtonTappedProperty.signal
 
     let isLoading: MutableProperty<Bool> = MutableProperty(false)
@@ -67,8 +75,8 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
 
     self.attemptFacebookLogin = self.facebookConnectButtonTappedProperty.signal
 
-    let tokenString: Signal<String, NoError> = self.facebookLoginSuccessProperty.signal.skipNil()
-      .map { $0.token.tokenString ?? "" }
+    let tokenString: Signal<String, Never> = self.facebookLoginSuccessProperty.signal.skipNil()
+      .map { $0.token?.tokenString ?? "" }
 
     let facebookConnect = tokenString
       .switchMap { token in
@@ -79,10 +87,11 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
             },
             terminated: {
               isLoading.value = false
-          })
+            }
+          )
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
-    }
+      }
 
     self.updateUserInEnvironment = facebookConnect.values()
 
@@ -93,7 +102,7 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
 
     let genericFacebookErrorAlert = facebookConnect.errors()
       .filter { env in
-          env.ksrCode != .FacebookInvalidAccessToken &&
+        env.ksrCode != .FacebookInvalidAccessToken &&
           env.ksrCode != .FacebookConnectAccountTaken &&
           env.ksrCode != .FacebookConnectEmailTaken
       }
@@ -125,9 +134,22 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
       facebookLoginAttemptFailAlert
     ])
 
-    let source = configureWithProperty.signal
+    let source = self.configureWithProperty.signal.skipNil().map { $0 }
+    let connectionType = self.configureWithProperty.signal.skipNil().map { _ in
+      FindFriendsFacebookConnectCellViewModel.connectionType(user: AppEnvironment.current.currentUser)
+    }
 
     self.hideCloseButton = source.map { $0 == FriendsSource.findFriends }
+
+    self.facebookConnectCellTitle = connectionType.signal
+      .skipNil()
+      .map { $0.titleText }
+    self.facebookConnectCellSubtitle = connectionType.signal
+      .skipNil()
+      .map { $0.subtitleText }
+    self.facebookConnectButtonTitle = connectionType.signal
+      .skipNil()
+      .map { $0.buttonText }
 
     source
       .takeWhen(self.showErrorAlert)
@@ -147,17 +169,17 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
 
   fileprivate let closeButtonTappedProperty = MutableProperty(())
   public func closeButtonTapped() {
-    closeButtonTappedProperty.value = ()
+    self.closeButtonTappedProperty.value = ()
   }
 
-  fileprivate let configureWithProperty = MutableProperty<FriendsSource>(FriendsSource.findFriends)
+  fileprivate let configureWithProperty = MutableProperty<FriendsSource?>(nil)
   public func configureWith(source: FriendsSource) {
-    configureWithProperty.value = source
+    self.configureWithProperty.value = source
   }
 
   fileprivate let facebookConnectButtonTappedProperty = MutableProperty(())
   public func facebookConnectButtonTapped() {
-    facebookConnectButtonTappedProperty.value = ()
+    self.facebookConnectButtonTappedProperty.value = ()
   }
 
   fileprivate let facebookLoginFailProperty = MutableProperty<Error?>(nil)
@@ -165,22 +187,53 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
     self.facebookLoginFailProperty.value = error
   }
 
-  fileprivate let facebookLoginSuccessProperty = MutableProperty<FBSDKLoginManagerLoginResult?>(nil)
-  public func facebookLoginSuccess(result: FBSDKLoginManagerLoginResult) {
+  fileprivate let facebookLoginSuccessProperty = MutableProperty<LoginManagerLoginResult?>(nil)
+  public func facebookLoginSuccess(result: LoginManagerLoginResult) {
     self.facebookLoginSuccessProperty.value = result
   }
 
   fileprivate let userUpdatedProperty = MutableProperty(())
   public func userUpdated() {
-    userUpdatedProperty.value = ()
+    self.userUpdatedProperty.value = ()
   }
 
-  public let attemptFacebookLogin: Signal<(), NoError>
-  public let isLoading: Signal<Bool, NoError>
-  public let notifyDelegateToDismissHeader: Signal<(), NoError>
-  public let notifyDelegateUserFacebookConnected: Signal<(), NoError>
-  public let postUserUpdatedNotification: Signal<Notification, NoError>
-  public let updateUserInEnvironment: Signal<User, NoError>
-  public let showErrorAlert: Signal<AlertError, NoError>
-  public let hideCloseButton: Signal<Bool, NoError>
+  public let attemptFacebookLogin: Signal<(), Never>
+  public let facebookConnectButtonTitle: Signal<String, Never>
+  public let facebookConnectCellTitle: Signal<String, Never>
+  public let facebookConnectCellSubtitle: Signal<String, Never>
+  public let hideCloseButton: Signal<Bool, Never>
+  public let isLoading: Signal<Bool, Never>
+  public let notifyDelegateToDismissHeader: Signal<(), Never>
+  public let notifyDelegateUserFacebookConnected: Signal<(), Never>
+  public let postUserUpdatedNotification: Signal<Notification, Never>
+  public let updateUserInEnvironment: Signal<User, Never>
+  public let showErrorAlert: Signal<AlertError, Never>
+}
+
+extension FindFriendsFacebookConnectCellViewModel {
+  public static func showFacebookConnectionSection(for user: User?) -> Bool {
+    guard let isFacebookConnected = user?.facebookConnected else {
+      return true
+    }
+
+    let needsFreshFacebookToken = user?.needsFreshFacebookToken ?? false
+
+    // Show section in "reconnect" state if facebook connected but requiring a new token
+    return !isFacebookConnected || (isFacebookConnected
+      && needsFreshFacebookToken)
+  }
+
+  private static func connectionType(user: User?) -> FacebookConnectionType? {
+    guard let isFacebookConnected = user?.facebookConnected else {
+      return .connect
+    }
+
+    let needsRefresh = user?.needsFreshFacebookToken ?? false
+
+    if isFacebookConnected, needsRefresh {
+      return .reconnect
+    }
+
+    return .connect
+  }
 }

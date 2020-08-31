@@ -1,34 +1,73 @@
-import Prelude
-import ReactiveSwift
-import Result
-import XCTest
 @testable import KsApi
 @testable import Library
-@testable import LiveStream
-@testable import ReactiveExtensions_TestHelpers
+import Prelude
+import ReactiveExtensions_TestHelpers
+import ReactiveSwift
+import XCTest
 
 final class ProjectPamphletViewModelTests: TestCase {
+  private let releaseBundle = MockBundle(
+    bundleIdentifier: KickstarterBundleIdentifier.release.rawValue,
+    lang: "en"
+  )
   fileprivate var vm: ProjectPamphletViewModelType!
 
-  fileprivate let configureChildViewControllersWithProject = TestObserver<Project, NoError>()
-  fileprivate let configureChildViewControllersWithLiveStreamEvents =
-    TestObserver<[LiveStreamEvent], NoError>()
-  fileprivate let configureChildViewControllersWithRefTag = TestObserver<RefTag?, NoError>()
-  fileprivate let setNavigationBarHidden = TestObserver<Bool, NoError>()
-  fileprivate let setNavigationBarAnimated = TestObserver<Bool, NoError>()
-  fileprivate let setNeedsStatusBarAppearanceUpdate = TestObserver<(), NoError>()
-  fileprivate let topLayoutConstraintConstant = TestObserver<CGFloat, NoError>()
+  private let configureChildViewControllersWithProject = TestObserver<Project, Never>()
+  private let configureChildViewControllersWithRefTag = TestObserver<RefTag?, Never>()
+  private let configurePledgeCTAViewContext = TestObserver<PledgeCTAContainerViewContext, Never>()
+  private let configurePledgeCTAViewErrorEnvelope = TestObserver<ErrorEnvelope, Never>()
+  private let configurePledgeCTAViewProject = TestObserver<Project, Never>()
+  private let configurePledgeCTAViewIsLoading = TestObserver<Bool, Never>()
+  private let configurePledgeCTAViewRefTag = TestObserver<RefTag?, Never>()
+  private let dismissManagePledgeAndShowMessageBannerWithMessage = TestObserver<String, Never>()
+  private let goToManagePledgeProjectParam = TestObserver<Param, Never>()
+  private let goToManagePledgeBackingParam = TestObserver<Param?, Never>()
+  private let goToRewardsProject = TestObserver<Project, Never>()
+  private let goToRewardsRefTag = TestObserver<RefTag?, Never>()
+  private let popToRootViewController = TestObserver<(), Never>()
+  private let setNavigationBarHidden = TestObserver<Bool, Never>()
+  private let setNavigationBarAnimated = TestObserver<Bool, Never>()
+  private let setNeedsStatusBarAppearanceUpdate = TestObserver<(), Never>()
+  private let topLayoutConstraintConstant = TestObserver<CGFloat, Never>()
 
   internal override func setUp() {
     super.setUp()
 
     self.vm = ProjectPamphletViewModel()
-    self.vm.outputs.configureChildViewControllersWithProjectAndLiveStreams.map(first)
+    self.vm.outputs.configureChildViewControllersWithProject.map(first)
       .observe(self.configureChildViewControllersWithProject.observer)
-    self.vm.outputs.configureChildViewControllersWithProjectAndLiveStreams.map(second)
-      .observe(self.configureChildViewControllersWithLiveStreamEvents.observer)
-    self.vm.outputs.configureChildViewControllersWithProjectAndLiveStreams.map(third)
+    self.vm.outputs.configureChildViewControllersWithProject.map(second)
       .observe(self.configureChildViewControllersWithRefTag.observer)
+
+    self.vm.outputs.configurePledgeCTAView
+      .map(first)
+      .map(\.left)
+      .skipNil()
+      .map(first)
+      .observe(self.configurePledgeCTAViewProject.observer)
+
+    self.vm.outputs.configurePledgeCTAView
+      .map(first)
+      .map(\.left)
+      .skipNil()
+      .map(second)
+      .observe(self.configurePledgeCTAViewRefTag.observer)
+
+    self.vm.outputs.configurePledgeCTAView
+      .map(first)
+      .map(\.right)
+      .skipNil()
+      .observe(self.configurePledgeCTAViewErrorEnvelope.observer)
+
+    self.vm.outputs.configurePledgeCTAView.map(second).observe(self.configurePledgeCTAViewIsLoading.observer)
+    self.vm.outputs.configurePledgeCTAView.map(third).observe(self.configurePledgeCTAViewContext.observer)
+    self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
+      .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
+    self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
+    self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
+    self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
+    self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
+    self.vm.outputs.popToRootViewController.observe(self.popToRootViewController.observer)
     self.vm.outputs.setNavigationBarHiddenAnimated.map(first)
       .observe(self.setNavigationBarHidden.observer)
     self.vm.outputs.setNavigationBarHiddenAnimated.map(second)
@@ -42,27 +81,29 @@ final class ProjectPamphletViewModelTests: TestCase {
     let refTag = RefTag.category
     self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: refTag)
     self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(animated: false)
     self.vm.inputs.viewDidAppear(animated: false)
 
     self.configureChildViewControllersWithProject.assertValues([project])
     self.configureChildViewControllersWithRefTag.assertValues([refTag])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([[]])
 
     self.scheduler.advance()
 
     self.configureChildViewControllersWithProject.assertValues([project, project])
     self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([[], [.template]])
 
-    self.vm.inputs.viewWillAppear(animated: true)
-    self.vm.inputs.viewDidAppear(animated: true)
+    self.vm.inputs.didBackProject()
 
     self.scheduler.advance()
 
     self.configureChildViewControllersWithProject.assertValues([project, project, project])
     self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag, refTag])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([[], [.template], [.template]])
+
+    self.vm.inputs.managePledgeViewControllerFinished(with: nil)
+
+    self.scheduler.advance()
+
+    self.configureChildViewControllersWithProject.assertValues([project, project, project, project])
+    self.configureChildViewControllersWithRefTag.assertValues([refTag, refTag, refTag, refTag])
   }
 
   func testConfigureChildViewControllersWithProject_ConfiguredWithParam() {
@@ -75,36 +116,25 @@ final class ProjectPamphletViewModelTests: TestCase {
 
     self.configureChildViewControllersWithProject.assertValues([])
     self.configureChildViewControllersWithRefTag.assertValues([])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([])
 
     self.scheduler.advance()
 
     self.configureChildViewControllersWithProject.assertValues([project])
     self.configureChildViewControllersWithRefTag.assertValues([nil])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([[.template]])
 
-    self.vm.inputs.viewWillAppear(animated: true)
-    self.vm.inputs.viewDidAppear(animated: true)
+    self.vm.inputs.didBackProject()
 
     self.scheduler.advance()
 
     self.configureChildViewControllersWithProject.assertValues([project, project])
     self.configureChildViewControllersWithRefTag.assertValues([nil, nil])
-    self.configureChildViewControllersWithLiveStreamEvents.assertValues([[.template], [.template]])
-  }
 
-  func testStatusBar() {
-    self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: nil)
-    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.managePledgeViewControllerFinished(with: nil)
 
-    self.setNeedsStatusBarAppearanceUpdate.assertValueCount(0)
-    XCTAssertFalse(self.vm.outputs.prefersStatusBarHidden)
+    self.scheduler.advance()
 
-    self.vm.inputs.viewWillAppear(animated: true)
-    self.vm.inputs.viewDidAppear(animated: true)
-
-    self.setNeedsStatusBarAppearanceUpdate.assertValueCount(1)
-    XCTAssertTrue(self.vm.outputs.prefersStatusBarHidden)
+    self.configureChildViewControllersWithProject.assertValues([project, project, project])
+    self.configureChildViewControllersWithRefTag.assertValues([nil, nil, nil])
   }
 
   func testNavigationBar() {
@@ -144,21 +174,33 @@ final class ProjectPamphletViewModelTests: TestCase {
 
     self.scheduler.advance()
 
-    XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                   self.trackingClient.events, "A project page koala event is tracked.")
-    XCTAssertEqual([RefTag.category.stringTag, RefTag.category.stringTag],
-                   self.trackingClient.properties.flatMap { $0["ref_tag"] as? String },
-                   "The ref tag is tracked in the koala event.")
-    XCTAssertEqual([RefTag.category.stringTag, RefTag.category.stringTag],
-                   self.trackingClient.properties.flatMap { $0["referrer_credit"] as? String },
-                   "The referral credit is tracked in the koala event.")
-    XCTAssertEqual(1, self.cookieStorage.cookies?.count,
-                   "A single cookie is set")
-    XCTAssertEqual("ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
-                   "A referral cookie is set for the project.")
-    XCTAssertEqual("category?",
-                   (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
-                   "A referral cookie is set for the category ref tag.")
+    XCTAssertEqual(
+      ["Project Page Viewed"],
+      self.trackingClient.events, "A project page event is tracked."
+    )
+    XCTAssertEqual(
+      [RefTag.category.stringTag],
+      self.trackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
+      "The ref tag is tracked in the koala event."
+    )
+    XCTAssertEqual(
+      [RefTag.category.stringTag],
+      self.trackingClient.properties.compactMap { $0["session_referrer_credit"] as? String },
+      "The referral credit is tracked in the koala event."
+    )
+    XCTAssertEqual(
+      1, self.cookieStorage.cookies?.count,
+      "A single cookie is set"
+    )
+    XCTAssertEqual(
+      "ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
+      "A referral cookie is set for the project."
+    )
+    XCTAssertEqual(
+      "category?",
+      (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
+      "A referral cookie is set for the category ref tag."
+    )
 
     // Start up another view model with the same project
     let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
@@ -169,22 +211,58 @@ final class ProjectPamphletViewModelTests: TestCase {
 
     self.scheduler.advance()
 
-    XCTAssertEqual(["Project Page", "Viewed Project Page", "Project Page", "Viewed Project Page"],
-                   self.trackingClient.events, "A project page koala event is tracked.")
     XCTAssertEqual(
-      [RefTag.category.stringTag, RefTag.category.stringTag, RefTag.recommended.stringTag,
-        RefTag.recommended.stringTag],
-      self.trackingClient.properties.flatMap { $0["ref_tag"] as? String },
+      [
+        "Project Page Viewed", "Project Page Viewed"
+      ],
+      self.trackingClient.events, "A project page koala event is tracked."
+    )
+    XCTAssertEqual(
+      [
+        RefTag.category.stringTag,
+        RefTag.recommended.stringTag
+      ],
+      self.trackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
       "The new ref tag is tracked in koala event."
     )
     XCTAssertEqual(
-      [RefTag.category.stringTag, RefTag.category.stringTag, RefTag.category.stringTag,
-        RefTag.category.stringTag],
-      self.trackingClient.properties.flatMap { $0["referrer_credit"] as? String },
+      [
+        RefTag.category.stringTag,
+        RefTag.category.stringTag
+      ],
+      self.trackingClient.properties.compactMap { $0["session_referrer_credit"] as? String },
       "The referrer credit did not change, and is still category."
     )
-    XCTAssertEqual(1, self.cookieStorage.cookies?.count,
-                   "A single cookie has been set.")
+    XCTAssertEqual(
+      1, self.cookieStorage.cookies?.count,
+      "A single cookie has been set."
+    )
+  }
+
+  func testProjectPageViewed_Tracking_OnError() {
+    let service = MockService(fetchProjectError: .couldNotParseJSON)
+
+    withEnvironment(apiService: service) {
+      self.configureInitialState(.init(left: .template))
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(
+        [],
+        self.trackingClient.events,
+        "Project Page Viewed doesnt track if the request fails"
+      )
+    }
+  }
+
+  func testProjectPageViewed_OnViewDidAppear() {
+    XCTAssertEqual([], self.trackingClient.events)
+
+    self.configureInitialState(.init(left: .template))
+
+    self.scheduler.advance()
+
+    XCTAssertEqual(["Project Page Viewed"], self.trackingClient.events)
   }
 
   func testMockCookieStorageSet_SeparateSchedulers() {
@@ -242,13 +320,14 @@ final class ProjectPamphletViewModelTests: TestCase {
 
       scheduler1.advance()
 
-      XCTAssertEqual(1, self.cookieStorage.cookies?.count,
-                     "A single cookie has been set on the same scheduler.")
+      XCTAssertEqual(
+        1, self.cookieStorage.cookies?.count,
+        "A single cookie has been set on the same scheduler."
+      )
     }
   }
 
   func testTopLayoutConstraints_AfterRotation() {
-
     self.vm.inputs.initial(topConstraint: 30.0)
     XCTAssertNil(self.topLayoutConstraintConstant.lastValue)
 
@@ -268,21 +347,33 @@ final class ProjectPamphletViewModelTests: TestCase {
 
     self.scheduler.advance()
 
-    XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                   self.trackingClient.events, "A project page koala event is tracked.")
-    XCTAssertEqual([RefTag.category.stringTag, RefTag.category.stringTag],
-                   self.trackingClient.properties.flatMap { $0["ref_tag"] as? String },
-                   "The ref tag is tracked in the koala event.")
-    XCTAssertEqual([RefTag.category.stringTag, RefTag.category.stringTag],
-                   self.trackingClient.properties.flatMap { $0["referrer_credit"] as? String },
-                   "The referral credit is tracked in the koala event.")
-    XCTAssertEqual(1, self.cookieStorage.cookies?.count,
-                   "A single cookie is set")
-    XCTAssertEqual("ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
-                   "A referral cookie is set for the project.")
-    XCTAssertEqual("category?",
-                   (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
-                   "A referral cookie is set for the category ref tag.")
+    XCTAssertEqual(
+      ["Project Page Viewed"],
+      self.trackingClient.events, "A project page koala event is tracked."
+    )
+    XCTAssertEqual(
+      [RefTag.category.stringTag],
+      self.trackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
+      "The ref tag is tracked in the koala event."
+    )
+    XCTAssertEqual(
+      [RefTag.category.stringTag],
+      self.trackingClient.properties.compactMap { $0["session_referrer_credit"] as? String },
+      "The referral credit is tracked in the koala event."
+    )
+    XCTAssertEqual(
+      1, self.cookieStorage.cookies?.count,
+      "A single cookie is set"
+    )
+    XCTAssertEqual(
+      "ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
+      "A referral cookie is set for the project."
+    )
+    XCTAssertEqual(
+      "category?",
+      (self.cookieStorage.cookies?.last?.value.prefix(9)).map(String.init),
+      "A referral cookie is set for the category ref tag."
+    )
 
     // Start up another view model with the same project
     let newVm: ProjectPamphletViewModelType = ProjectPamphletViewModel()
@@ -293,282 +384,31 @@ final class ProjectPamphletViewModelTests: TestCase {
 
     self.scheduler.advance()
 
-    XCTAssertEqual(["Project Page", "Viewed Project Page", "Project Page", "Viewed Project Page"],
-                   self.trackingClient.events, "A project page koala event is tracked.")
     XCTAssertEqual(
-      [RefTag.category.stringTag, RefTag.category.stringTag, RefTag.recommended.stringTag,
-        RefTag.recommended.stringTag],
-      self.trackingClient.properties.flatMap { $0["ref_tag"] as? String },
+      [
+        "Project Page Viewed", "Project Page Viewed"
+      ],
+      self.trackingClient.events, "A project page koala event is tracked."
+    )
+    XCTAssertEqual(
+      [
+        RefTag.category.stringTag,
+        RefTag.recommended.stringTag
+      ],
+      self.trackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
       "The new ref tag is tracked in koala event."
     )
     XCTAssertEqual(
-      [RefTag.category.stringTag, RefTag.category.stringTag, RefTag.category.stringTag,
-        RefTag.category.stringTag],
-      self.trackingClient.properties.flatMap { $0["referrer_credit"] as? String },
+      [
+        RefTag.category.stringTag, RefTag.category.stringTag
+      ],
+      self.trackingClient.properties.compactMap { $0["session_referrer_credit"] as? String },
       "The referrer credit did not change, and is still category."
     )
-    XCTAssertEqual(1, self.cookieStorage.cookies?.count,
-                   "A single cookie has been set.")
-  }
-
-  func testTracking_WaitingForLiveStreams_Timeout() {
-    let project = Project.template
-
-    withEnvironment(apiDelayInterval: .seconds(10)) {
-      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events, "Nothing tracked because API is taking a long time.")
-
-      self.scheduler.advance(by: .seconds(10))
-
-      XCTAssertEqual([],
-                     self.trackingClient.events,
-                     "Event tracked once API times out.")
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self),
-                     "Live stream type not tracked because we never got data from the API.")
-
-      self.scheduler.advance(by: .seconds(10))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Nothing new tracks after waiting enough time for API to finish.")
-      XCTAssertEqual([nil, nil],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self),
-                     "Live stream type not tracked because we never got data from the API.")
-    }
-  }
-
-  func testTracking_WaitingForLiveStreams() {
-    let project = Project.template
-    let liveStreamEvent = LiveStreamEvent.template
-      |> LiveStreamEvent.lens.liveNow .~ true
-
-    let envelope = LiveStreamEventsEnvelope(numberOfLiveStreams: 1, liveStreamEvents: [liveStreamEvent])
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(envelope))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(
-        projectOrParam: .left(project), refTag: .discovery
-      )
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual([], self.trackingClient.events)
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual(["live_stream_live", "live_stream_live"],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStream_Countdown() {
-    let project = Project.template
-    let liveStreamEvent = LiveStreamEvent.template
-      |> LiveStreamEvent.lens.liveNow .~ false
-      |> LiveStreamEvent.lens.startDate .~ MockDate().addingTimeInterval(60*60).date
-
-    let envelope = LiveStreamEventsEnvelope(numberOfLiveStreams: 1, liveStreamEvents: [liveStreamEvent])
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(envelope))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual([],
-                     self.trackingClient.events,
-                     "A project page koala event is tracked.")
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual(["live_stream_countdown", "live_stream_countdown"],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStream_Replay() {
-    let project = Project.template
-    let liveStreamEvent = LiveStreamEvent.template
-      |> LiveStreamEvent.lens.liveNow .~ false
-      |> LiveStreamEvent.lens.startDate .~ MockDate().addingTimeInterval(-60*60).date
-
-    let envelope = LiveStreamEventsEnvelope(numberOfLiveStreams: 1, liveStreamEvents: [liveStreamEvent])
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(envelope))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual([],
-                     self.trackingClient.events, "A project page koala event is tracked.")
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual(["live_stream_replay", "live_stream_replay"],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStream_ConfigWithParam() {
-    let liveStreamEvent = LiveStreamEvent.template
-      |> LiveStreamEvent.lens.liveNow .~ false
-      |> LiveStreamEvent.lens.startDate .~ MockDate().addingTimeInterval(-60*60).date
-
-    let envelope = LiveStreamEventsEnvelope(numberOfLiveStreams: 1, liveStreamEvents: [liveStreamEvent])
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(envelope))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(projectOrParam: .right(.id(1)), refTag: .discovery)
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual([],
-                     self.trackingClient.events,
-                     "A project page koala event is tracked.")
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual(["live_stream_replay", "live_stream_replay"],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStream_TypePriority() {
-    let project = Project.template
-    let liveStreamEventLive = .template
-      |> LiveStreamEvent.lens.liveNow .~ true
-    let liveStreamEventReplay = .template
-      |> LiveStreamEvent.lens.liveNow .~ false
-      |> LiveStreamEvent.lens.startDate .~ MockDate().addingTimeInterval(-60*60).date
-
-    let envelope = LiveStreamEventsEnvelope(numberOfLiveStreams: 1,
-                                            liveStreamEvents: [liveStreamEventLive, liveStreamEventReplay])
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(envelope))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual([],
-                     self.trackingClient.events, "A project page koala event is tracked.")
-      XCTAssertEqual([],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual(["live_stream_live", "live_stream_live"],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStreamError_WithProject() {
-    let project = Project.template
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(error: .genericFailure))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(
-        projectOrParam: .left(project), refTag: .discovery
-      )
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual([nil, nil],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
-  }
-
-  func testTracking_LiveStreamError_WithParams() {
-    let project = Project.template
-
-    let liveStreamService = MockLiveStreamService(fetchEventsForProjectResult: Result(error: .genericFailure))
-
-    withEnvironment(apiDelayInterval: .seconds(3), liveStreamService: liveStreamService) {
-      self.vm.inputs.configureWith(
-        projectOrParam: .right(.id(project.id)), refTag: .discovery
-      )
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-      self.vm.inputs.viewDidAppear(animated: false)
-
-      XCTAssertEqual([], self.trackingClient.events)
-
-      self.scheduler.advance(by: .seconds(3))
-
-      XCTAssertEqual(["Project Page", "Viewed Project Page"],
-                     self.trackingClient.events,
-                     "Waiting more time doesn't track another event.")
-      XCTAssertEqual([nil, nil],
-                     self.trackingClient.properties(forKey: "live_stream_type", as: String.self))
-    }
+    XCTAssertEqual(
+      1, self.cookieStorage.cookies?.count,
+      "A single cookie has been set."
+    )
   }
 
   func testTrackingDoesNotOccurOnLoad() {
@@ -582,5 +422,743 @@ final class ProjectPamphletViewModelTests: TestCase {
     self.scheduler.advance()
 
     XCTAssertEqual([], self.trackingClient.events)
+  }
+
+  func testGoToRewards() {
+    withEnvironment(config: .template, mainBundle: self.releaseBundle) {
+      let project = Project.template
+
+      self.configureInitialState(.left(project))
+
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      self.goToRewardsProject.assertValues([project], "Tapping 'Back this project' emits the project")
+      self.goToRewardsRefTag.assertValues([.discovery], "Tapping 'Back this project' emits the refTag")
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewRewards)
+
+      self.goToRewardsProject.assertValues(
+        [project, project],
+        "Tapping 'View rewards' emits the project"
+      )
+      self.goToRewardsRefTag.assertValues(
+        [.discovery, .discovery],
+        "Tapping 'View rewards' emits the refTag"
+      )
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewYourRewards)
+
+      self.goToRewardsProject.assertValues(
+        [project, project, project],
+        "Tapping 'View your rewards' emits the project"
+      )
+      self.goToRewardsRefTag.assertValues(
+        [.discovery, .discovery, .discovery],
+        "Tapping 'View your rewards' emits the refTag"
+      )
+    }
+  }
+
+  func testGoToManageViewPledge_ManagingPledge() {
+    withEnvironment(config: .template) {
+      let reward = Project.cosmicSurgery.rewards.first!
+      let backing = Backing.template
+        |> Backing.lens.reward .~ reward
+        |> Backing.lens.rewardId .~ reward.id
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.personalization.backing .~ backing
+        |> Project.lens.personalization.isBacking .~ true
+
+      self.configureInitialState(.left(project))
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+      self.goToManagePledgeProjectParam.assertValues([.slug(project.slug)])
+      self.goToManagePledgeBackingParam.assertValues([.id(backing.id)])
+    }
+  }
+
+  func testGoToManageViewPledge_ViewingPledge() {
+    withEnvironment(config: .template, currentUser: .template) {
+      let reward = Project.cosmicSurgery.rewards.first!
+      let backing = Backing.template
+        |> Backing.lens.reward .~ reward
+        |> Backing.lens.rewardId .~ reward.id
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.state .~ .successful
+        |> Project.lens.personalization.backing .~ backing
+        |> Project.lens.personalization.isBacking .~ true
+
+      self.configureInitialState(.left(project))
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewBacking)
+
+      self.goToManagePledgeProjectParam.assertValues([.slug(project.slug)])
+      self.goToManagePledgeBackingParam.assertValues([.id(backing.id)])
+    }
+  }
+
+  func testConfigurePledgeCTAView_FetchProjectSuccess() {
+    let project = Project.template
+    let projectFull = Project.template
+      |> \.id .~ 2
+      |> Project.lens.personalization.isBacking .~ true
+
+    let mockService = MockService(fetchProjectResponse: projectFull)
+
+    withEnvironment(
+      apiService: mockService,
+      apiDelayInterval: .seconds(1),
+      config: .template,
+      mainBundle: releaseBundle
+    ) {
+      self.configurePledgeCTAViewProject.assertDidNotEmitValue()
+      self.configurePledgeCTAViewIsLoading.assertDidNotEmitValue()
+      self.configurePledgeCTAViewRefTag.assertValues([])
+      self.configurePledgeCTAViewContext.assertValues([])
+
+      self.configureInitialState(.left(project))
+
+      self.configurePledgeCTAViewProject.assertValues([project])
+      self.configurePledgeCTAViewIsLoading.assertValues([true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet])
+
+      self.scheduler.run()
+
+      self.configurePledgeCTAViewProject.assertValues([project, projectFull, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet, .projectPamphlet, .projectPamphlet])
+    }
+  }
+
+  func testConfigurePledgeCTAView_FetchProjectFailure() {
+    let config = Config.template
+    let project = Project.template
+    let mockService = MockService(fetchProjectError: .couldNotParseJSON)
+
+    withEnvironment(
+      apiService: mockService,
+      apiDelayInterval: .seconds(1),
+      config: config,
+      mainBundle: releaseBundle
+    ) {
+      self.configurePledgeCTAViewProject.assertDidNotEmitValue()
+      self.configurePledgeCTAViewIsLoading.assertDidNotEmitValue()
+      self.configurePledgeCTAViewRefTag.assertDidNotEmitValue()
+      self.configurePledgeCTAViewContext.assertValues([])
+
+      self.configureInitialState(.left(project))
+
+      self.configurePledgeCTAViewProject.assertValues([project])
+      self.configurePledgeCTAViewIsLoading.assertValues([true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet])
+
+      self.scheduler.run()
+
+      self.configurePledgeCTAViewProject.assertValues([project, project])
+      self.configurePledgeCTAViewErrorEnvelope.assertValueCount(1)
+      self.configurePledgeCTAViewIsLoading.assertValues([true, false, false])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet, .projectPamphlet, .projectPamphlet])
+    }
+  }
+
+  func testConfigurePledgeCTAView_ReloadsUponBackProject() {
+    let config = Config.template
+    let project = Project.template
+    let projectFull = Project.template
+      |> Project.lens.rewards .~ [Reward.noReward, Reward.template]
+
+    let backedProject = Project.template
+      |> Project.lens.personalization.backing .~ Backing.template
+      |> Project.lens.personalization.isBacking .~ true
+
+    let mockService = MockService(fetchProjectResponse: projectFull)
+
+    withEnvironment(apiService: mockService, config: config, mainBundle: releaseBundle) {
+      self.configurePledgeCTAViewProject.assertDidNotEmitValue()
+      self.configurePledgeCTAViewIsLoading.assertDidNotEmitValue()
+      self.configurePledgeCTAViewRefTag.assertDidNotEmitValue()
+      self.configurePledgeCTAViewContext.assertDidNotEmitValue()
+
+      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: true)
+
+      self.configurePledgeCTAViewProject.assertValues([project])
+      self.configurePledgeCTAViewIsLoading.assertValues([true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([project, project, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet, .projectPamphlet, .projectPamphlet])
+    }
+
+    withEnvironment(
+      apiService: MockService(fetchProjectResponse: backedProject),
+      config: config,
+      mainBundle: releaseBundle
+    ) {
+      self.vm.inputs.didBackProject()
+
+      self.configurePledgeCTAViewProject.assertValues([project, project, projectFull, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet, .projectPamphlet, .projectPamphlet, .projectPamphlet
+      ])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([
+        project,
+        project,
+        projectFull,
+        projectFull,
+        projectFull,
+        backedProject
+      ])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery
+      ])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet
+      ])
+    }
+  }
+
+  func testConfigurePledgeCTAView_ReloadsUponUpdatePledge() {
+    let config = Config.template
+    let project = Project.template
+    let projectFull = Project.template
+      |> Project.lens.personalization.backing .~ (Backing.template |> Backing.lens.amount .~ 10.0)
+      |> Project.lens.personalization.isBacking .~ true
+    let updatedProject = Project.template
+      |> Project.lens.personalization.backing .~ (Backing.template |> Backing.lens.amount .~ 15.0)
+      |> Project.lens.personalization.isBacking .~ true
+
+    let mockService = MockService(fetchProjectResponse: projectFull)
+
+    withEnvironment(apiService: mockService, config: config, mainBundle: releaseBundle) {
+      self.configurePledgeCTAViewProject.assertDidNotEmitValue()
+      self.configurePledgeCTAViewIsLoading.assertDidNotEmitValue()
+      self.configurePledgeCTAViewRefTag.assertDidNotEmitValue()
+      self.configurePledgeCTAViewContext.assertDidNotEmitValue()
+
+      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+
+      self.configurePledgeCTAViewProject.assertValues([project])
+      self.configurePledgeCTAViewIsLoading.assertValues([true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([project, project, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet, .projectPamphlet, .projectPamphlet])
+    }
+
+    withEnvironment(
+      apiService: MockService(fetchProjectResponse: updatedProject),
+      config: config,
+      mainBundle: releaseBundle
+    ) {
+      self.vm.inputs.managePledgeViewControllerFinished(with: nil)
+
+      self.configurePledgeCTAViewProject.assertValues([project, project, projectFull, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet, .projectPamphlet, .projectPamphlet, .projectPamphlet
+      ])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([
+        project,
+        project,
+        projectFull,
+        projectFull,
+        projectFull,
+        updatedProject
+      ])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery
+      ])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet
+      ])
+    }
+  }
+
+  func testConfigurePledgeCTAView_ReloadsUponRetryButtonTappedEvent() {
+    let config = Config.template
+    let project = Project.template
+    let projectFull = Project.template
+      |> \.id .~ 2
+      |> Project.lens.personalization.isBacking .~ true
+    let projectFull2 = Project.template
+      |> \.id .~ 3
+
+    let mockService = MockService(fetchProjectResponse: projectFull)
+
+    withEnvironment(apiService: mockService, config: config) {
+      self.configurePledgeCTAViewProject.assertDidNotEmitValue()
+      self.configurePledgeCTAViewIsLoading.assertDidNotEmitValue()
+      self.configurePledgeCTAViewRefTag.assertDidNotEmitValue()
+      self.configurePledgeCTAViewContext.assertDidNotEmitValue()
+
+      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+
+      self.configurePledgeCTAViewProject.assertValues([project])
+      self.configurePledgeCTAViewIsLoading.assertValues([true])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([project, projectFull, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([.discovery, .discovery, .discovery])
+      self.configurePledgeCTAViewContext.assertValues([.projectPamphlet, .projectPamphlet, .projectPamphlet])
+    }
+
+    withEnvironment(
+      apiService: MockService(fetchProjectResponse: projectFull2),
+      config: config
+    ) {
+      self.vm.inputs.pledgeRetryButtonTapped()
+
+      self.configurePledgeCTAViewProject.assertValues([project, projectFull, projectFull, projectFull])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet, .projectPamphlet, .projectPamphlet, .projectPamphlet
+      ])
+
+      self.scheduler.advance()
+
+      self.configurePledgeCTAViewProject.assertValues([
+        project,
+        projectFull,
+        projectFull,
+        projectFull,
+        projectFull2,
+        projectFull2
+      ])
+      self.configurePledgeCTAViewIsLoading.assertValues([true, true, false, true, true, false])
+      self.configurePledgeCTAViewRefTag.assertValues([
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery,
+        .discovery
+      ])
+      self.configurePledgeCTAViewContext.assertValues([
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet,
+        .projectPamphlet
+      ])
+    }
+  }
+
+  func testManagePledgeViewControllerFinished() {
+    self.vm.inputs.configureWith(projectOrParam: .left(Project.template), refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+
+    self.dismissManagePledgeAndShowMessageBannerWithMessage.assertDidNotEmitValue()
+
+    self.vm.inputs.managePledgeViewControllerFinished(with: "Your changes have been saved")
+
+    self.dismissManagePledgeAndShowMessageBannerWithMessage.assertValues(["Your changes have been saved"])
+  }
+
+  func testTrackingProjectPageViewed_LoggedIn() {
+    let trackingClient = MockTrackingClient()
+    let koala = Koala(client: trackingClient, config: .template, loggedInUser: User.template)
+
+    withEnvironment(currentUser: User.template, koala: koala) {
+      self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: false)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(trackingClient.events, ["Project Page Viewed"])
+
+      XCTAssertEqual(trackingClient.properties(forKey: "session_ref_tag"), ["discovery"])
+      XCTAssertEqual(
+        trackingClient.properties(forKey: "session_referrer_credit"),
+        ["discovery"]
+      )
+
+      XCTAssertEqual(trackingClient.properties(forKey: "session_user_logged_in", as: Bool.self), [true])
+      XCTAssertEqual(trackingClient.properties(forKey: "user_country"), ["US"])
+      XCTAssertEqual(trackingClient.properties(forKey: "user_uid", as: Int.self), [1])
+
+      XCTAssertEqual(trackingClient.properties(forKey: "project_subcategory"), ["Art"])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_category"), [nil])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_country"), ["US"])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_user_has_watched", as: Bool.self), [nil])
+
+      let properties = trackingClient.properties.last
+
+      XCTAssertNotNil(properties?["optimizely_api_key"], "Event includes Optimizely properties")
+      XCTAssertNotNil(properties?["optimizely_environment"], "Event includes Optimizely properties")
+      XCTAssertNotNil(properties?["optimizely_experiments"], "Event includes Optimizely properties")
+    }
+  }
+
+  func testTrackingProjectPageViewed_LoggedOut() {
+    let config = Config.template
+      |> \.countryCode .~ "GB"
+
+    let trackingClient = MockTrackingClient()
+    let koala = Koala(client: trackingClient, config: config, loggedInUser: nil)
+
+    withEnvironment(currentUser: nil, koala: koala) {
+      self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: false)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(trackingClient.events, ["Project Page Viewed"])
+
+      XCTAssertEqual(trackingClient.properties(forKey: "session_ref_tag"), ["discovery"])
+      XCTAssertEqual(
+        trackingClient.properties(forKey: "session_referrer_credit"),
+        ["discovery"]
+      )
+
+      XCTAssertEqual(trackingClient.properties(forKey: "session_user_logged_in", as: Bool.self), [false])
+      XCTAssertEqual(trackingClient.properties(forKey: "user_country"), ["GB"])
+      XCTAssertEqual(trackingClient.properties(forKey: "user_uid", as: Int.self), [nil])
+
+      XCTAssertEqual(trackingClient.properties(forKey: "project_subcategory"), ["Art"])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_category"), [nil])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_country"), ["US"])
+      XCTAssertEqual(trackingClient.properties(forKey: "project_user_has_watched", as: Bool.self), [nil])
+
+      let properties = trackingClient.properties.last
+
+      XCTAssertNotNil(properties?["optimizely_api_key"], "Event includes Optimizely properties")
+      XCTAssertNotNil(properties?["optimizely_environment"], "Event includes Optimizely properties")
+      XCTAssertNotNil(properties?["optimizely_experiments"], "Event includes Optimizely properties")
+    }
+  }
+
+  func testOptimizelyTrackingProjectPageViewed_LoggedIn() {
+    let user = User.template
+      |> \.location .~ Location.template
+      |> \.stats.backedProjectsCount .~ 50
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: false)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF")
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Viewed")
+
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_backed_projects_count"] as? Int, 50)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_launched_projects_count"] as? Int, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_country"] as? String, "us")
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_facebook_account"] as? Bool, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_display_language"] as? String, "en")
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_os_version"] as? String,
+        "MockSystemVersion"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_user_is_logged_in"] as? Bool, true)
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_app_release_version"] as? String,
+        "1.2.3.4.5.6.7.8.9.0"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_apple_pay_device"] as? Bool, true)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_device_format"] as? String, "phone")
+    }
+  }
+
+  func testOptimizelyTrackingProjectPageViewed_LoggedOut() {
+    withEnvironment(currentUser: nil) {
+      self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: false)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF")
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Viewed")
+
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_backed_projects_count"] as? Int, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_launched_projects_count"] as? Int, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_country"] as? String, "us")
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_facebook_account"] as? Bool, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_display_language"] as? String, "en")
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_os_version"] as? String,
+        "MockSystemVersion"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_user_is_logged_in"] as? Bool, false)
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_app_release_version"] as? String,
+        "1.2.3.4.5.6.7.8.9.0"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_apple_pay_device"] as? Bool, true)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_device_format"] as? String, "phone")
+    }
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_LoggedOut_NonBacked() {
+    self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+    XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+    self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+    XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+    // Only track for non-backed, pledge state
+    self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF")
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Pledge Button Clicked")
+
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_backed_projects_count"] as? Int, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_launched_projects_count"] as? Int, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_country"] as? String, "us")
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_facebook_account"] as? Bool, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_display_language"] as? String, "en")
+
+    XCTAssertEqual(
+      self.optimizelyClient.trackedAttributes?["session_os_version"] as? String,
+      "MockSystemVersion"
+    )
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_user_is_logged_in"] as? Bool, false)
+    XCTAssertEqual(
+      self.optimizelyClient.trackedAttributes?["session_app_release_version"] as? String,
+      "1.2.3.4.5.6.7.8.9.0"
+    )
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_apple_pay_device"] as? Bool, true)
+    XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_device_format"] as? String, "phone")
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_LoggedOut_Backed() {
+    let project = Project.cosmicSurgery
+      |> Project.lens.state .~ .live
+      |> Project.lens.personalization.isBacking .~ true
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ Reward.otherReward
+          |> Backing.lens.rewardId .~ Reward.otherReward.id
+          |> Backing.lens.shippingAmount .~ 10
+          |> Backing.lens.amount .~ 700.0
+      )
+
+    self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+    XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+    self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+    XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+    // Only track for non-backed, pledge state
+    self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+    // Project is backed, no tracking
+    XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+    XCTAssertNil(self.optimizelyClient.trackedAttributes)
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_SeeTheRewards() {
+    let project = Project.cosmicSurgery
+
+    self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+
+    self.vm.inputs.pledgeCTAButtonTapped(with: .seeTheRewards)
+
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Pledge Button Clicked")
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_ViewTheRewards() {
+    let project = Project.cosmicSurgery
+
+    self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+
+    self.vm.inputs.pledgeCTAButtonTapped(with: .viewTheRewards)
+
+    XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Pledge Button Clicked")
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_LoggedIn_NonBacked() {
+    let user = User.template
+      |> \.location .~ Location.template
+      |> \.stats.backedProjectsCount .~ 50
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+      XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+      XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+      // Only track for non-backed, pledge state
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF")
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Project Page Pledge Button Clicked")
+
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_backed_projects_count"] as? Int, 50)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_launched_projects_count"] as? Int, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_country"] as? String, "us")
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_facebook_account"] as? Bool, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["user_display_language"] as? String, "en")
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_os_version"] as? String,
+        "MockSystemVersion"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_user_is_logged_in"] as? Bool, true)
+      XCTAssertEqual(
+        self.optimizelyClient.trackedAttributes?["session_app_release_version"] as? String,
+        "1.2.3.4.5.6.7.8.9.0"
+      )
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_apple_pay_device"] as? Bool, true)
+      XCTAssertEqual(self.optimizelyClient.trackedAttributes?["session_device_format"] as? String, "phone")
+    }
+  }
+
+  func testOptimizelyTrackingPledgeCTAButtonTapped_LoggedIn_Backed() {
+    let user = User.template
+      |> \.location .~ Location.template
+      |> \.stats.backedProjectsCount .~ 50
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.state .~ .live
+      |> Project.lens.personalization.isBacking .~ true
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ Reward.otherReward
+          |> Backing.lens.rewardId .~ Reward.otherReward.id
+          |> Backing.lens.shippingAmount .~ 10
+          |> Backing.lens.amount .~ 700.0
+      )
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(projectOrParam: .left(project), refTag: .discovery)
+      self.vm.inputs.viewDidLoad()
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+      XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+      XCTAssertNil(self.optimizelyClient.trackedAttributes)
+
+      // Only track for non-backed, pledge state
+      self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+      // Project is backed, no tracking
+      XCTAssertEqual(self.optimizelyClient.trackedUserId, nil)
+      XCTAssertEqual(self.optimizelyClient.trackedEventKey, nil)
+      XCTAssertNil(self.optimizelyClient.trackedAttributes)
+    }
+  }
+
+  func testPopToRootViewController() {
+    self.vm.inputs.configureWith(projectOrParam: .left(.template), refTag: nil)
+    self.vm.inputs.viewDidLoad()
+
+    self.popToRootViewController.assertDidNotEmitValue()
+
+    self.vm.inputs.didBackProject()
+
+    self.popToRootViewController.assertValueCount(1)
+  }
+
+  // MARK: - Functions
+
+  private func configureInitialState(_ projectOrParam: Either<Project, Param>) {
+    self.vm.inputs.configureWith(projectOrParam: projectOrParam, refTag: .discovery)
+    self.vm.inputs.viewDidLoad()
+    self.vm.inputs.viewWillAppear(animated: false)
+    self.vm.inputs.viewDidAppear(animated: false)
   }
 }

@@ -4,7 +4,6 @@ default_platform :ios
 
 platform :ios do
   ### MATCH
-
   desc "Fastlane Match"
   lane :match_all do
     setup_circle_ci
@@ -16,12 +15,12 @@ platform :ios do
   desc "Fastlane Match - App Store"
   private_lane :match_appstore do
     match(
-      app_identifier: ["com.kickstarter.drip", "com.kickstarter.kickstarter"],
+      app_identifier: ["com.kickstarter.kickstarter"],
       type: "appstore",
       git_url: "https://github.com/kickstarter/ios-certificates",
       team_id: "48YBP49Y5N",
       git_branch: "ksr",
-      username: "appledev@kickstarter.com"
+      username: ENV["ITUNES_CONNECT_ACCOUNT"]
     )
   end
 
@@ -29,17 +28,14 @@ platform :ios do
   private_lane :match_development do
     match(
       app_identifier: [
-        "com.kickstarter.drip",
-        "com.kickstarter.drip.debug",
         "com.kickstarter.kickstarter",
-        "com.kickstarter.kickstarter.alpha",
         "com.kickstarter.kickstarter.debug"
       ],
       type: "development",
       git_url: "https://github.com/kickstarter/ios-certificates",
       team_id: "48YBP49Y5N",
       git_branch: "ksr",
-      username: "appledev@kickstarter.com",
+      username: ENV["ITUNES_CONNECT_ACCOUNT"],
       force_for_new_devices: true
     )
   end
@@ -48,23 +44,25 @@ platform :ios do
   private_lane :match_enterprise do
     match(
       app_identifier: [
-        "com.kickstarter.drip.beta", "com.kickstarter.kickstarter.beta"
+        "com.kickstarter.kickstarter.beta",
+        "com.kickstarter.kickstarter.kickalpha"
       ],
       type: "enterprise",
       git_url: "https://github.com/kickstarter/ios-certificates",
       team_id: "5DAN4UM3NC",
       git_branch: "ksr-enterprise",
-      username: "appledev@kickstarter.com",
+      username: ENV["ITUNES_CONNECT_ACCOUNT"],
       force_for_new_devices: true
     )
   end
 
   ### BETA
 
-  lane :beta_match_gym_hockey do
+  lane :beta_match_gym_appcenter_s3 do
     match_all
     beta_gym
-    beta_hockey
+    beta_appcenter
+    beta_s3
   end
 
   desc "Build Beta"
@@ -72,26 +70,55 @@ platform :ios do
     build_the_app(
       output_name: "KickBeta",
       export_method: "enterprise",
-      configuration: "Hockey Beta"
+      configuration: "AppCenter Beta"
     )
   end
 
-  desc "Upload Beta to HockeyApp"
-  lane :beta_hockey do
-    upload_hockey(
-      ipa: "./output/gym/KickBeta.ipa",
-      dsym: "./output/gym/KickBeta.app.dSYM.zip",
-      public_identifier: ENV["HOCKEY_BETA_APP_ID"]
+  desc "Upload Beta to AppCenter"
+  lane :beta_appcenter do
+    upload_appcenter(
+      app_name: "KickBeta",
+      ipa: "#{gym_dir}/KickBeta.ipa",
+      dsym: "#{gym_dir}/KickBeta.app.dSYM.zip"
     )
+
+    upload_dsyms(
+      dsym: "#{gym_dir}/KickBeta.app.dSYM.zip",
+      gsp_file_name: "GoogleService-Info-Beta.plist",
+      firebase_app_id: ENV["FIREBASE_BETA_APP_ID"]
+    )
+
+    slack(
+      slack_url: ENV["SLACK_WEBHOOK"],
+      message: slack_message(
+        "beta",
+        get_version_number(xcodeproj: "Kickstarter.xcodeproj", target: "Kickstarter-iOS"),
+        get_build_number(xcodeproj: "Kickstarter.xcodeproj"),
+        "AppCenter"
+      )
+    )
+  end
+
+  desc "Upload Beta to S3"
+  lane :beta_s3 do
+    File.write('.FASTLANE_RELEASE_NOTES.tmp', changelog)
+
+    sh "./beta-changelog.rb"
+
+    upload_s3(
+      ipa: "#{gym_dir}/KickBeta.ipa",
+      dsym: "#{gym_dir}/KickBeta.app.dSYM.zip"
+    )
+
+    sh "./beta-post-s3.rb"
   end
 
   ### PRODUCTION
 
-  lane :itunes_match_gym_deliver_hockey do
+  lane :itunes_match_gym_deliver do
     match_all
     itunes_gym
     itunes_deliver
-    itunes_hockey
   end
 
   desc "Build Production"
@@ -103,16 +130,7 @@ platform :ios do
     )
   end
 
-  desc "Upload Production to HockeyApp"
-  lane :itunes_hockey do
-    upload_hockey(
-      ipa: "./output/gym/Kickstarter.ipa",
-      dsym: "./output/gym/Kickstarter.app.dSYM.zip",
-      public_identifier: ENV["HOCKEY_RELEASE_APP_ID"]
-    )
-  end
-
-  desc "Upload to the app store"
+  desc "Upload to the App Store"
   lane :itunes_deliver do
 
     deliver(
@@ -120,65 +138,176 @@ platform :ios do
       username: ENV["ITUNES_CONNECT_ACCOUNT"],
       app_identifier: ENV["ITUNES_APP_IDENTIFIER"],
       app: ENV["ITUNES_APP_ID"],
-      ipa: "./output/gym/Kickstarter.ipa",
-      team_id: ENV["ITUNES_TEAM_ID"],
+      ipa: "#{gym_dir}/Kickstarter.ipa",
+      team_name: ENV["ITUNES_TEAM_NAME"],
       skip_screenshots: true,
       skip_metadata: true
     )
 
     slack(
       slack_url: ENV["SLACK_WEBHOOK"],
-      message: "Successfully uploaded" +
-        " v" + get_version_number(xcodeproj: "Kickstarter.xcodeproj", target: "Kickstarter-iOS") +
-        " (" + get_build_number(xcodeproj: "Kickstarter.xcodeproj") + ")" +
-        " of the Kickstarter iOS app to iTunes Connect 🚀"
+      message: slack_message(
+        "app store",
+        get_version_number(xcodeproj: "Kickstarter.xcodeproj", target: "Kickstarter-iOS"),
+        get_build_number(xcodeproj: "Kickstarter.xcodeproj"),
+        "App Store Connect 🚀"
+      )
+    )
+
+    upload_dsyms(
+      dsym: "#{gym_dir}/Kickstarter.app.dSYM.zip",
+      gsp_file_name: "GoogleService-Info.plist",
+      firebase_app_id: ENV["FIREBASE_APP_ID"]
     )
   end
 
   ### ALPHA
+  lane :alpha_match_gym_appcenter do
+    match_all
+    alpha_gym
+    alpha_appcenter
+  end
 
   desc "Build Alpha"
   lane :alpha_gym do
     build_the_app(
       output_name: "KickAlpha",
       export_method: "enterprise",
-      configuration: "Hockey Alpha"
+      configuration: "AppCenter Alpha"
     )
   end
 
-  desc "Upload Alpha to HockeyApp"
-  lane :alpha_hockey do
-    upload_hockey(
-      ipa: "./output/gym/KickAlpha.ipa",
-      dsym: "./output/gym/KickAlpha.app.dSYM.zip",
-      public_identifier: ENV["HOCKEY_ALPHA_APP_ID"]
+  desc "Upload Alpha to AppCenter"
+  lane :alpha_appcenter do
+    notes = "Branch: #{git_branch}, Recent changes: #{changelog}"
+      .sub("alpha-dist-", "") # strip branch prefix and trailing hyphen
+      .sub("-#{last_git_commit[:commit_hash]}", "") # strip last hyphen and commit hash
+
+    upload_appcenter(
+      app_name: "KickAlpha",
+      ipa: "#{gym_dir}/KickAlpha.ipa",
+      dsym: "#{gym_dir}/KickAlpha.app.dSYM.zip",
+      notes: notes
+    )
+
+    upload_dsyms(
+      dsym: "#{gym_dir}/KickAlpha.app.dSYM.zip",
+      gsp_file_name: "GoogleService-Info-Alpha.plist",
+      firebase_app_id: ENV["FIREBASE_ALPHA_APP_ID"]
+    )
+
+    slack(
+      slack_url: ENV["SLACK_WEBHOOK"],
+      message: slack_message(
+        "alpha",
+        get_version_number(xcodeproj: "Kickstarter.xcodeproj", target: "Kickstarter-iOS"),
+        get_build_number(xcodeproj: "Kickstarter.xcodeproj"),
+        "AppCenter"
+      )
     )
   end
 
   ### SHARED
 
+  desc "Download App Store dSYMs and upload to Crashlytics"
+  lane :refresh_dsyms do |options|
+    download_dsyms(
+      username: ENV["ITUNES_CONNECT_ACCOUNT"],
+      app_identifier: ENV["ITUNES_APP_IDENTIFIER"],
+      team_name: ENV["ITUNES_TEAM_NAME"],
+      version: "latest"
+    )
+
+    upload_dsyms # Paths are taken from lane_context[SharedValues::DSYM_PATHS] automatically
+    clean_build_artifacts
+
+    slack(
+      slack_url: ENV["SLACK_WEBHOOK"],
+      message: "Successfully refreshed dSYMs for the latest App Store version"
+    )
+  end
+
   private_lane :build_the_app do |options|
+    export_options = {}
+
+    unless options[:configuration].eql? "Release"
+      # Disable bitcode for enterprise builds
+      export_options = {
+        includeBitcode: false,
+        compileBitcode: false
+      }
+    end
+
     gym(
       output_name: options[:output_name],
       export_method: options[:export_method],
       scheme: "Kickstarter-iOS",
-      configuration: options[:configuration]
+      configuration: options[:configuration],
+      export_options: export_options
     )
   end
 
-  private_lane :upload_hockey do |options|
-    hockey(
-      api_token: ENV["HOCKEY_APP_TOKEN"],
+  private_lane :upload_appcenter do |options|
+    notes = (options[:notes] || changelog)
+    appcenter_upload(
+      api_token: ENV["APPCENTER_API_TOKEN"],
+      owner_name: ENV["APPCENTER_OWNER_NAME"],
+      app_name: options[:app_name],
       ipa: options[:ipa],
       dsym: options[:dsym],
-      public_identifier: options[:public_identifier],
-      repository_url: ENV["CIRCLE_REPOSITORY_URL"],
-      build_server_url: ENV["CIRCLE_BUILD_URL"],
-      commit_sha: ENV["CIRCLE_SHA1"],
-      notes: "CircleCI build " + ENV["CIRCLE_BUILD_NUM"],
-      bypass_cdn: true,
-      notify: "1"
+      notify_testers: true,
+      release_notes: notes
     )
+  end
+
+  private_lane :upload_dsyms do |options|
+    upload_symbols_to_crashlytics(
+      dsym_path: options[:dsym],
+      gsp_path: "./Frameworks/native-secrets/ios/#{options[:gsp_file_name]}",
+      app_id: options[:firebase_app_id],
+      binary_path: "./bin/upload-symbols"
+    )
+  end
+
+  ### HELPERS
+  ### Grabs the last commit message into a changelog
+  private_lane :changelog do
+    changelog_from_git_commits(
+      commits_count: 1,
+      date_format: "short"
+    )
+  end
+
+  desc "Commit history from a given tag"
+  lane :commit_history do |options|
+    changelog_from_git_commits(
+      between: [options[:tag], "master"],
+      pretty: "- %s",
+      date_format: "short",
+      match_lightweight_tag: false,
+      merge_commit_filtering: "exclude_merges"
+    )
+  end
+
+  private_lane :upload_s3 do |options|
+    aws_s3(
+      access_key: ENV['AWS_ACCESS_KEY_ID'],
+      secret_access_key: ENV['AWS_SECRET_ACCESS_KEY'],
+      bucket: ENV['AWS_BUCKET'],
+      region: ENV['AWS_REGION'],
+      ipa: options[:ipa],
+      dsym: options[:dsym],
+      path: "{CFBundleVersion}/",
+      upload_metadata: true
+    )
+  end
+
+  def gym_dir
+    ENV["GYM_OUTPUT_DIRECTORY"] || "."
+  end
+
+  def slack_message(type, version_number, build_number, platform)
+    "[#{type.upcase}] uploaded v#{version_number} (#{build_number}) of the Kickstarter iOS app to #{platform}"
   end
 
   after_all do |lane|

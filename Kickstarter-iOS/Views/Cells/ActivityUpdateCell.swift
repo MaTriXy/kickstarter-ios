@@ -1,11 +1,11 @@
+import KsApi
 import Library
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
-import KsApi
 import UIKit
 
-internal protocol ActivityUpdateCellDelegate: class {
+internal protocol ActivityUpdateCellDelegate: AnyObject {
   /// Call with the activity value when navigating to the activity's project.
   func activityUpdateCellTappedProjectImage(activity: Activity)
 }
@@ -14,14 +14,14 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
   fileprivate var viewModel: ActivityUpdateViewModelType = ActivityUpdateViewModel()
   internal weak var delegate: ActivityUpdateCellDelegate?
 
-  @IBOutlet fileprivate weak var bodyLabel: UILabel!
-  @IBOutlet fileprivate weak var cardView: UIView!
-  @IBOutlet fileprivate weak var containerView: UIView!
-  @IBOutlet fileprivate weak var projectImageButton: UIButton!
-  @IBOutlet fileprivate weak var projectImageView: UIImageView!
-  @IBOutlet fileprivate weak var projectNameLabel: UILabel!
-  @IBOutlet fileprivate weak var titleLabel: UILabel!
-  @IBOutlet fileprivate weak var updateSequenceLabel: UILabel!
+  @IBOutlet fileprivate var bodyLabel: UILabel!
+  @IBOutlet fileprivate var cardView: UIView!
+  @IBOutlet fileprivate var containerView: UIView!
+  @IBOutlet fileprivate var projectImageButton: UIButton!
+  @IBOutlet fileprivate var projectImageView: UIImageView!
+  @IBOutlet fileprivate var projectNameLabel: UILabel!
+  @IBOutlet fileprivate var titleLabel: UILabel!
+  @IBOutlet fileprivate var updateSequenceLabel: UILabel!
 
   internal func configureWith(value: Activity) {
     self.viewModel.inputs.configureWith(activity: value)
@@ -41,19 +41,19 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
     self.viewModel.outputs.projectImageURL
       .observeForUI()
       .on(event: { [weak projectImageView] _ in
-        projectImageView?.af_cancelImageRequest()
+        projectImageView?.af.cancelImageRequest()
         projectImageView?.image = nil
       })
       .skipNil()
       .observeValues { [weak projectImageView] url in
-        projectImageView?.af_setImage(withURL: url)
-    }
+        projectImageView?.af.setImage(withURL: url)
+      }
 
     self.viewModel.outputs.notifyDelegateTappedProjectImage
       .observeForUI()
       .observeValues { [weak self] activity in
         self?.delegate?.activityUpdateCellTappedProjectImage(activity: activity)
-    }
+      }
   }
 
   internal override func bindStyles() {
@@ -61,7 +61,7 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
 
     _ = self
       |> feedTableViewCellStyle
-      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraits.button
 
     _ = self.cardView
       |> cardStyle()
@@ -73,13 +73,16 @@ internal final class ActivityUpdateCell: UITableViewCell, ValueCell {
       |> UILabel.lens.font .~ .ksr_subhead()
       |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
 
+    _ = self.projectImageView
+      |> ignoresInvertColorsImageViewStyle
+
     _ = self.projectNameLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 14)
       |> UILabel.lens.textColor .~ .ksr_text_navy_600
 
     _ = self.titleLabel
       |> UILabel.lens.font .~ .ksr_title1(size: 22)
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
   }
 
   @IBAction internal func tappedProjectImage() {

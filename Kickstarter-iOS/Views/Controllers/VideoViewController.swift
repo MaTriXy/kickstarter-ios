@@ -8,7 +8,7 @@ import UIKit
 private let durationKeyPath = "currentItem.duration"
 private let rateKeyPath = "rate"
 
-public protocol VideoViewControllerDelegate: class {
+public protocol VideoViewControllerDelegate: AnyObject {
   func videoViewControllerDidFinish(_ controller: VideoViewController)
   func videoViewControllerDidStart(_ controller: VideoViewController)
 }
@@ -19,10 +19,9 @@ public final class VideoViewController: UIViewController {
   fileprivate var playerController: AVPlayerViewController!
   fileprivate var timeObserver: Any?
 
-  @IBOutlet fileprivate weak var playButton: UIButton!
-  @IBOutlet fileprivate weak var projectImageView: UIImageView!
-  @IBOutlet fileprivate weak var videoOverlayView: UIView!
-  @IBOutlet fileprivate weak var videoContainerView: UIView!
+  @IBOutlet fileprivate var playButton: UIButton!
+  @IBOutlet fileprivate var projectImageView: UIImageView!
+  @IBOutlet fileprivate var videoContainerView: UIView!
 
   internal static func configuredWith(project: Project) -> VideoViewController {
     let vc = Storyboard.Video.instantiate(VideoViewController.self)
@@ -33,9 +32,9 @@ public final class VideoViewController: UIViewController {
   public override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.playerController = self.childViewControllers.compactMap { $0 as? AVPlayerViewController }.first
+    self.playerController = self.children.compactMap { $0 as? AVPlayerViewController }.first
 
-    self.playButton.addTarget(self, action: #selector(playButtonTapped), for: .touchUpInside)
+    self.playButton.addTarget(self, action: #selector(self.playButtonTapped), for: .touchUpInside)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -66,65 +65,65 @@ public final class VideoViewController: UIViewController {
     _ = self.projectImageView
       |> UIImageView.lens.accessibilityElementsHidden .~ true
 
-    _ = self.videoOverlayView
-      |> UIView.lens.backgroundColor .~ .black
+    _ = self.projectImageView
+      |> ignoresInvertColorsImageViewStyle
   }
 
-    public override func bindViewModel() {
+  public override func bindViewModel() {
     super.bindViewModel()
 
     self.playButton.rac.hidden = self.viewModel.outputs.playButtonHidden
     self.videoContainerView.rac.hidden = self.viewModel.outputs.videoViewHidden
-    self.videoOverlayView.rac.hidden = self.viewModel.outputs.playButtonHidden
 
     self.viewModel.outputs.opacityForViews
       .observeForUI()
       .observeValues { [weak self] alpha in
         guard let _self = self else { return }
-        UIView.animate(withDuration: (alpha == 0.0 ? 0.0 : 0.3), delay: 0.0, options: .curveEaseOut,
-                       animations: {
-                        _self.videoOverlayView.alpha = (alpha == 0.0 ? 0.0 : 0.1)
-                        _self.playButton.alpha = alpha
-        }, completion: nil)
-    }
+        UIView.animate(
+          withDuration: alpha == 0.0 ? 0.0 : 0.3, delay: 0.0, options: .curveEaseOut,
+          animations: {
+            _self.playButton.alpha = alpha
+          }, completion: nil
+        )
+      }
 
     self.viewModel.outputs.addCompletionObserver
       .observeForUI()
       .observeValues { [weak self] time in
         self?.addCompletionObserver(atTime: time)
-    }
+      }
 
     self.viewModel.outputs.configurePlayerWithURL
       .observeForUI()
       .observeValues { [weak self] url in
         self?.configurePlayer(withURL: url)
-    }
+      }
 
     self.viewModel.outputs.notifyDelegateThatVideoDidFinish
       .observeForUI()
       .observeValues { [weak self] in
         guard let _self = self else { return }
         self?.delegate?.videoViewControllerDidFinish(_self)
-    }
+      }
 
     self.viewModel.outputs.notifyDelegateThatVideoDidStart
       .observeForUI()
       .observeValues { [weak self] in
         guard let _self = self else { return }
         self?.delegate?.videoViewControllerDidStart(_self)
-    }
+      }
 
     self.viewModel.outputs.pauseVideo
       .observeForUI()
       .observeValues { [weak self] in
         self?.playerController.player?.pause()
-    }
+      }
 
     self.viewModel.outputs.playVideo
       .observeForUI()
       .observeValues { [weak self] in
         self?.playerController.player?.play()
-    }
+      }
 
     self.viewModel.outputs.projectImageHidden
       .observeForUI()
@@ -132,24 +131,24 @@ public final class VideoViewController: UIViewController {
         UIView.animate(withDuration: 0.5) {
           self?.projectImageView.alpha = hidden ? 0 : 1
         }
-    }
+      }
 
     self.viewModel.outputs.projectImageURL
       .observeForUI()
       .on(event: { [weak self] _ in
-        self?.projectImageView.af_cancelImageRequest()
+        self?.projectImageView.af.cancelImageRequest()
         self?.projectImageView.image = nil
-        })
+      })
       .skipNil()
       .observeValues { [weak self] url in
         self?.projectImageView.ksr_setImageWithURL(url)
-    }
+      }
 
     self.viewModel.outputs.seekToBeginning
       .observeForUI()
       .observeValues { [weak self] in
-        self?.playerController.player?.seek(to: kCMTimeZero)
-    }
+        self?.playerController.player?.seek(to: CMTime.zero)
+      }
   }
 
   func addCompletionObserver(atTime time: CMTime) {
@@ -157,17 +156,14 @@ public final class VideoViewController: UIViewController {
 
     self.timeObserver = player.addBoundaryTimeObserver(
       forTimes: [NSValue(time: time)],
-      queue: DispatchQueue.main) { [weak self] in
-        self?.viewModel.inputs.crossedCompletionThreshold()
+      queue: DispatchQueue.main
+    ) { [weak self] in
+      self?.viewModel.inputs.crossedCompletionThreshold()
     }
   }
 
   internal func configurePlayer(withURL url: URL) {
-    do {
-      try AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayback)
-    } catch let error as NSError {
-      print("Audio playback error: \(error.localizedDescription)")
-    }
+    try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [])
 
     self.playerController.player = AVPlayer(url: url)
 
@@ -176,10 +172,11 @@ public final class VideoViewController: UIViewController {
     self.playerController.player?.addObserver(self, forKeyPath: rateKeyPath, options: .new, context: nil)
   }
 
-  public override func observeValue(forKeyPath keyPath: String?, of object: Any?,
-                                    change: [NSKeyValueChangeKey: Any]?,
-                                    context: UnsafeMutableRawPointer?) {
-
+  public override func observeValue(
+    forKeyPath keyPath: String?, of _: Any?,
+    change: [NSKeyValueChangeKey: Any]?,
+    context _: UnsafeMutableRawPointer?
+  ) {
     guard let player = self.playerController.player else { return }
 
     if keyPath == rateKeyPath {
@@ -205,4 +202,9 @@ public final class VideoViewController: UIViewController {
     self.playerController.player?.removeObserver(self, forKeyPath: rateKeyPath)
     self.playerController?.player?.replaceCurrentItem(with: nil)
   }
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+private func convertFromAVAudioSessionCategory(_ input: AVAudioSession.Category) -> String {
+  return input.rawValue
 }

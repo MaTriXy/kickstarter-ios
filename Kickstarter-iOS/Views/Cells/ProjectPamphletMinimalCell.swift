@@ -4,16 +4,17 @@ import Prelude
 import UIKit
 
 internal final class ProjectPamphletMinimalCell: UITableViewCell, ValueCell {
-  @IBOutlet fileprivate weak var activityIndicator: UIActivityIndicatorView!
-  @IBOutlet fileprivate weak var projectImageView: UIImageView!
-  @IBOutlet fileprivate weak var projectNameLabel: UILabel!
-  @IBOutlet fileprivate weak var projectNameStackView: UIStackView!
+  @IBOutlet fileprivate var activityIndicator: UIActivityIndicatorView!
+  @IBOutlet fileprivate var projectImageView: UIImageView!
+  @IBOutlet fileprivate var projectNameLabel: UILabel!
+  @IBOutlet fileprivate var projectNameStackView: UIStackView!
 
   internal func configureWith(value project: Project) {
     self.projectNameLabel.text = project.name
 
     self.projectImageView.image = nil
-    URL(string: project.photo.full).doIfSome(self.projectImageView.ksr_setImageWithURL)
+    URL(string: project.photo.full)
+      .doIfSome { self.projectImageView.ksr_setImageWithURL($0) }
   }
 
   internal override func bindStyles() {
@@ -24,7 +25,10 @@ internal final class ProjectPamphletMinimalCell: UITableViewCell, ValueCell {
 
     _ = self.projectImageView
       |> UIImageView.lens.contentMode .~ .scaleAspectFit
-      |> UIImageView.lens.backgroundColor .~ .ksr_dark_grey_900
+      |> UIImageView.lens.backgroundColor .~ .ksr_soft_black
+
+    _ = self.projectImageView
+      |> ignoresInvertColorsImageViewStyle
 
     _ = self.projectNameLabel
       |> UILabel.lens.font %~~ { _, label in
@@ -32,7 +36,7 @@ internal final class ProjectPamphletMinimalCell: UITableViewCell, ValueCell {
           ? .ksr_title3(size: 28)
           : .ksr_title3(size: 20)
       }
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
       |> UILabel.lens.numberOfLines .~ 0
 
     _ = self.projectNameStackView

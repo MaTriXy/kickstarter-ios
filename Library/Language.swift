@@ -1,6 +1,6 @@
 /**
  Supported languages.
-*/
+ */
 public enum Language: String {
   case de
   case en
@@ -12,12 +12,12 @@ public enum Language: String {
 
   public init?(languageString language: String) {
     switch language.lowercased() {
-    case "de":  self = .de
-    case "en":  self = .en
-    case "es":  self = .es
-    case "fr":  self = .fr
-    case "ja":  self = .ja
-    default:    return nil
+    case "de": self = .de
+    case "en": self = .en
+    case "es": self = .es
+    case "fr": self = .fr
+    case "ja": self = .ja
+    default: return nil
     }
   }
 
@@ -25,12 +25,22 @@ public enum Language: String {
     guard let language = languages
       .lazy
       .map({ String($0.prefix(2)) })
-      .flatMap(Language.init(languageString:))
+      .compactMap(Language.init(languageString:))
       .first else {
-        return nil
+      return nil
     }
 
     self = language
+  }
+
+  public var displayString: String {
+    switch self {
+    case .de: return "German"
+    case .en: return "English"
+    case .es: return "Spanish"
+    case .fr: return "French"
+    case .ja: return "Japanese"
+    }
   }
 }
 

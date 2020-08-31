@@ -1,8 +1,10 @@
+import Foundation
 import KsApi
-import MessageUI
 import Library
+import MessageUI
 import Prelude
 import SafariServices
+import WebKit
 
 internal final class ProjectUpdatesViewController: WebViewController {
   fileprivate let viewModel: ProjectUpdatesViewModelType = ProjectUpdatesViewModel()
@@ -47,26 +49,26 @@ internal final class ProjectUpdatesViewController: WebViewController {
     self.viewModel.outputs.goToSafariBrowser
       .observeForControllerAction()
       .observeValues { [weak self] in
-        self?.goToSafariBrowser(url: $0)
-    }
+        self?.goTo(url: $0)
+      }
 
     self.viewModel.outputs.makePhoneCall
       .observeForUI()
       .observeValues { [weak self] number in
         self?.call(number: number)
-    }
+      }
 
     self.viewModel.outputs.showMailCompose
       .observeForUI()
       .observeValues { [weak self] recipient in
         self?.openMailComposer(recipient: recipient)
-    }
+      }
 
     self.viewModel.outputs.showNoEmailError
       .observeForUI()
       .observeValues { [weak self] alertController in
         self?.present(alertController, animated: true)
-    }
+      }
 
     self.viewModel.outputs.goToUpdate
       .observeForControllerAction()
@@ -94,12 +96,6 @@ internal final class ProjectUpdatesViewController: WebViewController {
     }
   }
 
-  fileprivate func goToSafariBrowser(url: URL) {
-    let controller = SFSafariViewController(url: url)
-    controller.modalPresentationStyle = .overFullScreen
-    self.present(controller, animated: true, completion: nil)
-  }
-
   fileprivate func goToUpdate(forProject project: Project, update: Update) {
     let vc = UpdateViewController.configuredWith(project: project, update: update, context: .updates)
     self.navigationController?.pushViewController(vc, animated: true)
@@ -115,34 +111,35 @@ internal final class ProjectUpdatesViewController: WebViewController {
   }
 
   fileprivate func call(number url: URL) {
-    if #available(iOS 10, *) {
-      UIApplication.shared.open(url)
-    } else {
-      UIApplication.shared.openURL(url)
-    }
+    UIApplication.shared.open(url)
   }
 
-  internal func webView(_ webView: WKWebView,
-                        decidePolicyFor navigationAction: WKNavigationAction,
-                        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+  internal func webView(
+    _: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
     decisionHandler(
-      self.viewModel.inputs.decidePolicy(forNavigationAction: .init(navigationAction: navigationAction)
-    ))
+      self.viewModel.inputs.decidePolicy(
+        forNavigationAction: .init(navigationAction: navigationAction)
+      ))
   }
 
-  func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+  func webView(_: WKWebView, didStartProvisionalNavigation _: WKNavigation!) {
     self.viewModel.inputs.webViewDidStartProvisionalNavigation()
   }
 
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+  func webView(_: WKWebView, didFinish _: WKNavigation!) {
     self.viewModel.inputs.webViewDidFinishNavigation()
   }
 }
 
 extension ProjectUpdatesViewController: MFMailComposeViewControllerDelegate {
-  internal func mailComposeController(_ controller: MFMailComposeViewController,
-                                      didFinishWith result: MFMailComposeResult,
-                                      error: Error?) {
+  internal func mailComposeController(
+    _ controller: MFMailComposeViewController,
+    didFinishWith result: MFMailComposeResult,
+    error _: Error?
+  ) {
     self.viewModel.inputs.mailComposeCompletion(result: result)
     controller.dismiss(animated: true, completion: nil)
   }

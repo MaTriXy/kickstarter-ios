@@ -16,7 +16,7 @@ internal final class ProjectActivitiesViewController: UITableViewController {
   internal override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.tableView.dataSource = dataSource
+    self.tableView.dataSource = self.dataSource
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -29,14 +29,14 @@ internal final class ProjectActivitiesViewController: UITableViewController {
       .observeValues { [weak self] projectActivityData in
         self?.dataSource.load(projectActivityData: projectActivityData)
         self?.tableView.reloadData()
-    }
+      }
 
     self.viewModel.outputs.goTo
       .observeForControllerAction()
       .observeValues { [weak self] goTo in
         switch goTo {
-        case let .backing(project, user):
-          self?.goToBacking(project: project, user: user)
+        case let .backing(params):
+          self?.goToBacking(params: params)
         case let .comments(project, update):
           self?.goToComments(project: project, update: update)
         case let .project(project):
@@ -48,14 +48,14 @@ internal final class ProjectActivitiesViewController: UITableViewController {
         case let .update(project, update):
           self?.goToUpdate(project: project, update: update)
         }
-    }
+      }
 
     self.viewModel.outputs.showEmptyState
       .observeForUI()
       .observeValues { [weak self] visible in
         self?.dataSource.emptyState(visible: visible)
         self?.tableView.reloadData()
-    }
+      }
   }
 
   internal override func bindStyles() {
@@ -67,34 +67,36 @@ internal final class ProjectActivitiesViewController: UITableViewController {
     self.title = Strings.activity_navigation_title_activity()
   }
 
-  internal override func tableView(_ tableView: UITableView,
-                                   willDisplay cell: UITableViewCell,
-                                   forRowAt indexPath: IndexPath) {
-
+  internal override func tableView(
+    _: UITableView,
+    willDisplay cell: UITableViewCell,
+    forRowAt indexPath: IndexPath
+  ) {
     if let cell = cell as? ProjectActivityBackingCell, cell.delegate == nil {
       cell.delegate = self
     } else if let cell = cell as? ProjectActivityCommentCell, cell.delegate == nil {
       cell.delegate = self
     }
 
-    self.viewModel.inputs.willDisplayRow(self.dataSource.itemIndexAt(indexPath),
-                                         outOf: self.dataSource.numberOfItems())
+    self.viewModel.inputs.willDisplayRow(
+      self.dataSource.itemIndexAt(indexPath),
+      outOf: self.dataSource.numberOfItems()
+    )
   }
 
-  override internal func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+  internal override func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
     guard let (activity, project) = self.dataSource.activityAndProjectAtIndexPath(indexPath) else { return }
     self.viewModel.inputs.activityAndProjectCellTapped(activity: activity, project: project)
   }
 
-  internal func goToBacking(project: Project, user: User) {
-    let vc = BackingViewController.configuredWith(project: project, backer: user)
+  internal func goToBacking(params: ManagePledgeViewParamConfigData) {
+    let vc = ManagePledgeViewController.controller(with: params)
+
     if self.traitCollection.userInterfaceIdiom == .pad {
-      let nav = UINavigationController(rootViewController: vc)
-      nav.modalPresentationStyle = UIModalPresentationStyle.formSheet
-      self.present(nav, animated: true, completion: nil)
-    } else {
-      self.navigationController?.pushViewController(vc, animated: true)
+      vc.modalPresentationStyle = UIModalPresentationStyle.formSheet
     }
+
+    self.present(vc, animated: true)
   }
 
   internal func goToComments(project: Project?, update: Update?) {
@@ -110,17 +112,24 @@ internal final class ProjectActivitiesViewController: UITableViewController {
 
   internal func goToProject(project: Project) {
     let vc = ProjectNavigatorViewController.configuredWith(project: project, refTag: .dashboardActivity)
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      vc.modalPresentationStyle = .fullScreen
+    }
     self.present(vc, animated: true, completion: nil)
   }
 
-  internal func goToSendMessage(backing: Backing,
-                                context: Koala.MessageDialogContext) {
+  internal func goToSendMessage(
+    backing: Backing,
+    context: Koala.MessageDialogContext
+  ) {
     let vc = MessageDialogViewController.configuredWith(messageSubject: .backing(backing), context: context)
     vc.modalPresentationStyle = .formSheet
     vc.delegate = self
-    self.present(UINavigationController(rootViewController: vc),
-                               animated: true,
-                               completion: nil)
+    self.present(
+      UINavigationController(rootViewController: vc),
+      animated: true,
+      completion: nil
+    )
   }
 
   internal func goToSendReply(project: Project, update: Update?, comment: Comment) {
@@ -128,9 +137,11 @@ internal final class ProjectActivitiesViewController: UITableViewController {
       .configuredWith(project: project, update: update, recipient: comment.author, context: .projectActivity)
     dialog.modalPresentationStyle = .formSheet
     dialog.delegate = self
-    self.present(UINavigationController(rootViewController: dialog),
-                               animated: true,
-                               completion: nil)
+    self.present(
+      UINavigationController(rootViewController: dialog),
+      animated: true,
+      completion: nil
+    )
   }
 
   internal func goToUpdate(project: Project, update: Update) {
@@ -144,13 +155,12 @@ extension ProjectActivitiesViewController: MessageDialogViewControllerDelegate {
     dialog.dismiss(animated: true, completion: nil)
   }
 
-  internal func messageDialog(_ dialog: MessageDialogViewController, postedMessage message: Message) {
-  }
+  internal func messageDialog(_: MessageDialogViewController, postedMessage _: Message) {}
 }
 
 extension ProjectActivitiesViewController: ProjectActivityBackingCellDelegate {
-  internal func projectActivityBackingCellGoToBacking(project: Project, user: User) {
-    self.viewModel.inputs.projectActivityBackingCellGoToBacking(project: project, user: user)
+  internal func projectActivityBackingCellGoToBacking(project: Project, backing: Backing) {
+    self.viewModel.inputs.projectActivityBackingCellGoToBacking(project: project, backing: backing)
   }
 
   internal func projectActivityBackingCellGoToSendMessage(project: Project, backing: Backing) {
@@ -164,9 +174,11 @@ extension ProjectActivitiesViewController: ProjectActivityCommentCellDelegate {
   }
 
   func projectActivityCommentCellGoToSendReply(project: Project, update: Update?, comment: Comment) {
-    self.viewModel.inputs.projectActivityCommentCellGoToSendReply(project: project,
-                                                                  update: update,
-                                                                  comment: comment)
+    self.viewModel.inputs.projectActivityCommentCellGoToSendReply(
+      project: project,
+      update: update,
+      comment: comment
+    )
   }
 }
 
@@ -175,6 +187,5 @@ extension ProjectActivitiesViewController: CommentDialogDelegate {
     dialog.dismiss(animated: true, completion: nil)
   }
 
-  internal func commentDialog(_ dialog: CommentDialogViewController, postedComment: Comment) {
-  }
+  internal func commentDialog(_: CommentDialogViewController, postedComment _: Comment) {}
 }

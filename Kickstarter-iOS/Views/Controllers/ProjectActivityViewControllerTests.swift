@@ -1,19 +1,18 @@
-import Library
-import Prelude
-import Result
-import XCTest
 @testable import Kickstarter_Framework
 @testable import KsApi
+import Library
+import Prelude
+import XCTest
 
 internal final class ProjectActivityViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     AppEnvironment.pushEnvironment(
       apiService: MockService(
         oauthToken: OauthToken(token: "deadbeef"),
         fetchProjectActivitiesResponse: activityCategories.map {
-          baseActivity |> Activity.lens.category .~ $0 }
+          baseActivity |> Activity.lens.category .~ $0
+        }
           + backingActivities
       ),
       currentUser: Project.cosmicSurgery.creator,
@@ -29,64 +28,44 @@ internal final class ProjectActivityViewControllerTests: TestCase {
     super.tearDown()
   }
 
-  func testPad() {
-    let controller = ProjectActivitiesViewController.configuredWith(project: project)
-    let (parent, _) = traitControllers(device: .pad, orientation: .portrait, child: controller)
-    parent.view.frame.size.height = 2600
-
-    self.scheduler.run()
-
-    FBSnapshotVerifyView(parent.view)
-  }
-
-  func testLanguages() {
-    Language.allLanguages.forEach { language in
+  func testProjectActivityView() {
+    combos(Language.allLanguages, Device.allCases).forEach { language, device in
       withEnvironment(language: language) {
         let controller = ProjectActivitiesViewController.configuredWith(project: project)
-        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 2200
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
         self.scheduler.run()
 
-        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
+        FBSnapshotVerifyView(
+          parent.view,
+          identifier: "lang_\(language)_device_\(device)",
+          overallTolerance: 0.03
+        )
       }
-    }
-  }
-
-  func testVoiceOverRunning() {
-    let isVoiceOverRunning = { true }
-    withEnvironment(isVoiceOverRunning: isVoiceOverRunning) {
-      let controller = ProjectActivitiesViewController.configuredWith(project: project)
-      let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: controller)
-      parent.view.frame.size.height = 2800
-
-      self.scheduler.run()
-
-      FBSnapshotVerifyView(parent.view)
     }
   }
 }
 
 private let project =
   Project.cosmicSurgery
-    |> Project.lens.dates.deadline .~ 123456789.0
-    |> Project.lens.dates.launchedAt .~ 123456789.0
+    |> Project.lens.dates.deadline .~ 123_456_789.0
+    |> Project.lens.dates.launchedAt .~ 123_456_789.0
     |> Project.lens.photo.small .~ ""
     |> Project.lens.photo.med .~ ""
     |> Project.lens.photo.full .~ ""
 
 private let user =
-  .brando
-    |> User.lens.avatar.large .~ ""
-    |> User.lens.avatar.medium .~ ""
-    |> User.lens.avatar.small .~ ""
+  User.brando
+    |> \.avatar.large .~ ""
+    |> \.avatar.medium .~ ""
+    |> \.avatar.small .~ ""
 
 private let baseActivity =
   .template
-    |> Activity.lens.createdAt .~ 123456789.0
+    |> Activity.lens.createdAt .~ 123_456_789.0
     |> Activity.lens.comment .~ (
       .template
-        |> Comment.lens.author .~ .brando
+        |> Comment.lens.author .~ .template
         |> Comment.lens.body .~ ("Hi, I'm wondering if you're planning on holding a gallery showing with "
           + "these portraits? I'd love to attend if you'll be in New York!")
     )
@@ -97,15 +76,15 @@ private let baseActivity =
         |> Update.lens.title .~ "Spirit animal reward available again"
         |> Update.lens.body .~ ("Due to popular demand, and the inspirational momentum of this project, we've"
           + " added more spirit animal rewards!")
-        |> Update.lens.publishedAt .~ 123456789.0
+        |> Update.lens.publishedAt .~ 123_456_789.0
     )
     |> Activity.lens.user .~ user
-    |> Activity.lens.memberData.backing .~ (
+    |> Activity.lens.memberData.backing .~ .some(
       .template
         |> Backing.lens.amount .~ 25
         |> Backing.lens.backerId .~ user.id
         |> Backing.lens.backer .~ user
-)
+    )
 
 private let backingActivity =
   baseActivity

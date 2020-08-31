@@ -1,18 +1,27 @@
 import UIKit
 
 public extension UICollectionView {
-  public func registerCellClass <CellClass: UICollectionViewCell> (_ cellClass: CellClass.Type) {
-    register(cellClass, forCellWithReuseIdentifier: cellClass.description())
+  // MARK: - Registration
+
+  func registerCellClass<CellClass: UICollectionViewCell>(_ cellClass: CellClass.Type) {
+    self.register(cellClass, forCellWithReuseIdentifier: classNameWithoutModule(cellClass))
   }
 
-  public func registerCellNibForClass(_ cellClass: AnyClass) {
-    let classNameWithoutModule = cellClass
-      .description()
-      .components(separatedBy: ".")
-      .dropFirst()
-      .joined(separator: ".")
+  func register<T: ValueCell>(_ cellClass: T.Type) {
+    self.register(cellClass, forCellWithReuseIdentifier: T.defaultReusableId)
+  }
 
-    register(UINib(nibName: classNameWithoutModule, bundle: nil),
-             forCellWithReuseIdentifier: classNameWithoutModule)
+  func registerCellNibForClass(_ cellClass: AnyClass) {
+    let className = classNameWithoutModule(cellClass)
+
+    self.register(UINib(nibName: className, bundle: nil), forCellWithReuseIdentifier: className)
+  }
+
+  // MARK: - Reuse
+
+  func dequeueReusableCell(withClass cellClass: UICollectionViewCell.Type, for indexPath: IndexPath)
+    -> UICollectionViewCell {
+    let className = classNameWithoutModule(cellClass)
+    return self.dequeueReusableCell(withReuseIdentifier: className, for: indexPath)
   }
 }

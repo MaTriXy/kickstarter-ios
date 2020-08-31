@@ -1,10 +1,12 @@
 import Library
+import PlaygroundSupport
 import Prelude
 import Prelude_UIKit
 import UIKit
-import PlaygroundSupport
 
-let (parent, child) = playgroundControllers(device: .phone4_7inch, orientation: .portrait)
+let (parent, child) = playgroundControllers(device: .phone4inch, orientation: .portrait)
+
+PlaygroundPage.current.liveView = parent
 
 let rootStackView = UIStackView(frame: child.view.bounds)
   |> UIStackView.lens.alignment .~ .leading
@@ -12,21 +14,19 @@ let rootStackView = UIStackView(frame: child.view.bounds)
   |> UIStackView.lens.distribution .~ .fillEqually
   |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
   |> UIStackView.lens.layoutMargins .~ .init(all: 16)
+
 child.view.addSubview(rootStackView)
 
-func disabled <C: UIControlProtocol> () -> ((C) -> C) {
+func disabled<C: UIControlProtocol>() -> ((C) -> C) {
   return C.lens.isEnabled .~ false
 }
 
 let baseButtonsStyles: [(UIButton) -> UIButton] = [
-  greenButtonStyle       <> UIButton.lens.title(for: .normal) .~ "Green button",
-  navyButtonStyle        <> UIButton.lens.title(for: .normal) .~ "Navy button",
-  lightNavyButtonStyle   <> UIButton.lens.title(for: .normal) .~ "Light navy button",
-  neutralButtonStyle     <> UIButton.lens.title(for: .normal) .~ "Neutral button",
-  borderButtonStyle      <> UIButton.lens.title(for: .normal) .~ "Border button",
-  blackButtonStyle       <> UIButton.lens.title(for: .normal) .~ "Black button",
-  textOnlyButtonStyle    <> UIButton.lens.title(for: .normal) .~ "Text only button",
-  greenBorderButtonStyle <> UIButton.lens.title(for: .normal) .~ "Green border button",
+  apricotButtonStyle <> UIButton.lens.title(for: .normal) .~ "Apricot button",
+  blackButtonStyle <> UIButton.lens.title(for: .normal) .~ "Black button",
+  blueButtonStyle <> UIButton.lens.title(for: .normal) .~ "Blue button",
+  greenButtonStyle <> UIButton.lens.title(for: .normal) .~ "Green button",
+  greyButtonStyle <> UIButton.lens.title(for: .normal) .~ "Grey button"
 ]
 
 let buttonsStyles: [[(UIButton) -> UIButton]] = baseButtonsStyles.map { [$0, $0 <> disabled()] }
@@ -48,5 +48,3 @@ buttonsStyles.forEach { styles in
     button |> style
   }
 }
-
-PlaygroundPage.current.liveView = parent

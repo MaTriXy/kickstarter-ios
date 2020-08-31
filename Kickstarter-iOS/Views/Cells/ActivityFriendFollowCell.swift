@@ -7,11 +7,11 @@ import UIKit
 internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: ActivityFriendFollowCellViewModel = ActivityFriendFollowCellViewModel()
 
-  @IBOutlet fileprivate weak var cardView: UIView!
-  @IBOutlet fileprivate weak var containerView: UIView!
-  @IBOutlet fileprivate weak var friendImageView: UIImageView!
-  @IBOutlet fileprivate weak var friendLabel: UILabel!
-  @IBOutlet fileprivate weak var followButton: UIButton!
+  @IBOutlet fileprivate var cardView: UIView!
+  @IBOutlet fileprivate var containerView: UIView!
+  @IBOutlet fileprivate var friendImageView: UIImageView!
+  @IBOutlet fileprivate var friendLabel: UILabel!
+  @IBOutlet fileprivate var followButton: UIButton!
 
   func configureWith(value: Activity) {
     self.viewModel.inputs.configureWith(activity: value)
@@ -24,13 +24,13 @@ internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
     self.viewModel.outputs.friendImageURL
       .observeForUI()
       .on(event: { [weak friendImageView] _ in
-        friendImageView?.af_cancelImageRequest()
+        friendImageView?.af.cancelImageRequest()
         friendImageView?.image = nil
       })
       .skipNil()
       .observeValues { [weak friendImageView] url in
         friendImageView?.ksr_setImageWithURL(url)
-    }
+      }
   }
 
   override func bindStyles() {
@@ -45,16 +45,16 @@ internal final class ActivityFriendFollowCell: UITableViewCell, ValueCell {
     _ = self.containerView
       |> UIView.lens.layoutMargins .~ .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
 
+    _ = self.friendImageView
+      |> ignoresInvertColorsImageViewStyle
+
     _ = self.friendLabel
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
 
     _ = self.followButton
-      |> navyButtonStyle
-      |> UIButton.lens.targets .~ [(self, action: #selector(followButtonTapped), .touchUpInside)]
+      |> blackButtonStyle
+      |> UIButton.lens.targets .~ [(self, action: #selector(self.followButtonTapped), .touchUpInside)]
       |> UIButton.lens.title(for: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
-      |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
-      |> UIButton.lens.contentEdgeInsets .~ .init(topBottom: Styles.gridHalf(3),
-                                                  leftRight: Styles.gridHalf(5))
   }
 
   @objc fileprivate func followButtonTapped() {

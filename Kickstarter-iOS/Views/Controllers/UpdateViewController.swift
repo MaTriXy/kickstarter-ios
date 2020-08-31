@@ -3,6 +3,7 @@ import Library
 import Prelude
 import SafariServices
 import UIKit
+import WebKit
 
 internal final class UpdateViewController: WebViewController {
   fileprivate let viewModel: UpdateViewModelType = UpdateViewModel()
@@ -10,11 +11,10 @@ internal final class UpdateViewController: WebViewController {
 
   fileprivate let closeButton = UIBarButtonItem()
 
-  @IBOutlet fileprivate weak var shareButton: UIBarButtonItem!
+  @IBOutlet fileprivate var shareButton: UIBarButtonItem!
 
-  internal static func configuredWith(project: Project, update: Update, context: Koala.UpdateContext)
+  internal static func configuredWith(project: Project, update: Update, context _: Koala.UpdateContext)
     -> UpdateViewController {
-
     let vc = Storyboard.Update.instantiate(UpdateViewController.self)
     vc.viewModel.inputs.configureWith(project: project, update: update)
     vc.shareViewModel.inputs.configureWith(shareContext: .update(project, update), shareContextView: nil)
@@ -35,7 +35,7 @@ internal final class UpdateViewController: WebViewController {
     guard
       self.presentingViewController != nil,
       let navigationController = self.navigationController, navigationController.viewControllers == [self]
-      else { return }
+    else { return }
 
     self.navigationItem.leftBarButtonItem = self.closeButton
   }
@@ -44,7 +44,7 @@ internal final class UpdateViewController: WebViewController {
     _ = self |> baseControllerStyle()
 
     _ = self.closeButton |> closeBarButtonItemStyle
-      |> UIBarButtonItem.lens.targetAction .~ (self, #selector(dismissSelf))
+      |> UIBarButtonItem.lens.targetAction .~ (self, #selector(self.dismissSelf))
 
     _ = self.shareButton
       |> UIBarButtonItem.lens.accessibilityLabel %~ { _ in Strings.Share_update() }
@@ -67,17 +67,18 @@ internal final class UpdateViewController: WebViewController {
 
     self.shareViewModel.outputs.showShareSheet
       .observeForControllerAction()
-      .observeValues { [weak self]  controller, _ in self?.showShareSheet(controller) }
+      .observeValues { [weak self] controller, _ in self?.showShareSheet(controller) }
 
     self.viewModel.outputs.goToSafariBrowser
       .observeForControllerAction()
-      .observeValues { [weak self] url in self?.goToSafariBrowser(url: url) }
+      .observeValues { [weak self] in self?.goTo(url: $0) }
   }
 
-  internal func webView(_ webView: WKWebView,
-                        decidePolicyFor navigationAction: WKNavigationAction,
-                        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-
+  internal func webView(
+    _: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
     decisionHandler(
       self.viewModel.inputs.decidePolicyFor(navigationAction: .init(navigationAction: navigationAction))
     )
@@ -97,24 +98,22 @@ internal final class UpdateViewController: WebViewController {
 
   fileprivate func goTo(project: Project, refTag: RefTag) {
     let vc = ProjectNavigatorViewController.configuredWith(project: project, refTag: refTag)
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      vc.modalPresentationStyle = .fullScreen
+    }
     self.present(vc, animated: true, completion: nil)
   }
 
-  fileprivate func goToSafariBrowser(url: URL) {
-    let controller = SFSafariViewController(url: url)
-    controller.modalPresentationStyle = .overFullScreen
-    self.present(controller, animated: true, completion: nil)
-  }
-
   fileprivate func showShareSheet(_ controller: UIActivityViewController) {
-
     controller.completionWithItemsHandler = { [weak self] activityType, completed, returnedItems, error in
 
       self?.shareViewModel.inputs.shareActivityCompletion(
-        with: .init(activityType: activityType,
-                    completed: completed,
-                    returnedItems: returnedItems,
-                    activityError: error)
+        with: .init(
+          activityType: activityType,
+          completed: completed,
+          returnedItems: returnedItems,
+          activityError: error
+        )
       )
     }
 

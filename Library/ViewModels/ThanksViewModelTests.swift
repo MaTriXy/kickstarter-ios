@@ -1,59 +1,61 @@
-import XCTest
-import ReactiveSwift
-import UIKit
-@testable import ReactiveExtensions
-@testable import ReactiveExtensions_TestHelpers
-@testable import Result
 @testable import KsApi
 @testable import Library
 import Prelude
+import ReactiveExtensions
+import ReactiveExtensions_TestHelpers
+import ReactiveSwift
+import UIKit
+import XCTest
 
 final class ThanksViewModelTests: TestCase {
   let vm: ThanksViewModelType = ThanksViewModel()
 
-  let backedProjectText = TestObserver<String, NoError>()
-  let goToDiscovery = TestObserver<KsApi.Category, NoError>()
-  let goToProject = TestObserver<Project, NoError>()
-  let goToProjects = TestObserver<[Project], NoError>()
-  let goToRefTag = TestObserver<RefTag, NoError>()
-  let showRatingAlert = TestObserver<(), NoError>()
-  let goToAppStoreRating = TestObserver<String, NoError>()
-  let showGamesNewsletterAlert = TestObserver<(), NoError>()
-  let showGamesNewsletterOptInAlert = TestObserver<String, NoError>()
-  let showRecommendations = TestObserver<[Project], NoError>()
-  let dismissToRootViewController = TestObserver<(), NoError>()
-  let postContextualNotification = TestObserver<(), NoError>()
-  let postUserUpdatedNotification = TestObserver<Notification.Name, NoError>()
-  let updateUserInEnvironment = TestObserver<User, NoError>()
-  let facebookButtonIsHidden = TestObserver<Bool, NoError>()
-  let twitterButtonIsHidden = TestObserver<Bool, NoError>()
+  private let backedProjectText = TestObserver<String, Never>()
+  private let dismissToRootViewControllerAndPostNotification = TestObserver<Notification.Name, Never>()
+  private let goToDiscovery = TestObserver<KsApi.Category, Never>()
+  private let goToProject = TestObserver<Project, Never>()
+  private let goToProjects = TestObserver<[Project], Never>()
+  private let goToRefTag = TestObserver<RefTag, Never>()
+  private let showRatingAlert = TestObserver<(), Never>()
+  private let showGamesNewsletterAlert = TestObserver<(), Never>()
+  private let showGamesNewsletterOptInAlert = TestObserver<String, Never>()
+  private let showRecommendationsProjects = TestObserver<[Project], Never>()
+  private let showRecommendationsVariant = TestObserver<OptimizelyExperiment.Variant, Never>()
+  private let postContextualNotification = TestObserver<(), Never>()
+  private let postUserUpdatedNotification = TestObserver<Notification.Name, Never>()
+  private let updateUserInEnvironment = TestObserver<User, Never>()
+  private let facebookButtonIsHidden = TestObserver<Bool, Never>()
+  private let twitterButtonIsHidden = TestObserver<Bool, Never>()
 
   override func setUp() {
     super.setUp()
-    vm.outputs.backedProjectText.map { $0.string }.observe(backedProjectText.observer)
-    vm.outputs.dismissToRootViewController.observe(dismissToRootViewController.observer)
-    vm.outputs.goToAppStoreRating.observe(goToAppStoreRating.observer)
-    vm.outputs.goToDiscovery.map { params in params.category ?? Category.filmAndVideo }
-      .observe(goToDiscovery.observer)
-    vm.outputs.goToProject.map { $0.0 }.observe(goToProject.observer)
-    vm.outputs.goToProject.map { $0.1 }.observe(goToProjects.observer)
-    vm.outputs.goToProject.map { $0.2 }.observe(goToRefTag.observer)
-    vm.outputs.postContextualNotification.observe(postContextualNotification.observer)
-    vm.outputs.postUserUpdatedNotification.map { $0.name }.observe(postUserUpdatedNotification.observer)
-    vm.outputs.showGamesNewsletterAlert.observe(showGamesNewsletterAlert.observer)
-    vm.outputs.showGamesNewsletterOptInAlert.observe(showGamesNewsletterOptInAlert.observer)
-    vm.outputs.showRatingAlert.observe(showRatingAlert.observer)
-    vm.outputs.showRecommendations.map { projects, _ in projects }.observe(showRecommendations.observer)
-    vm.outputs.updateUserInEnvironment.observe(updateUserInEnvironment.observer)
+    self.vm.outputs.backedProjectText.map { $0.string }.observe(self.backedProjectText.observer)
+    self.vm.outputs.dismissToRootViewControllerAndPostNotification.map { $0.name }
+      .observe(self.dismissToRootViewControllerAndPostNotification.observer)
+    self.vm.outputs.goToDiscovery.map { params in params.category ?? Category.filmAndVideo }
+      .observe(self.goToDiscovery.observer)
+    self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProject.observer)
+    self.vm.outputs.goToProject.map { $0.1 }.observe(self.goToProjects.observer)
+    self.vm.outputs.goToProject.map { $0.2 }.observe(self.goToRefTag.observer)
+    self.vm.outputs.postContextualNotification.observe(self.postContextualNotification.observer)
+    self.vm.outputs.postUserUpdatedNotification.map { $0.name }
+      .observe(self.postUserUpdatedNotification.observer)
+    self.vm.outputs.showGamesNewsletterAlert.observe(self.showGamesNewsletterAlert.observer)
+    self.vm.outputs.showGamesNewsletterOptInAlert.observe(self.showGamesNewsletterOptInAlert.observer)
+    self.vm.outputs.showRatingAlert.observe(self.showRatingAlert.observer)
+    self.vm.outputs.showRecommendations.map(first)
+      .observe(self.showRecommendationsProjects.observer)
+    self.vm.outputs.showRecommendations.map(third).observe(self.showRecommendationsVariant.observer)
+    self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
   }
 
-  func testdismissToRootViewController() {
-    vm.inputs.project(.template)
-    vm.inputs.viewDidLoad()
+  func testDismissToRootViewController() {
+    self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
+    self.vm.inputs.viewDidLoad()
 
-    vm.inputs.closeButtonTapped()
+    self.vm.inputs.closeButtonTapped()
 
-    dismissToRootViewController.assertValueCount(1)
+    self.dismissToRootViewControllerAndPostNotification.assertValue(Notification.Name.ksr_projectBacked)
   }
 
   func testGoToDiscovery() {
@@ -67,220 +69,74 @@ final class ThanksViewModelTests: TestCase {
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
 
     withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      vm.inputs.project(project)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendations.assertValueCount(1)
+      showRecommendationsProjects.assertValueCount(1)
 
       vm.inputs.categoryCellTapped(.illustration)
 
       goToDiscovery.assertValues([.illustration])
-      XCTAssertEqual(["Triggered App Store Rating Dialog", "Checkout Finished Discover More"],
-                     self.trackingClient.events)
+      XCTAssertEqual(
+        ["Triggered App Store Rating Dialog", "Thanks Page Viewed", "Checkout Finished Discover More"],
+        self.trackingClient.events
+      )
     }
   }
 
   func testDisplayBackedProjectText() {
-    let project = .template |> Project.lens.category .~ .games
-    vm.inputs.project(project)
-    vm.inputs.viewDidLoad()
+    let project = Project.template |> \.category .~ .games
+    self.vm.inputs.configure(with: (project, Reward.template, nil))
+    self.vm.inputs.viewDidLoad()
 
-    backedProjectText.assertValues(
-      ["You have successfully backed The Project. " +
-      "This project is now one step closer to a reality, thanks to you. Spread the word!"
-      ], "Name of project emits")
+    self.backedProjectText.assertValues(
+      [
+        "You have successfully backed The Project. " +
+          "This project is now one step closer to a reality, thanks to you. Spread the word!"
+      ], "Name of project emits"
+    )
   }
 
   func testRatingAlert_Initial() {
     withEnvironment(currentUser: .template) {
-      vm.inputs.project(Project.template)
-
       showRatingAlert.assertValueCount(0, "Rating Alert does not emit")
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       showRatingAlert.assertValueCount(1, "Rating Alert emits when view did load")
       showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
-      XCTAssertEqual(["Triggered App Store Rating Dialog"], self.trackingClient.events)
-    }
-  }
-
-  func testRatingAlert_ShowsOnce_AfterRateNow_NonGames_NonGames_Games() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(Project.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
-
-      vm.inputs.rateNowButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(Project.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(0, "Rating alert does not show again after rating happened")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template |> Project.lens.category .~ .games)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0, "Rating alert does not show again")
-      thirdShowGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-    }
-  }
-
-  func testRatingAlert_ShowsOnce_AfterNoThanks_NonGames_NonGames_Games() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
-
-      vm.inputs.rateNoThanksButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(0, "Rating alert does not show again after dismiss happened")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template |> Project.lens.category .~ .games)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0, "Rating alert does not show again")
-      thirdShowGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-    }
-  }
-
-  func testRatingAlert_ShowsAgain_AfterRemindLater_NonGames_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
-
-      vm.inputs.rateRemindLaterButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(1, "Rating alert shows again after reminder happened")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testRatingCompleted_WithRateNow() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      XCTAssertEqual(["Triggered App Store Rating Dialog"], self.trackingClient.events)
-
-      vm.inputs.rateNowButtonTapped()
-
-      XCTAssertEqual(true, AppEnvironment.current.userDefaults.hasSeenAppRating, "Rating pref saved")
-      XCTAssertEqual(
-        ["Triggered App Store Rating Dialog", "Accepted App Store Rating Dialog",
-         "Checkout Finished Alert App Store Rating Rate Now"],
-        self.trackingClient.events
-      )
-      goToAppStoreRating.assertValueCount(1, "Proceed to app store")
-    }
-  }
-
-  func testRatingCompleted_WithRemindLater() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      XCTAssertEqual(["Triggered App Store Rating Dialog"], self.trackingClient.events)
-
-      vm.inputs.rateRemindLaterButtonTapped()
-
-      XCTAssertEqual(false, AppEnvironment.current.userDefaults.hasSeenAppRating, "Rating pref saved")
-      XCTAssertEqual(
-        ["Triggered App Store Rating Dialog", "Delayed App Store Rating Dialog",
-         "Checkout Finished Alert App Store Rating Remind Later"],
-        self.trackingClient.events
-      )
-    }
-  }
-
-  func testRatingCompleted_WithNoThanks() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on first viewing")
-      XCTAssertEqual(["Triggered App Store Rating Dialog"], self.trackingClient.events)
-
-      vm.inputs.rateNoThanksButtonTapped()
-
-      XCTAssertEqual(true, AppEnvironment.current.userDefaults.hasSeenAppRating, "Rating pref saved")
-      XCTAssertEqual(
-        ["Triggered App Store Rating Dialog", "Dismissed App Store Rating Dialog",
-         "Checkout Finished Alert App Store Rating No Thanks"],
-        self.trackingClient.events
-      )
+      XCTAssertEqual(["Triggered App Store Rating Dialog", "Thanks Page Viewed"], self.trackingClient.events)
     }
   }
 
   func testGamesAlert_ShowsOnce() {
     withEnvironment(currentUser: .template) {
-      XCTAssertEqual(false, AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt,
-                     "Newsletter pref is not set")
+      XCTAssertEqual(
+        false, AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt,
+        "Newsletter pref is not set"
+      )
 
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
+      let project = Project.template |> Project.lens.category .~ .games
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
       showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-      XCTAssertEqual(true, AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt,
-                     "Newsletter pref saved")
+      XCTAssertEqual(
+        true, AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt,
+        "Newsletter pref saved"
+      )
 
       let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
+      let secondShowRatingAlert = TestObserver<(), Never>()
       secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
+      let secondShowGamesNewsletterAlert = TestObserver<(), Never>()
       secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
 
-      secondVM.inputs.project(.template |> Project.lens.category .~ .games)
+      secondVM.inputs.configure(with: (project, Reward.template, nil))
       secondVM.inputs.viewDidLoad()
 
       secondShowRatingAlert.assertValueCount(1, "Rating alert shows on games project")
@@ -290,20 +146,23 @@ final class ThanksViewModelTests: TestCase {
 
   func testGamesNewsletterAlert_ShouldNotShow_WhenUserIsSubscribed() {
     let newsletters = User.NewsletterSubscriptions.template |> User.NewsletterSubscriptions.lens.games .~ true
-    let user = .template |> User.lens.newsletters .~ newsletters
+    let user = User.template |> \.newsletters .~ newsletters
+    let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(currentUser: user) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on games project")
     }
   }
 
   func testGamesNewsletterSignup() {
+    let project = Project.template |> Project.lens.category .~ .games
+
     withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       showGamesNewsletterAlert.assertValueCount(1)
 
@@ -313,18 +172,22 @@ final class ThanksViewModelTests: TestCase {
 
       updateUserInEnvironment.assertValueCount(1)
       showGamesNewsletterOptInAlert.assertValueCount(0, "Opt-in alert does not emit")
-      XCTAssertEqual(["Subscribed To Newsletter", "Newsletter Subscribe"], trackingClient.events)
+      XCTAssertEqual(
+        ["Thanks Page Viewed", "Subscribed To Newsletter", "Newsletter Subscribe"],
+        self.trackingClient.events
+      )
 
       vm.inputs.userUpdated()
 
-      postUserUpdatedNotification.assertValues([Notification.Name.ksr_userUpdated],
-                                               "User updated notification emits")
+      postUserUpdatedNotification.assertValues(
+        [Notification.Name.ksr_userUpdated],
+        "User updated notification emits"
+      )
     }
   }
 
   func testContextualNotificationEmitsWhen_userPledgedFirstProject() {
-
-    let user = .template |> User.lens.stats.backedProjectsCount .~ 0
+    let user = User.template |> \.stats.backedProjectsCount .~ 0
 
     withEnvironment(currentUser: user) {
       vm.inputs.viewDidLoad()
@@ -333,8 +196,7 @@ final class ThanksViewModelTests: TestCase {
   }
 
   func testContextualNotificationDoesNotEmitWhen_userPledgedMoreThanOneProject() {
-
-    let user = .template |> User.lens.stats.backedProjectsCount .~ 2
+    let user = User.template |> \.stats.backedProjectsCount .~ 2
 
     withEnvironment(currentUser: user) {
       vm.inputs.viewDidLoad()
@@ -343,239 +205,21 @@ final class ThanksViewModelTests: TestCase {
   }
 
   func testGamesNewsletterOptInAlert() {
+    let project = Project.template |> Project.lens.category .~ .games
+
     withEnvironment(countryCode: "DE", currentUser: User.template) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       showGamesNewsletterAlert.assertValueCount(1)
 
       vm.inputs.gamesNewsletterSignupButtonTapped()
 
       showGamesNewsletterOptInAlert.assertValues(["Kickstarter Loves Games"], "Opt-in alert emits with title")
-      XCTAssertEqual(["Subscribed To Newsletter", "Newsletter Subscribe"], trackingClient.events)
-    }
-  }
-
-  func testAlerts_ShowOnce_AfterRateNow_Games_NonGames_NonGames() {
-    let project = .template
-      |> Project.lens.category .~ .tabletopGames
-      <> Project.lens.category.parent .~ nil
-
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(project)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateNowButtonTapped()
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0, "Rating alert does not show on non-games project after rating")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testAlerts_ShowOnce_AfterNoThanks_Games_NonGames_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateNoThanksButtonTapped()
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0,
-                                            "Rating alert does not show on non-games project after No Thanks")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testAlerts_ShowGamesOnce_ShowRatingAgain_AfterRemindLater_Games_NonGames_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      secondShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateRemindLaterButtonTapped()
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(1, "Rating alert shows on non-games project after reminder")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testAlerts_ShowOnce_AfterRateNow_NonGames_Games_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateNowButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(Project.template
-        |> Project.lens.category .~ Category.games)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      secondShowGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0, "Rating alert does not show on non-games project after rating")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testAlerts_ShowOnce_AfterNoThanks_NonGames_Games_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateNoThanksButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template |> Project.lens.category .~ .games)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      secondShowGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(0,
-                                            "Rating alert does not show on non-games project after No Thanks")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-    }
-  }
-
-  func testAlerts_ShowGamesOnce_ShowRatingAgain_AfterRemindLater_NonGames_Games_NonGames() {
-    withEnvironment(currentUser: .template) {
-      vm.inputs.project(.template)
-      vm.inputs.viewDidLoad()
-
-      showRatingAlert.assertValueCount(1, "Rating alert shows on non-games project")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
-
-      vm.inputs.rateRemindLaterButtonTapped()
-
-      let secondVM: ThanksViewModelType = ThanksViewModel()
-      let secondShowRatingAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showRatingAlert.observe(secondShowRatingAlert.observer)
-      let secondShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
-
-      secondVM.inputs.project(.template |> Project.lens.category .~ .games)
-      secondVM.inputs.viewDidLoad()
-
-      secondShowRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      secondShowGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
-
-      let thirdVM: ThanksViewModelType = ThanksViewModel()
-      let thirdShowRatingAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showRatingAlert.observe(thirdShowRatingAlert.observer)
-      let thirdShowGamesNewsletterAlert = TestObserver<(), NoError>()
-      thirdVM.outputs.showGamesNewsletterAlert.observe(thirdShowGamesNewsletterAlert.observer)
-
-      thirdVM.inputs.project(.template)
-      thirdVM.inputs.viewDidLoad()
-
-      thirdShowRatingAlert.assertValueCount(1, "Rating alert shows on non-games project after Remind Later")
-      thirdShowGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on non-games project")
+      XCTAssertEqual(
+        ["Thanks Page Viewed", "Subscribed To Newsletter", "Newsletter Subscribe"],
+        self.trackingClient.events
+      )
     }
   }
 
@@ -588,22 +232,33 @@ final class ThanksViewModelTests: TestCase {
 
     let project = Project.template
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
+    let mockOptimizelyClient = MockOptimizelyClient()
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      vm.inputs.project(project)
-      vm.inputs.viewDidLoad()
+    withEnvironment(
+      apiService: MockService(fetchDiscoveryResponse: response),
+      optimizelyClient: mockOptimizelyClient
+    ) {
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendations.assertValueCount(1)
+      showRecommendationsProjects.assertValueCount(1)
 
       vm.inputs.projectTapped(project)
 
       goToProject.assertValues([project])
       goToProjects.assertValueCount(1)
       goToRefTag.assertValues([.thanks])
-      XCTAssertEqual(["Triggered App Store Rating Dialog", "Checkout Finished Discover Open Project"],
-                     self.trackingClient.events)
+      XCTAssertEqual(
+        [
+          "Triggered App Store Rating Dialog",
+          "Thanks Page Viewed",
+          "Project Card Clicked"
+        ],
+        self.trackingClient.events
+      )
+      XCTAssertEqual("Project Card Clicked", mockOptimizelyClient.trackedEventKey)
     }
   }
 
@@ -618,27 +273,100 @@ final class ThanksViewModelTests: TestCase {
     ]
 
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
+    let project = Project.template |> Project.lens.id .~ 12
 
     withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      vm.inputs.project(.template |> Project.lens.id .~ 12)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendations.assertValueCount(1, "Recommended projects emit, shuffled.")
+      self.showRecommendationsProjects.assertValueCount(1, "Recommended projects emit, shuffled.")
+      self.showRecommendationsVariant.assertValues([.control])
     }
   }
 
   func testRecommendationsWithoutProjects() {
     let response = .template |> DiscoveryEnvelope.lens.projects .~ []
+    let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      vm.inputs.project(.template |> Project.lens.category .~ .games)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendations.assertValueCount(0, "Recommended projects did not emit")
+      self.showRecommendationsProjects.assertValueCount(0, "Recommended projects did not emit")
+      self.showRecommendationsVariant.assertDidNotEmitValue()
     }
+  }
+
+  func testRecommendationsProjects_ExperimentalVariant() {
+    let recommendedProject = Project.template
+      |> \.id .~ 3
+    let response = .template |> DiscoveryEnvelope.lens.projects .~ [recommendedProject]
+    let mockOptimizelyClient = MockOptimizelyClient()
+      |> \.experiments .~ [
+        OptimizelyExperiment.Key.nativeProjectCards.rawValue: OptimizelyExperiment.Variant.variant1.rawValue
+      ]
+
+    withEnvironment(
+      apiService: MockService(fetchDiscoveryResponse: response),
+      optimizelyClient: mockOptimizelyClient
+    ) {
+      self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
+      self.vm.inputs.viewDidLoad()
+
+      scheduler.advance()
+
+      self.showRecommendationsProjects.assertValues([[recommendedProject]])
+      self.showRecommendationsVariant.assertValues([.variant1])
+    }
+  }
+
+  func testThanksPageViewed_Properties() {
+    let checkoutData = Koala.CheckoutPropertiesData(
+      amount: "10.00",
+      checkoutId: 1,
+      estimatedDelivery: nil,
+      paymentType: "CREDIT_CARD",
+      revenueInUsdCents: 500,
+      rewardId: 2,
+      rewardTitle: "SUPER reward",
+      shippingEnabled: false,
+      shippingAmount: nil,
+      userHasStoredApplePayCard: true
+    )
+
+    self.vm.inputs.configure(with: (Project.template, Reward.template, checkoutData))
+    self.vm.inputs.viewDidLoad()
+
+    let props = self.trackingClient.properties.last
+
+    XCTAssertEqual(["Triggered App Store Rating Dialog", "Thanks Page Viewed"], self.trackingClient.events)
+
+    // Checkout properties
+    XCTAssertEqual("10.00", props?["checkout_amount"] as? String)
+    XCTAssertEqual("CREDIT_CARD", props?["checkout_payment_type"] as? String)
+    XCTAssertEqual("SUPER reward", props?["checkout_reward_title"] as? String)
+    XCTAssertEqual(2, props?["checkout_reward_id"] as? Int)
+    XCTAssertEqual(500, props?["checkout_revenue_in_usd_cents"] as? Int)
+    XCTAssertEqual(false, props?["checkout_reward_shipping_enabled"] as? Bool)
+    XCTAssertEqual(true, props?["checkout_user_has_eligible_stored_apple_pay_card"] as? Bool)
+    XCTAssertNil(props?["checkout_shipping_amount"] as? Double)
+    XCTAssertNil(props?["checkout_reward_estimated_delivery_on"] as? TimeInterval)
+
+    // Pledge properties
+    XCTAssertEqual(false, props?["pledge_backer_reward_has_items"] as? Bool)
+    XCTAssertEqual(1, props?["pledge_backer_reward_id"] as? Int)
+    XCTAssertEqual(true, props?["pledge_backer_reward_is_limited_quantity"] as? Bool)
+    XCTAssertEqual(false, props?["pledge_backer_reward_is_limited_time"] as? Bool)
+    XCTAssertEqual(10.00, props?["pledge_backer_reward_minimum"] as? Double)
+    XCTAssertEqual(false, props?["pledge_backer_reward_shipping_enabled"] as? Bool)
+
+    XCTAssertNil(props?["pledge_backer_reward_shipping_preference"] as? String)
+
+    // Project properties
+    XCTAssertEqual(1, props?["project_pid"] as? Int)
   }
 }

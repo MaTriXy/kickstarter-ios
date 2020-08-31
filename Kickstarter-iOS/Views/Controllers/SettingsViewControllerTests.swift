@@ -1,12 +1,10 @@
-import Library
-import Prelude
-import Result
-import XCTest
 @testable import Kickstarter_Framework
 @testable import KsApi
+import Library
+import Prelude
+import XCTest
 
 internal final class SettingsViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     UIView.setAnimationsEnabled(false)
@@ -17,74 +15,69 @@ internal final class SettingsViewControllerTests: TestCase {
     super.tearDown()
   }
 
-  func testNonCreator() {
-    let currentUser = .template |> User.lens.stats.backedProjectsCount .~ 1234
+  func testView() {
+    let currentUser = User.template
 
-    Language.allLanguages.forEach { language in
-      Language.allLanguages.forEach { language in
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad])
+      .forEach { language, device in
         withEnvironment(
           apiService: MockService(fetchUserSelfResponse: currentUser),
           currentUser: currentUser,
-          language: language) {
+          language: language
+        ) {
+          let vc = SettingsViewController.instantiate()
+          let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
 
-            let vc = SettingsViewController.instantiate()
-            let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
-            parent.view.frame.size.height = 1_900
+          self.scheduler.run()
 
-            FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)")
+          FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)_device_\(device)")
         }
       }
-    }
   }
 
-  func testCreator() {
-    let currentUser = .template
-      |> User.lens.stats.backedProjectsCount .~ 1234
-      |> User.lens.stats.createdProjectsCount .~ 2
+  func testView_isFollowingOn() {
+    let currentUser = User.template
+      |> \.social .~ true
 
     Language.allLanguages.forEach { language in
       withEnvironment(
         apiService: MockService(fetchUserSelfResponse: currentUser),
         currentUser: currentUser,
-        language: language) {
+        language: language
+      ) {
+        let vc = SettingsViewController.instantiate()
 
-          let vc = SettingsViewController.instantiate()
-          let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
-          parent.view.frame.size.height = 2_100
+        let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
 
-          FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)")}
+        self.scheduler.run()
+
+        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
       }
+    }
   }
 
-  func testMember() {
-    let currentUser = .template
-      |> User.lens.stats.backedProjectsCount .~ 1234
-      |> User.lens.stats.memberProjectsCount .~ 2
+  func testView_isFollowingOff() {
+    let currentUser = User.template
+      |> \.social .~ false
 
     Language.allLanguages.forEach { language in
       withEnvironment(
         apiService: MockService(fetchUserSelfResponse: currentUser),
         currentUser: currentUser,
-        language: language) {
+        language: language
+      ) {
+        let vc = SettingsViewController.instantiate()
 
-          let vc = SettingsViewController.instantiate()
-          let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
-          parent.view.frame.size.height = 1_900
+        let (parent, _) = traitControllers(
+          device: .phone4_7inch,
+          orientation: .portrait,
+          child: vc
+        )
 
-          FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)")
+        self.scheduler.run()
+
+        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)")
       }
-    }
-  }
-
-  func testNonRelease() {
-    let bundle = MockBundle(bundleIdentifier: "com.kickstarter.kickstarter.beta")
-
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: .template), mainBundle: bundle) {
-      let vc = SettingsViewController.instantiate()
-      let (parent, _) = traitControllers(device: .phone4_7inch, orientation: .portrait, child: vc)
-      parent.view.frame.size.height = 1_800
-
-      FBSnapshotVerifyView(vc.view)
     }
   }
 }

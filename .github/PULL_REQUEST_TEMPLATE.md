@@ -1,22 +1,42 @@
 <!-- This template is **just a guide**, delete any and all parts which you don't need! -->
 
-# What
+# 📲 What
 
 A description of the change.
 
-# Why
+# 🤔 Why
 
-Why it's needed, background context.
+Some background context on why the change is needed.
 
-# How
+# 🛠 How
 
 More in-depth discussion of the change or implementation.
 
-# See 👀
+# 👀 See
 
 Trello, screenshots, external resources?
 
-# TODO ⏰
+| Before 🐛 | After 🦋 |
+| --- | --- |
+|  |  |
+
+# ♿️ Accessibility 
+
+- [ ] Tap targets use minimum of 44x44 pts dimensions
+- [ ] Works with VoiceOver
+- [ ] Supports Dynamic Type 
+
+# 🏎 Performance
+
+- [ ] Optimized Blended Layers (screenshots)
+
+# ✅ Acceptance criteria
+
+- [ ] Steps to test this feature
+- [ ] Environment to test on
+- [ ] Issues to look out for
+
+# ⏰ TODO
 
 - [ ] Got planned refactors to come
 - [ ] Will add more tests

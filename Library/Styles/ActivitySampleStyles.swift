@@ -3,7 +3,7 @@ import Prelude_UIKit
 import UIKit
 
 public let activitySampleBackingTitleLabelStyle =
-  UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+  UILabel.lens.textColor .~ .ksr_soft_black
     <> UILabel.lens.numberOfLines .~ 2
     <> UILabel.lens.lineBreakMode .~ .byTruncatingTail
 
@@ -13,7 +13,7 @@ public let activitySampleCellStyle = baseTableViewCellStyle()
     view.traitCollection.isRegularRegular
       ? .init(top: Styles.grid(4), left: Styles.grid(30), bottom: Styles.grid(3), right: Styles.grid(30))
       : .init(top: Styles.grid(4), left: Styles.grid(2), bottom: Styles.grid(3), right: Styles.grid(2))
-}
+  }
 
 public let activitySampleFriendFollowLabelStyle =
   UILabel.lens.textColor .~ .ksr_text_dark_grey_500
@@ -28,17 +28,15 @@ public let activitySampleProjectSubtitleLabelStyle =
     <> UILabel.lens.font .~ .ksr_subhead()
 
 public let activitySampleProjectTitleLabelStyle =
-  UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+  UILabel.lens.textColor .~ .ksr_soft_black
     <> UILabel.lens.numberOfLines .~ 2
     <> UILabel.lens.lineBreakMode .~ .byTruncatingTail
     <> UILabel.lens.font .~ UIFont.ksr_subhead().bolded
 
-public let activitySampleSeeAllActivityButtonStyle =
-  borderButtonStyle
-    <> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 13)
-    <> UIButton.lens.title(for: .normal) %~ { _ in
-      Strings.discovery_activity_sample_button_see_all_activity()
-}
+public let activitySampleSeeAllActivityButtonStyle = greyButtonStyle
+  <> UIButton.lens.title(for: .normal) %~ { _ in
+    Strings.discovery_activity_sample_button_see_all_activity()
+  }
 
 public let activitySampleStackViewStyle =
   UIStackView.lens.spacing .~ Styles.grid(3)

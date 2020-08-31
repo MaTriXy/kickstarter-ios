@@ -1,15 +1,12 @@
-import Library
 import KsApi
+import Library
 import UIKit
-
-struct DiscoveryProjectCellRowValue {
-  let project: Project
-  let category: KsApi.Category?
-}
 
 internal final class DiscoveryProjectsDataSource: ValueCellDataSource {
   internal enum Section: Int {
     case onboarding
+    case personalization
+    case editorial
     case activitySample
     case projects
   }
@@ -31,24 +28,54 @@ internal final class DiscoveryProjectsDataSource: ValueCellDataSource {
     }
   }
 
-  func load(projects: [Project], params: DiscoveryParams? = nil) {
+  func load(projects: [Project],
+            params: DiscoveryParams? = nil,
+            projectCardVariant: OptimizelyExperiment.Variant = .control) {
     self.clearValues(section: Section.projects.rawValue)
 
-    projects.forEach { project in
-      let value = DiscoveryProjectCellRowValue(project: project, category: params?.category)
+    let values = projects.map { DiscoveryProjectCellRowValue(
+      project: $0,
+      category: params?.category,
+      params: params
+    ) }
 
-      _ = self.appendRow(
-        value: value,
+    if projectCardVariant == .variant1 {
+      self.set(
+        values: values,
+        cellClass: DiscoveryProjectCardCell.self,
+        inSection: Section.projects.rawValue
+      )
+    } else {
+      self.set(
+        values: values,
         cellClass: DiscoveryPostcardCell.self,
-        toSection: Section.projects.rawValue
+        inSection: Section.projects.rawValue
       )
     }
   }
 
+  func showEditorial(value: DiscoveryEditorialCellValue?) {
+    self.set(
+      values: [value].compactMap { $0 },
+      cellClass: DiscoveryEditorialCell.self,
+      inSection: Section.editorial.rawValue
+    )
+  }
+
   func show(onboarding: Bool) {
-    self.set(values: onboarding ? [()] : [],
-             cellClass: DiscoveryOnboardingCell.self,
-             inSection: Section.onboarding.rawValue)
+    self.set(
+      values: onboarding ? [()] : [],
+      cellClass: DiscoveryOnboardingCell.self,
+      inSection: Section.onboarding.rawValue
+    )
+  }
+
+  func showPersonalization(_ show: Bool) {
+    self.set(
+      values: show ? [()] : [],
+      cellClass: PersonalizationCell.self,
+      inSection: Section.personalization.rawValue
+    )
   }
 
   internal func activityAtIndexPath(_ indexPath: IndexPath) -> Activity? {
@@ -64,7 +91,6 @@ internal final class DiscoveryProjectsDataSource: ValueCellDataSource {
   }
 
   override func configureCell(tableCell cell: UITableViewCell, withValue value: Any) {
-
     switch (cell, value) {
     case let (cell as ActivitySampleBackingCell, value as Activity):
       cell.configureWith(value: value)
@@ -74,7 +100,13 @@ internal final class DiscoveryProjectsDataSource: ValueCellDataSource {
       cell.configureWith(value: value)
     case let (cell as DiscoveryPostcardCell, value as DiscoveryProjectCellRowValue):
       cell.configureWith(value: value)
+    case let (cell as DiscoveryProjectCardCell, value as DiscoveryProjectCellRowValue):
+      cell.configureWith(value: value)
     case let (cell as DiscoveryOnboardingCell, value as Void):
+      cell.configureWith(value: value)
+    case let (cell as DiscoveryEditorialCell, value as DiscoveryEditorialCellValue):
+      cell.configureWith(value: value)
+    case let (cell as PersonalizationCell, value as Void):
       cell.configureWith(value: value)
     case (is StaticTableViewCell, is Void):
       return

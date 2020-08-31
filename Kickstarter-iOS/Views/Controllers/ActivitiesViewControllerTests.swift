@@ -2,16 +2,15 @@
 @testable import KsApi
 @testable import Library
 import Prelude
-import Result
 import XCTest
 
-private let creator = .template |> User.lens.avatar.small .~ ""
+private let creator = User.template |> \.avatar.small .~ ""
 private let survey = .template |> SurveyResponse.lens.project .~
   (.cosmicSurgery |> Project.lens.creator .~ creator)
-private let you = .template
-  |> User.lens.avatar.small .~ ""
-  |> User.lens.id .~ 355
-  |> User.lens.name .~ "Gina B"
+private let you = User.template
+  |> \.avatar.small .~ ""
+  |> \.id .~ 355
+  |> \.name .~ "Gina B"
 
 internal final class ActivitiesViewControllerTests: TestCase {
   override func setUp() {
@@ -27,19 +26,13 @@ internal final class ActivitiesViewControllerTests: TestCase {
   }
 
   func testActivities_All() {
-    let games = Category.template
-      |> \.id .~ "12"
-      |> \.name .~ "Games"
-      |> \.subcategories
-      .~ Category.SubcategoryConnection(totalCount: 1, nodes: [.tabletopGames])
-
     let daysAgoDate = self.dateType.init().timeIntervalSince1970 - 60 * 60 * 24 * 2
 
     let follow = .template
       |> Activity.lens.id .~ 84
       |> Activity.lens.user .~ (.template
-        |> User.lens.name .~ "Brandon Williams"
-        |> User.lens.avatar.small .~ ""
+        |> \.name .~ "Brandon Williams"
+        |> \.avatar.small .~ ""
       )
       |> Activity.lens.category .~ .follow
 
@@ -59,17 +52,17 @@ internal final class ActivitiesViewControllerTests: TestCase {
         |> Project.lens.photo.med .~ ""
         |> Project.lens.photo.full .~ ""
         |> Project.lens.stats.fundingProgress .~ 0.88
-        |> Project.lens.category .~ games
+        |> Project.lens.category .~ .games
       )
       |> Activity.lens.user .~ (.template
-        |> User.lens.name .~ "Judith Light"
-        |> User.lens.avatar.small .~ ""
+        |> \.name .~ "Judith Light"
+        |> \.avatar.small .~ ""
       )
       |> Activity.lens.category .~ .backing
 
     let launch = .template
       |> Activity.lens.id .~ 73
-      |> Activity.lens.project .~ (.cosmicSurgery
+      |> Activity.lens.project .~ .some(.cosmicSurgery
         |> Project.lens.photo.med .~ ""
         |> Project.lens.photo.full .~ ""
         |> Project.lens.name .~ "A Very Important Project About Kittens and Puppies"
@@ -80,9 +73,9 @@ internal final class ActivitiesViewControllerTests: TestCase {
     let following = .template
       |> Activity.lens.id .~ 0
       |> Activity.lens.user .~ (.template
-        |> User.lens.name .~ "David Bowie"
-        |> User.lens.isFriend .~ true
-        |> User.lens.avatar.small .~ ""
+        |> \.name .~ "David Bowie"
+        |> \.isFriend .~ true
+        |> \.avatar.small .~ ""
       )
       |> Activity.lens.category .~ .follow
 
@@ -128,18 +121,21 @@ internal final class ActivitiesViewControllerTests: TestCase {
 
     let activities = [follow, update, backing, launch, following, success, failure, canceled, suspended]
 
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
       withEnvironment(
-        apiService: MockService(fetchActivitiesResponse: activities,
-        fetchUnansweredSurveyResponsesResponse: [survey]),
-        currentUser: .template |> User.lens.facebookConnected .~ true,
+        apiService: MockService(
+          fetchActivitiesResponse: activities,
+          fetchUnansweredSurveyResponsesResponse: [survey]
+        ),
+        currentUser: .template |> \.facebookConnected .~ true,
         language: language,
         userDefaults: MockKeyValueStore()
       ) {
         let vc = ActivitiesViewController.instantiate()
         vc.viewWillAppear(true)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
-        parent.view.frame.size.height = 2360
+        parent.view.frame.size.height = 2_360
 
         self.scheduler.run()
 
@@ -148,7 +144,7 @@ internal final class ActivitiesViewControllerTests: TestCase {
     }
   }
 
-  /*func testMultipleSurveys_NotFacebookConnected_YouLaunched() {
+  func testMultipleSurveys_NotFacebookConnected_YouLaunched() {
     let launch = .template
       |> Activity.lens.id .~ 73
       |> Activity.lens.project .~ (.cosmicSurgery
@@ -166,9 +162,11 @@ internal final class ActivitiesViewControllerTests: TestCase {
 
     combos(Language.allLanguages, [Device.phone4_7inch]).forEach { language, device in
       withEnvironment(
-        apiService: MockService(fetchActivitiesResponse: [launch],
-          fetchUnansweredSurveyResponsesResponse: [survey, survey2]),
-        currentUser: you,
+        apiService: MockService(
+          fetchActivitiesResponse: [launch],
+          fetchUnansweredSurveyResponsesResponse: [survey, survey2]
+        ),
+        currentUser: you |> \.facebookConnected .~ false |> \.needsFreshFacebookToken .~ true,
         language: language,
         userDefaults: MockKeyValueStore()
       ) {
@@ -178,8 +176,85 @@ internal final class ActivitiesViewControllerTests: TestCase {
 
         self.scheduler.run()
 
-//        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)")
+        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)")
       }
     }
-  }*/
+  }
+
+  func testMultipleSurveys_NeedsFacebookReconnect() {
+    let launch = .template
+      |> Activity.lens.id .~ 73
+      |> Activity.lens.project .~ (.cosmicSurgery
+        |> Project.lens.creator .~ you
+        |> Project.lens.name .~ "A Very Very Important Project About Kittens and Puppies"
+        |> Project.lens.stats.fundingProgress .~ 0.01
+      )
+      |> Activity.lens.user .~ you
+      |> Activity.lens.category .~ .launch
+
+    let survey2 = .template |> SurveyResponse.lens.project .~ (.anomalisa
+      |> Project.lens.creator .~ creator)
+
+    combos(Language.allLanguages, [Device.phone4_7inch]).forEach { language, device in
+      withEnvironment(
+        apiService: MockService(
+          fetchActivitiesResponse: [launch],
+          fetchUnansweredSurveyResponsesResponse: [survey, survey2]
+        ),
+        currentUser: you |> \.facebookConnected .~ true |> \.needsFreshFacebookToken .~ true,
+        language: language,
+        userDefaults: MockKeyValueStore()
+      ) {
+        let vc = ActivitiesViewController.instantiate()
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
+        parent.view.frame.size.height = 900
+
+        self.scheduler.run()
+
+        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)")
+      }
+    }
+  }
+
+  func testErroredBackings() {
+    let date = AppEnvironment.current.calendar.date(byAdding: DateComponents(day: 4), to: MockDate().date)
+    let dateFormatter = ISO8601DateFormatter()
+    let collectionDate = dateFormatter.string(from: date ?? Date())
+
+    let project = GraphBacking.Project.template
+      |> \.name .~ "Awesome tabletop collection"
+      |> \.finalCollectionDate .~ collectionDate
+
+    let backing = GraphBacking.template
+      |> \.project .~ project
+
+    let backings = GraphBackingEnvelope.GraphBackingConnection(nodes: [backing, backing])
+
+    let envelope = GraphBackingEnvelope.template
+      |> \.backings .~ backings
+
+    let backingsResponse = UserEnvelope<GraphBackingEnvelope>(me: envelope)
+
+    combos(Language.allLanguages, [Device.phone4_7inch]).forEach { language, device in
+      withEnvironment(
+        apiService: MockService(fetchGraphUserBackingsResponse: backingsResponse),
+        currentUser: .template |> \.facebookConnected .~ true |> \.needsFreshFacebookToken .~ false,
+        language: language
+      ) {
+        let vc = ActivitiesViewController.instantiate()
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
+        parent.view.frame.size.height = 900
+
+        self.scheduler.run()
+
+        FBSnapshotVerifyView(vc.view, identifier: "lang_\(language)_device_\(device)")
+      }
+    }
+  }
+
+  func testScrollToTop() {
+    let controller = ActivitiesViewController.instantiate()
+
+    XCTAssertNotNil(controller.view as? UIScrollView)
+  }
 }

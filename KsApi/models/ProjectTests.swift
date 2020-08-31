@@ -1,9 +1,8 @@
-import XCTest
 @testable import KsApi
 import Prelude
+import XCTest
 
 final class ProjectTests: XCTestCase {
-
   func testFundingProgress() {
     let halfFunded = Project.template
       |> Project.lens.stats.fundingProgress .~ 0.5
@@ -20,27 +19,26 @@ final class ProjectTests: XCTestCase {
   }
 
   func testEndsIn48Hours_WithJustLaunchedProject() {
-
     let justLaunched = Project.template
-      |> Project.lens.dates.launchedAt .~ Date(timeIntervalSince1970: 1475361315).timeIntervalSince1970
+      |> Project.lens.dates.launchedAt .~ Date(timeIntervalSince1970: 1_475_361_315).timeIntervalSince1970
 
-    XCTAssertEqual(false, justLaunched.endsIn48Hours(today: Date(timeIntervalSince1970: 1475361315)))
+    XCTAssertEqual(false, justLaunched.endsIn48Hours(today: Date(timeIntervalSince1970: 1_475_361_315)))
   }
 
   func testEndsIn48Hours_WithEndingSoonProject() {
     let endingSoon = Project.template
-      |> Project.lens.dates.deadline .~ (Date(timeIntervalSince1970: 1475361315)
+      |> Project.lens.dates.deadline .~ (Date(timeIntervalSince1970: 1_475_361_315)
         .timeIntervalSince1970 - 60.0 * 60.0)
 
-    XCTAssertEqual(true, endingSoon.endsIn48Hours(today: Date(timeIntervalSince1970: 1475361315)))
+    XCTAssertEqual(true, endingSoon.endsIn48Hours(today: Date(timeIntervalSince1970: 1_475_361_315)))
   }
 
   func testEndsIn48Hours_WithTimeZoneEdgeCaseProject() {
     let edgeCase = Project.template
-      |> Project.lens.dates.deadline .~ (Date(timeIntervalSince1970: 1475361315)
+      |> Project.lens.dates.deadline .~ (Date(timeIntervalSince1970: 1_475_361_315)
         .timeIntervalSince1970 - 60.0 * 60.0 * 47.0)
 
-    XCTAssertEqual(true, edgeCase.endsIn48Hours(today: Date(timeIntervalSince1970: 1475361315)))
+    XCTAssertEqual(true, edgeCase.endsIn48Hours(today: Date(timeIntervalSince1970: 1_475_361_315)))
   }
 
   func testEquatable() {
@@ -63,6 +61,8 @@ final class ProjectTests: XCTestCase {
       "category": [
         "id": 1,
         "name": "Art",
+        "parent_id": 5,
+        "parent_name": "Parent Category",
         "slug": "art",
         "position": 1
       ],
@@ -78,7 +78,7 @@ final class ProjectTests: XCTestCase {
         "full": "http://www.kickstarter.com/full.jpg",
         "med": "http://www.kickstarter.com/med.jpg",
         "small": "http://www.kickstarter.com/small.jpg",
-        "1024x768": "http://www.kickstarter.com/1024x768.jpg",
+        "1024x768": "http://www.kickstarter.com/1024x768.jpg"
       ],
       "location": [
         "country": "US",
@@ -95,9 +95,9 @@ final class ProjectTests: XCTestCase {
       "currency": "USD",
       "currency_trailing_code": false,
       "country": "US",
-      "launched_at": 1000,
-      "deadline": 1000,
-      "state_changed_at": 1000,
+      "launched_at": 1_000,
+      "deadline": 1_000,
+      "state_changed_at": 1_000,
       "static_usd_rate": 1.0,
       "slug": "project",
       "urls": [
@@ -106,15 +106,19 @@ final class ProjectTests: XCTestCase {
         ]
       ],
       "state": "live"
-      ])
+    ])
 
     XCTAssertNil(project.error)
     XCTAssertEqual("US", project.value?.country.countryCode)
+    XCTAssertEqual(1, project.value?.category.id)
+    XCTAssertEqual("Art", project.value?.category.name)
+    XCTAssertEqual(5, project.value?.category.parentId)
+    XCTAssertEqual("Parent Category", project.value?.category.parentName)
   }
 
   func testJSONParsing_WithMemberData() {
     let memberData = Project.MemberData.decodeJSONDictionary([
-      "last_update_published_at": 123456789,
+      "last_update_published_at": 123_456_789,
       "permissions": [
         "edit_project",
         "bad_data",
@@ -127,14 +131,16 @@ final class ProjectTests: XCTestCase {
       ],
       "unread_messages_count": 1,
       "unseen_activity_count": 2
-      ])
+    ])
 
     XCTAssertNil(memberData.error)
-    XCTAssertEqual(123456789, memberData.value?.lastUpdatePublishedAt)
+    XCTAssertEqual(123_456_789, memberData.value?.lastUpdatePublishedAt)
     XCTAssertEqual(1, memberData.value?.unreadMessagesCount)
     XCTAssertEqual(2, memberData.value?.unseenActivityCount)
-    XCTAssertEqual([.editProject, .editFaq, .post, .comment, .viewPledges, .fulfillment],
-                   memberData.value?.permissions ?? [])
+    XCTAssertEqual(
+      [.editProject, .editFaq, .post, .comment, .viewPledges, .fulfillment],
+      memberData.value?.permissions ?? []
+    )
   }
 
   func testJSONParsing_WithPesonalizationData() {
@@ -148,6 +154,8 @@ final class ProjectTests: XCTestCase {
       "category": [
         "id": 1,
         "name": "Art",
+        "parent_id": 5,
+        "parent_name": "Parent Category",
         "slug": "art",
         "position": 1
       ],
@@ -163,7 +171,7 @@ final class ProjectTests: XCTestCase {
         "full": "http://www.kickstarter.com/full.jpg",
         "med": "http://www.kickstarter.com/med.jpg",
         "small": "http://www.kickstarter.com/small.jpg",
-        "1024x768": "http://www.kickstarter.com/1024x768.jpg",
+        "1024x768": "http://www.kickstarter.com/1024x768.jpg"
       ],
       "location": [
         "country": "US",
@@ -180,9 +188,9 @@ final class ProjectTests: XCTestCase {
       "currency": "USD",
       "currency_trailing_code": false,
       "country": "US",
-      "launched_at": 1000,
-      "deadline": 1000,
-      "state_changed_at": 1000,
+      "launched_at": 1_000,
+      "deadline": 1_000,
+      "state_changed_at": 1_000,
       "static_usd_rate": 1.0,
       "slug": "project",
       "urls": [
@@ -206,5 +214,103 @@ final class ProjectTests: XCTestCase {
       |> Project.lens.stats.pledged .~ 1_000
 
     XCTAssertEqual(2_000, project.stats.pledgedUsd)
+  }
+
+  func testDuration() {
+    let launchedAt = DateComponents()
+      |> \.day .~ 15
+      |> \.month .~ 3
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    // 1 month after launch
+    let deadline = DateComponents()
+      |> \.day .~ 14
+      |> \.month .~ 4
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    let calendar = Calendar(identifier: .gregorian)
+
+    let deadlineInterval = calendar.date(from: deadline)?.timeIntervalSince1970
+    let launchedAtInterval = calendar.date(from: launchedAt)?.timeIntervalSince1970
+
+    let project = Project.template
+      |> Project.lens.dates.deadline .~ deadlineInterval!
+      |> Project.lens.dates.launchedAt .~ launchedAtInterval!
+
+    XCTAssertEqual(30, project.dates.duration(using: calendar))
+  }
+
+  func testHoursRemaining() {
+    let deadline = DateComponents()
+      |> \.day .~ 2
+      |> \.month .~ 3
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    // 24 hours before deadline
+    let now = DateComponents()
+      |> \.day .~ 1
+      |> \.month .~ 3
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    let calendar = Calendar(identifier: .gregorian)
+    let nowDate = calendar.date(from: now)
+    let deadlineInterval = calendar.date(from: deadline)?.timeIntervalSince1970
+
+    let project = Project.template
+      |> Project.lens.dates.deadline .~ deadlineInterval!
+
+    XCTAssertEqual(24, project.dates.hoursRemaining(from: nowDate!, using: calendar))
+  }
+
+  func testHoursRemaining_LessThanZero() {
+    let deadline = DateComponents()
+      |> \.day .~ 2
+      |> \.month .~ 3
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    // 24 hours after deadline
+    let now = DateComponents()
+      |> \.day .~ 3
+      |> \.month .~ 3
+      |> \.year .~ 2_020
+      |> \.timeZone .~ TimeZone(secondsFromGMT: 0)
+
+    let calendar = Calendar(identifier: .gregorian)
+    let nowDate = calendar.date(from: now)
+    let deadlineInterval = calendar.date(from: deadline)?.timeIntervalSince1970
+
+    let project = Project.template
+      |> Project.lens.dates.deadline .~ deadlineInterval!
+
+    XCTAssertEqual(0, project.dates.hoursRemaining(from: nowDate!, using: calendar))
+  }
+
+  func testGoalMet_PledgedIsLessThanGoal() {
+    let project = Project.template
+      |> \.stats.goal .~ 1_000
+      |> \.stats.pledged .~ 50
+
+    XCTAssertFalse(project.stats.goalMet)
+  }
+
+  func testGoalMet_PledgedEqualToGoal() {
+    let project = Project.template
+      |> \.stats.goal .~ 1_000
+      |> \.stats.pledged .~ 1_000
+
+    XCTAssertTrue(project.stats.goalMet)
+  }
+
+  func testGoalMet_PledgedIsGreaterThanGoal() {
+    let project = Project.template
+      |> \.stats.goal .~ 1_000
+      |> \.stats.pledged .~ 2_000
+
+    XCTAssertTrue(project.stats.goalMet)
   }
 }

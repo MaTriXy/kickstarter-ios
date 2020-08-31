@@ -7,11 +7,11 @@ import UIKit
 internal final class MessageCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: MessageCellViewModelType = MessageCellViewModel()
 
-  @IBOutlet private weak var avatarImageView: UIImageView!
-  @IBOutlet private weak var dividerView: UIView!
-  @IBOutlet private weak var nameLabel: UILabel!
-  @IBOutlet private weak var timestampLabel: UILabel!
-  @IBOutlet private weak var bodyTextView: UITextView!
+  @IBOutlet private var avatarImageView: UIImageView!
+  @IBOutlet private var dividerView: UIView!
+  @IBOutlet private var nameLabel: UILabel!
+  @IBOutlet private var timestampLabel: UILabel!
+  @IBOutlet private var bodyTextView: UITextView!
 
   override func awakeFromNib() {
     super.awakeFromNib()
@@ -34,7 +34,10 @@ internal final class MessageCell: UITableViewCell, ValueCell {
         cell.traitCollection.isRegularRegular
           ? .init(topBottom: Styles.grid(6), leftRight: Styles.grid(16))
           : .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
-    }
+      }
+
+    _ = self.avatarImageView
+      |> ignoresInvertColorsImageViewStyle
 
     _ = self.bodyTextView
       |> UITextView.lens.textColor .~ .ksr_dark_grey_500
@@ -44,7 +47,7 @@ internal final class MessageCell: UITableViewCell, ValueCell {
       |> separatorStyle
 
     _ = self.nameLabel
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
       |> UILabel.lens.font .~ UIFont.ksr_headline(size: 13.0)
 
     _ = self.timestampLabel
@@ -61,12 +64,12 @@ internal final class MessageCell: UITableViewCell, ValueCell {
     self.viewModel.outputs.avatarURL
       .observeForUI()
       .on(event: { [weak self] _ in
-        self?.avatarImageView.af_cancelImageRequest()
+        self?.avatarImageView.af.cancelImageRequest()
         self?.avatarImageView.image = nil
       })
       .skipNil()
       .observeValues { [weak self] in
-        self?.avatarImageView.af_setImage(withURL: $0)
-    }
+        self?.avatarImageView.af.setImage(withURL: $0)
+      }
   }
 }

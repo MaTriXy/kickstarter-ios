@@ -1,45 +1,57 @@
 import Argo
 import Curry
-import Runes
 import Prelude
+import Runes
 
 public struct Project {
+  public var availableCardTypes: [String]?
+  public var blurb: String
+  public var category: Category
+  public var country: Country
+  public var creator: User
+  public var memberData: MemberData
+  public var dates: Dates
+  public var id: Int
+  public var location: Location
+  public var name: String
+  public var personalization: Personalization
+  public var photo: Photo
+  public var prelaunchActivated: Bool?
+  public var rewards: [Reward]
+  public var slug: String
+  public var staffPick: Bool
+  public var state: State
+  public var stats: Stats
+  public var urls: UrlsEnvelope
+  public var video: Video?
 
-  public private(set) var blurb: String
-  public private(set) var category: Category
-  public private(set) var country: Country
-  public private(set) var creator: User
-  public private(set) var memberData: MemberData
-  public private(set) var dates: Dates
-  public private(set) var id: Int
-  public private(set) var location: Location
-  public private(set) var name: String
-  public private(set) var personalization: Personalization
-  public private(set) var photo: Photo
-  public private(set) var rewards: [Reward]
-  public private(set) var slug: String
-  public private(set) var staffPick: Bool
-  public private(set) var state: State
-  public private(set) var stats: Stats
-  public private(set) var urls: UrlsEnvelope
-  public private(set) var video: Video?
+  public struct Category {
+    public var id: Int
+    public var name: String
+    public var parentId: Int?
+    public var parentName: String?
+
+    public var rootId: Int {
+      return self.parentId ?? self.id
+    }
+  }
 
   public struct UrlsEnvelope {
-    public let web: WebEnvelope
+    public var web: WebEnvelope
 
     public struct WebEnvelope {
-      public let project: String
-      public let updates: String?
+      public var project: String
+      public var updates: String?
     }
   }
 
   public struct Video {
-    public let id: Int
-    public let high: String
-    public let hls: String?
+    public var id: Int
+    public var high: String
+    public var hls: String?
   }
 
-  public enum State: String, Argo.Decodable {
+  public enum State: String, Argo.Decodable, CaseIterable {
     case canceled
     case failed
     case live
@@ -51,14 +63,20 @@ public struct Project {
   }
 
   public struct Stats {
-    public let backersCount: Int
-    public let commentsCount: Int?
-    public let currentCurrency: String?
-    public let currentCurrencyRate: Float?
-    public let goal: Int
-    public let pledged: Int
-    public let staticUsdRate: Float
-    public let updatesCount: Int?
+    public var backersCount: Int
+    public var commentsCount: Int?
+    public var convertedPledgedAmount: Int?
+    /// The currency code of the project ex. USD
+    public var currency: String
+    /// The currency code of the User's preferred currency ex. SEK
+    public var currentCurrency: String?
+    /// The currency conversion rate between the User's preferred currency
+    /// and the Project's currency
+    public var currentCurrencyRate: Float?
+    public var goal: Int
+    public var pledged: Int
+    public var staticUsdRate: Float
+    public var updatesCount: Int?
 
     /// Percent funded as measured from `0.0` to `1.0`. See `percentFunded` for a value from `0` to `100`.
     public var fundingProgress: Float {
@@ -81,53 +99,95 @@ public struct Project {
       return Int(floor(Float(self.goal) * self.staticUsdRate))
     }
 
-    /// Pledged amount converted to current currency.
-    public var pledgedCurrentCurrency: Int? {
-      return self.currentCurrencyRate.map { Int(floor(Float(self.pledged) * $0)) }
-    }
-
     /// Goal amount converted to current currency.
     public var goalCurrentCurrency: Int? {
       return self.currentCurrencyRate.map { Int(floor(Float(self.goal) * $0)) }
     }
+
+    /// Country determined by current currency.
+    public var currentCountry: Project.Country? {
+      guard let currentCurrency = self.currentCurrency else {
+        return nil
+      }
+
+      return Project.Country(currencyCode: currentCurrency)
+    }
+
+    /// Omit US currency code
+    public var omitUSCurrencyCode: Bool {
+      let currentCurrency = self.currentCurrency ?? Project.Country.us.currencyCode
+
+      return currentCurrency == Project.Country.us.currencyCode
+    }
+
+    /// Project pledge & goal values need conversion
+    public var needsConversion: Bool {
+      let currentCurrency = self.currentCurrency ?? Project.Country.us.currencyCode
+
+      return self.currency != currentCurrency
+    }
+
+    public var goalMet: Bool {
+      return self.pledged >= self.goal
+    }
   }
 
   public struct MemberData {
-    public let lastUpdatePublishedAt: TimeInterval?
-    public let permissions: [Permission]
-    public let unreadMessagesCount: Int?
-    public let unseenActivityCount: Int?
+    public var lastUpdatePublishedAt: TimeInterval?
+    public var permissions: [Permission]
+    public var unreadMessagesCount: Int?
+    public var unseenActivityCount: Int?
 
     public enum Permission: String {
       case editProject = "edit_project"
       case editFaq = "edit_faq"
-      case post = "post"
-      case comment = "comment"
+      case post
+      case comment
       case viewPledges = "view_pledges"
-      case fulfillment = "fulfillment"
-      case unknown = "unknown"
+      case fulfillment
+      case unknown
     }
   }
 
   public struct Dates {
-    public let deadline: TimeInterval
-    public let featuredAt: TimeInterval?
-    public let launchedAt: TimeInterval
-    public let stateChangedAt: TimeInterval
+    public var deadline: TimeInterval
+    public var featuredAt: TimeInterval?
+    public var launchedAt: TimeInterval
+    public var stateChangedAt: TimeInterval
+
+    /**
+     Returns project duration in Days
+     */
+    public func duration(using calendar: Calendar = .current) -> Int? {
+      let deadlineDate = Date(timeIntervalSince1970: self.deadline)
+      let launchedAtDate = Date(timeIntervalSince1970: self.launchedAt)
+
+      return calendar.dateComponents([.day], from: launchedAtDate, to: deadlineDate).day
+    }
+
+    public func hoursRemaining(from date: Date = Date(), using calendar: Calendar = .current) -> Int? {
+      let deadlineDate = Date(timeIntervalSince1970: self.deadline)
+
+      guard let hoursRemaining = calendar.dateComponents([.hour], from: date, to: deadlineDate).hour else {
+        return nil
+      }
+
+      return max(0, hoursRemaining)
+    }
   }
 
   public struct Personalization {
-    public let backing: Backing?
-    public let friends: [User]?
-    public let isBacking: Bool?
-    public let isStarred: Bool?
+    public var backing: Backing?
+    public var friends: [User]?
+    public var isBacking: Bool?
+    public var isStarred: Bool?
   }
 
   public struct Photo {
-    public let full: String
-    public let med: String
-    public let size1024x768: String?
-    public let small: String
+    public var full: String
+    public var med: String
+    public var size1024x768: String?
+    public var small: String
   }
 
   public func endsIn48Hours(today: Date = Date()) -> Bool {
@@ -137,7 +197,7 @@ public struct Project {
 
   public func isFeaturedToday(today: Date = Date(), calendar: Calendar = .current) -> Bool {
     guard let featuredAt = self.dates.featuredAt else { return false }
-    return isDateToday(date: featuredAt, today: today, calendar: calendar)
+    return self.isDateToday(date: featuredAt, today: today, calendar: calendar)
   }
 
   private func isDateToday(date: TimeInterval, today: Date, calendar: Calendar) -> Bool {
@@ -158,10 +218,11 @@ extension Project: CustomDebugStringConvertible {
 }
 
 extension Project: Argo.Decodable {
-  static public func decode(_ json: JSON) -> Decoded<Project> {
+  public static func decode(_ json: JSON) -> Decoded<Project> {
     let tmp1 = curry(Project.init)
-      <^> json <| "blurb"
-      <*> ((json <| "category" >>- decodeToGraphCategory) as Decoded<Category>)
+      <^> json <||? "available_card_types"
+      <*> json <| "blurb"
+      <*> json <| "category"
       <*> Project.Country.decode(json)
       <*> json <| "creator"
     let tmp2 = tmp1
@@ -173,6 +234,7 @@ extension Project: Argo.Decodable {
       <*> json <| "name"
       <*> Project.Personalization.decode(json)
       <*> json <| "photo"
+      <*> json <|? "prelaunch_activated"
       <*> (json <|| "rewards" <|> .success([]))
       <*> json <| "slug"
     return tmp3
@@ -185,7 +247,7 @@ extension Project: Argo.Decodable {
 }
 
 extension Project.UrlsEnvelope: Argo.Decodable {
-  static public func decode(_ json: JSON) -> Decoded<Project.UrlsEnvelope> {
+  public static func decode(_ json: JSON) -> Decoded<Project.UrlsEnvelope> {
     return curry(Project.UrlsEnvelope.init)
       <^> json <| "web"
   }
@@ -204,6 +266,8 @@ extension Project.Stats: Argo.Decodable {
     let tmp1 = curry(Project.Stats.init)
       <^> json <| "backers_count"
       <*> json <|? "comments_count"
+      <*> json <|? "converted_pledged_amount"
+      <*> json <| "currency"
       <*> json <|? "current_currency"
       <*> json <|? "fx_rate"
     return tmp1
@@ -244,11 +308,19 @@ extension Project.Personalization: Argo.Decodable {
   }
 }
 
-extension Project.Photo: Argo.Decodable {
-  static public func decode(_ json: JSON) -> Decoded<Project.Photo> {
+extension Project.Category: Argo.Decodable {
+  public static func decode(_ json: JSON) -> Decoded<Project.Category> {
+    return curry(Project.Category.init)
+      <^> json <| "id"
+      <*> json <| "name"
+      <*> json <|? "parent_id"
+      <*> json <|? "parent_name"
+  }
+}
 
+extension Project.Photo: Argo.Decodable {
+  public static func decode(_ json: JSON) -> Decoded<Project.Photo> {
     let url1024: Decoded<String?> = ((json <| "1024x768") <|> (json <| "1024x576"))
-      // swiftlint:disable:next syntactic_sugar
       .map(Optional<String>.init)
       <|> .success(nil)
 
@@ -262,7 +334,7 @@ extension Project.Photo: Argo.Decodable {
 
 extension Project.MemberData.Permission: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<Project.MemberData.Permission> {
-    if case .string(let permission) = json {
+    if case let .string(permission) = json {
       return self.init(rawValue: permission).map(pure) ?? .success(.unknown)
     }
     return .success(.unknown)
@@ -278,42 +350,8 @@ private func toInt(string: String) -> Decoded<Int> {
     ?? Decoded.failure(DecodeError.custom("Couldn't decoded \"\(string)\" into Int."))
 }
 
-/*
- This is a helper function that extracts the value from the Argo.JSON object type to create a graph Category
- object (that conforms to Swift.Decodable). It's an work around that fixes the problem of incompatibility
- between Swift.Decodable and Argo.Decodable protocols and will be deleted in the future when we update our
- code to use exclusively Swift's native Decodable.
- */
-private func decodeToGraphCategory(_ json: JSON?) -> Decoded<Category> {
-
-  guard let jsonObj = json else {
-    return .success(Category(id: "-1", name: "Unknown Category"))
-  }
-
-  switch jsonObj {
-  case .object(let dic):
-    let category = Category(id: categoryInfo(dic).0,
-                            name: categoryInfo(dic).1,
-                            parentId: categoryInfo(dic).2)
-    return .success(category)
-  default:
-    return .failure(DecodeError.custom("JSON should be object type"))
-  }
-}
-
-private func categoryInfo(_ json: [String: JSON]) -> (String, String, String?) {
-
-  guard let name = json["name"], let id = json["id"] else {
-    return("", "", nil)
-  }
-  let parentId = json["parent_id"]
-
-  switch (id, name, parentId) {
-  case (.number(let id), .string(let name), .number(let parentId)?):
-    return ("\(id)", name, "\(parentId)")
-  case (.number(let id), .string(let name), nil):
-    return ("\(id)", name, nil)
-  default:
-    return("", "", nil)
+extension Project: GraphIDBridging {
+  public static var modelName: String {
+    return "Project"
   }
 }

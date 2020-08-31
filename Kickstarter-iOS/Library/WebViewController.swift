@@ -1,11 +1,13 @@
-import Library
 import KsApi
+import Library
 import Prelude
 import Prelude_UIKit
 import UIKit
+import WebKit
 
 internal class WebViewController: UIViewController {
   internal let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+  internal var bottomAnchorConstraint: NSLayoutConstraint?
 
   override func loadView() {
     super.loadView()
@@ -16,10 +18,14 @@ internal class WebViewController: UIViewController {
     self.webView.customUserAgent = Service.userAgent
 
     self.view.addSubview(self.webView)
+
+    let bottomAnchorConstraint = self.webView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor)
+    self.bottomAnchorConstraint = bottomAnchorConstraint
+
     NSLayoutConstraint.activate(
       [
         self.webView.topAnchor.constraint(equalTo: self.view.topAnchor),
-        self.webView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
+        bottomAnchorConstraint,
         self.webView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
         self.webView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor)
       ]
@@ -38,15 +44,11 @@ internal class WebViewController: UIViewController {
   }
 }
 
-extension WebViewController: WKUIDelegate {
+extension WebViewController: WKUIDelegate {}
 
-}
+extension WebViewController: WKNavigationDelegate {}
 
-extension WebViewController: WKNavigationDelegate {
-}
-
-extension WebViewController: UIScrollViewDelegate {
-}
+extension WebViewController: UIScrollViewDelegate {}
 
 internal protocol WebViewControllerProtocol: UIViewControllerProtocol {
   var webView: WKWebView { get }
@@ -65,6 +67,6 @@ extension LensHolder where Object: WebViewControllerProtocol {
 
 extension Lens where Whole: WebViewControllerProtocol, Part == WKWebView {
   internal var scrollView: Lens<Whole, UIScrollView> {
-    return Whole.lens.webView..Part.lens.scrollView
+    return Whole.lens.webView .. Part.lens.scrollView
   }
 }

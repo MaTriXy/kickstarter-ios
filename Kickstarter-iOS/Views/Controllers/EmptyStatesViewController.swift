@@ -3,21 +3,22 @@ import Library
 import Prelude
 import UIKit
 
-internal protocol EmptyStatesViewControllerDelegate: class {
-  func emptyStatesViewController(_ viewController: EmptyStatesViewController,
-                                 goToDiscoveryWithParams params: DiscoveryParams?)
+internal protocol EmptyStatesViewControllerDelegate: AnyObject {
+  func emptyStatesViewController(
+    _ viewController: EmptyStatesViewController,
+    goToDiscoveryWithParams params: DiscoveryParams?
+  )
   func emptyStatesViewControllerGoToFriends()
 }
 
 internal final class EmptyStatesViewController: UIViewController {
-
-  @IBOutlet fileprivate weak var backgroundStripView: UIView!
-  @IBOutlet fileprivate weak var mainButton: UIButton!
-  @IBOutlet fileprivate weak var mainButtonBottomLayoutConstraint: NSLayoutConstraint!
-  @IBOutlet fileprivate weak var headlineStackView: UIStackView!
-  @IBOutlet fileprivate weak var stripViewTopLayoutConstraint: NSLayoutConstraint!
-  @IBOutlet fileprivate weak var subtitleLabel: UILabel!
-  @IBOutlet fileprivate weak var titleLabel: UILabel!
+  @IBOutlet fileprivate var backgroundStripView: UIView!
+  @IBOutlet fileprivate var mainButton: UIButton!
+  @IBOutlet fileprivate var mainButtonBottomLayoutConstraint: NSLayoutConstraint!
+  @IBOutlet fileprivate var headlineStackView: UIStackView!
+  @IBOutlet fileprivate var stripViewTopLayoutConstraint: NSLayoutConstraint!
+  @IBOutlet fileprivate var subtitleLabel: UILabel!
+  @IBOutlet fileprivate var titleLabel: UILabel!
 
   internal weak var delegate: EmptyStatesViewControllerDelegate?
 
@@ -34,7 +35,7 @@ internal final class EmptyStatesViewController: UIViewController {
 
     self.mainButton.addTarget(
       self,
-      action: #selector(mainButtonTapped),
+      action: #selector(self.mainButtonTapped),
       for: .touchUpInside
     )
   }
@@ -45,12 +46,16 @@ internal final class EmptyStatesViewController: UIViewController {
     self.viewModel.inputs.viewWillAppear()
   }
 
-    override func bindViewModel() {
+  override func bindViewModel() {
     super.bindViewModel()
+
+    self.viewModel.outputs.bottomLayoutConstraintConstant.observeValues { [weak self] constant in
+      self?.mainButtonBottomLayoutConstraint
+        .constant = constant + (self?.view.layoutMargins.bottom ?? 0)
+    }
 
     self.titleLabel.rac.text = self.viewModel.outputs.titleLabelText
     self.subtitleLabel.rac.text = self.viewModel.outputs.subtitleLabelText
-    self.mainButtonBottomLayoutConstraint.rac.constant = self.viewModel.outputs.bottomLayoutConstraintConstant
     self.mainButton.rac.title = self.viewModel.outputs.mainButtonText
 
     self.viewModel.outputs.notifyDelegateToGoToDiscovery
@@ -58,13 +63,13 @@ internal final class EmptyStatesViewController: UIViewController {
       .observeValues { [weak self] params in
         guard let _self = self else { return }
         _self.delegate?.emptyStatesViewController(_self, goToDiscoveryWithParams: params)
-    }
+      }
 
     self.viewModel.outputs.notifyDelegateToGoToFriends
       .observeForControllerAction()
       .observeValues { [weak self] in
         self?.delegate?.emptyStatesViewControllerGoToFriends()
-    }
+      }
   }
 
   override func bindStyles() {
@@ -78,7 +83,7 @@ internal final class EmptyStatesViewController: UIViewController {
         self.traitCollection.isRegularRegular
           ? .init(top: 0, left: Styles.grid(4), bottom: Styles.grid(5), right: Styles.grid(4))
           : .init(top: 0, left: Styles.grid(2), bottom: Styles.grid(3), right: Styles.grid(2))
-    )
+      )
 
     if self.traitCollection.isRegularRegular {
       _ = self.titleLabel |> UILabel.lens.font .~ UIFont.ksr_headline(size: 46).bolded
@@ -92,33 +97,32 @@ internal final class EmptyStatesViewController: UIViewController {
     }
 
     _ = self.titleLabel
+      |> UILabel.lens.backgroundColor .~ .white
       |> UILabel.lens.textAlignment .~ .left
       |> UILabel.lens.numberOfLines .~ 0
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
 
     _ = self.subtitleLabel
+      |> UILabel.lens.backgroundColor .~ .white
       |> UILabel.lens.textAlignment .~ .left
       |> UILabel.lens.numberOfLines .~ 0
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
 
     _ = self.headlineStackView
       |> UIStackView.lens.spacing .~ Styles.grid(2)
       |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
-      |> UIStackView.lens.layoutMargins .~ .init(top: Styles.grid(1),
-                                                 left: Styles.grid(4),
-                                                 bottom: Styles.grid(7),
-                                                 right: Styles.grid(4))
+      |> UIStackView.lens.layoutMargins .~ .init(
+        top: Styles.grid(1),
+        left: Styles.grid(4),
+        bottom: Styles.grid(7),
+        right: Styles.grid(4)
+      )
 
     _ = self.mainButton
-      |> baseButtonStyle
-      |> UIButton.lens.layer.borderWidth .~ 1.0
-      |> UIButton.lens.backgroundColor(for: .normal) .~ UIColor.ksr_green_500.withAlphaComponent(0.1)
-      |> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_green_700
-      |> UIButton.lens.titleColor(for: .highlighted) .~ .ksr_text_green_700
-      |> UIButton.lens.layer.borderColor .~ UIColor.ksr_green_700.withAlphaComponent(0.2).cgColor
+      |> greenButtonStyle
 
     _ = self.backgroundStripView
-      |> UIView.lens.backgroundColor .~ .ksr_grey_100
+      |> UIView.lens.backgroundColor .~ .white
   }
 
   internal func setEmptyState(_ emptyState: EmptyState) {

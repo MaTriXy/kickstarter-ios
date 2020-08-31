@@ -1,23 +1,31 @@
 import Foundation
 
 public enum AppKeys: String {
+  // swiftformat:disable wrap
   case closedFacebookConnectInActivity = "com.kickstarter.KeyValueStoreType.closedFacebookConnectInActivity"
   case closedFindFriendsInActivity = "com.kickstarter.KeyValueStoreType.closedFindFriendsInActivity"
   case deniedNotificationContexts = "com.kickstarter.KeyValueStoreType.deniedNotificationContexts"
   case favoriteCategoryIds = "favorite_category_ids"
+  case hasCompletedCategoryPersonalizationFlow = "com.kickstarter.KeyValueStoreType.hasCompletedCategoryPersonalizationFlow"
+  case hasSeenCategoryPersonalizationFlow = "com.kickstarter.KeyValueStoreType.hasSeenCategoryPersonalizationFlow"
+  case hasDismissedPersonalizationCard = "com.kickstarter.KeyValueStoreType.hasDismissedPersonalizationCard"
   case hasSeenFavoriteCategoryAlert = "com.kickstarter.KeyValueStoreType.hasSeenFavoriteCategoryAlert"
+  case hasSeenLandingPage = "com.kickstarter.KeyValueStoreType.hasSeenLandingPage"
   case hasSeenSaveProjectAlert = "com.kickstarter.KeyValueStoreType.hasSeenSaveProjectAlert"
   case lastSeenActivitySampleId = "com.kickstarter.KeyValueStoreType.lastSeenActivitySampleId"
+  case onboardingCategories = "com.kickstarter.KeyValueStoreType.onboardingCategories"
   case seenAppRating = "com.kickstarter.KeyValueStoreType.hasSeenAppRating"
   case seenGamesNewsletter = "com.kickstarter.KeyValueStoreType.hasSeenGamesNewsletter"
+  // swiftformat:enable wrap
 }
 
-public protocol KeyValueStoreType: class {
+public protocol KeyValueStoreType: AnyObject {
   func set(_ value: Bool, forKey defaultName: String)
   func set(_ value: Int, forKey defaultName: String)
   func set(_ value: Any?, forKey defaultName: String)
 
   func bool(forKey defaultName: String) -> Bool
+  func data(forKey defaultName: String) -> Data?
   func dictionary(forKey defaultName: String) -> [String: Any]?
   func integer(forKey defaultName: String) -> Int
   func object(forKey defaultName: String) -> Any?
@@ -29,11 +37,16 @@ public protocol KeyValueStoreType: class {
   var favoriteCategoryIds: [Int] { get set }
   var hasClosedFacebookConnectInActivity: Bool { get set }
   var hasClosedFindFriendsInActivity: Bool { get set }
+  var hasCompletedCategoryPersonalizationFlow: Bool { get set }
+  var hasDismissedPersonalizationCard: Bool { get set }
   var hasSeenAppRating: Bool { get set }
+  var hasSeenCategoryPersonalizationFlow: Bool { get set }
   var hasSeenFavoriteCategoryAlert: Bool { get set }
+  var hasSeenLandingPage: Bool { get set }
   var hasSeenGamesNewsletterPrompt: Bool { get set }
   var hasSeenSaveProjectAlert: Bool { get set }
   var lastSeenActivitySampleId: Int { get set }
+  var onboardingCategories: Data? { get set }
 }
 
 extension KeyValueStoreType {
@@ -52,6 +65,33 @@ extension KeyValueStoreType {
     }
     set {
       self.set(newValue, forKey: AppKeys.deniedNotificationContexts.rawValue)
+    }
+  }
+
+  public var hasSeenCategoryPersonalizationFlow: Bool {
+    get {
+      return self.bool(forKey: AppKeys.hasSeenCategoryPersonalizationFlow.rawValue)
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.hasSeenCategoryPersonalizationFlow.rawValue)
+    }
+  }
+
+  public var hasDismissedPersonalizationCard: Bool {
+    get {
+      return self.bool(forKey: AppKeys.hasDismissedPersonalizationCard.rawValue)
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.hasDismissedPersonalizationCard.rawValue)
+    }
+  }
+
+  public var hasCompletedCategoryPersonalizationFlow: Bool {
+    get {
+      return self.bool(forKey: AppKeys.hasCompletedCategoryPersonalizationFlow.rawValue)
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.hasCompletedCategoryPersonalizationFlow.rawValue)
     }
   }
 
@@ -91,6 +131,15 @@ extension KeyValueStoreType {
     }
   }
 
+  public var hasSeenLandingPage: Bool {
+    get {
+      return self.bool(forKey: AppKeys.hasSeenLandingPage.rawValue)
+    }
+    set {
+      self.set(newValue, forKey: AppKeys.hasSeenLandingPage.rawValue)
+    }
+  }
+
   public var hasSeenGamesNewsletterPrompt: Bool {
     get {
       return self.bool(forKey: AppKeys.seenGamesNewsletter.rawValue)
@@ -117,10 +166,19 @@ extension KeyValueStoreType {
       self.set(newValue, forKey: AppKeys.lastSeenActivitySampleId.rawValue)
     }
   }
+
+  public var onboardingCategories: Data? {
+    get {
+      return self.data(forKey: AppKeys.onboardingCategories.rawValue)
+    }
+
+    set {
+      self.set(newValue, forKey: AppKeys.onboardingCategories.rawValue)
+    }
+  }
 }
 
-extension UserDefaults: KeyValueStoreType {
-}
+extension UserDefaults: KeyValueStoreType {}
 
 extension NSUbiquitousKeyValueStore: KeyValueStoreType {
   public func integer(forKey defaultName: String) -> Int {
@@ -128,7 +186,7 @@ extension NSUbiquitousKeyValueStore: KeyValueStoreType {
   }
 
   public func set(_ value: Int, forKey defaultName: String) {
-    return set(Int64(value), forKey: defaultName)
+    return self.set(Int64(value), forKey: defaultName)
   }
 }
 
@@ -149,6 +207,10 @@ internal class MockKeyValueStore: KeyValueStoreType {
 
   func bool(forKey defaultName: String) -> Bool {
     return self.store[defaultName] as? Bool ?? false
+  }
+
+  func data(forKey defaultName: String) -> Data? {
+    return self.store[defaultName] as? Data
   }
 
   func dictionary(forKey key: String) -> [String: Any]? {

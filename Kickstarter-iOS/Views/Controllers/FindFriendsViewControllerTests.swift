@@ -1,10 +1,9 @@
-import Prelude
 @testable import Kickstarter_Framework
 @testable import KsApi
 @testable import Library
+import Prelude
 
 internal final class FindFriendsViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
@@ -18,7 +17,7 @@ internal final class FindFriendsViewControllerTests: TestCase {
   }
 
   func testView_ShowFacebookConnect() {
-    combos(Language.allLanguages, [Device.phone4_7inch]).forEach { language, device in
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch]).forEach { language, device in
       withEnvironment(language: language) {
         let controller = FindFriendsViewController.configuredWith(source: FriendsSource.settings)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
@@ -28,27 +27,42 @@ internal final class FindFriendsViewControllerTests: TestCase {
     }
   }
 
-  func testView_ShowFriends() {
-    let currentUser = .template
-      |> User.lens.facebookConnected .~ true
+  func testView_ShowFacebookReconnect() {
+    let facebookReconnectUser = User.template
+      |> \.facebookConnected .~ true
+      |> \.needsFreshFacebookToken .~ true
 
-    let friendNoAvatar = .template
-      |> User.lens.avatar.medium .~ ""
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch]).forEach { language, device in
+      withEnvironment(currentUser: facebookReconnectUser, language: language) {
+        let controller = FindFriendsViewController.configuredWith(source: FriendsSource.settings)
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
+
+        FBSnapshotVerifyView(parent.view, identifier: "lang_\(language)_device_\(device)")
+      }
+    }
+  }
+
+  func testView_ShowFriends() {
+    let currentUser = User.template
+      |> \.facebookConnected .~ true
+
+    let friendNoAvatar = User.template
+      |> \.avatar.medium .~ ""
 
     let friend1 = friendNoAvatar
-      |> User.lens.name .~ "Ron Swanson"
-      |> User.lens.location .~
-        (.template |> Location.lens.displayableName .~ "Pawnee, IN")
-      |> User.lens.stats.backedProjectsCount .~ 42
-      |> User.lens.stats.createdProjectsCount .~ 0
-      |> User.lens.isFriend .~ true
+      |> \.name .~ "Ron Swanson"
+      |> \.location .~
+      (.template |> Location.lens.displayableName .~ "Pawnee, IN")
+      |> \.stats.backedProjectsCount .~ 42
+      |> \.stats.createdProjectsCount .~ 0
+      |> \.isFriend .~ true
 
     let friend2 = friendNoAvatar
-      |> User.lens.name .~ "David Byrne"
-      |> User.lens.location .~
-        (.template |> Location.lens.displayableName .~ "New York, NY")
-      |> User.lens.stats.backedProjectsCount .~ 365
-      |> User.lens.stats.createdProjectsCount .~ 5
+      |> \.name .~ "David Byrne"
+      |> \.location .~
+      (.template |> Location.lens.displayableName .~ "New York, NY")
+      |> \.stats.backedProjectsCount .~ 365
+      |> \.stats.createdProjectsCount .~ 5
 
     let friendsResponse = .template
       |> FindFriendsEnvelope.lens.users .~ [friend1, friend2, friend2, friend1, friendNoAvatar]
@@ -57,10 +71,11 @@ internal final class FindFriendsViewControllerTests: TestCase {
       |> FriendStatsEnvelope.lens.stats.friendProjectsCount .~ 1_738
       |> FriendStatsEnvelope.lens.stats.remoteFriendsCount .~ 5
 
-    combos(Language.allLanguages, [Device.phone4inch, Device.phone4_7inch]).forEach { language, device in
-      withEnvironment(apiService: MockService(fetchFriendsResponse: friendsResponse,
-        fetchFriendStatsResponse: friendStats), currentUser: currentUser, language: language) {
-
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch]).forEach { language, device in
+      withEnvironment(apiService: MockService(
+        fetchFriendsResponse: friendsResponse,
+        fetchFriendStatsResponse: friendStats
+      ), currentUser: currentUser, language: language) {
         let controller = FindFriendsViewController.configuredWith(source: FriendsSource.settings)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 

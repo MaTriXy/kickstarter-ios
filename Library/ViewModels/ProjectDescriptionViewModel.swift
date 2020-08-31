@@ -1,15 +1,17 @@
 import KsApi
 import Prelude
 import ReactiveSwift
-import Result
 import WebKit
 
 public protocol ProjectDescriptionViewModelInputs {
-  /// Call with the project given to the view.
-  func configureWith(project: Project)
+  /// Call with the project and reftag given to the view.
+  func configureWith(value: (Project, RefTag?))
 
   /// Call when the webview needs to decide a policy for a navigation action. Returns the decision policy.
   func decidePolicyFor(navigationAction: WKNavigationActionData)
+
+  /// Call when the pledge CTA button is tapped.
+  func pledgeCTAButtonTapped(with state: PledgeStateCTAType)
 
   /// Call when the view loads.
   func viewDidLoad()
@@ -25,26 +27,35 @@ public protocol ProjectDescriptionViewModelInputs {
 }
 
 public protocol ProjectDescriptionViewModelOutputs {
+  /// Emits PledgeCTAContainerViewData to configure the PledgeCTAContainerView
+  var configurePledgeCTAContainerView: Signal<PledgeCTAContainerViewData, Never> { get }
+
   /// Can be returned from the web view's policy decision delegate method.
   var decidedPolicyForNavigationAction: WKNavigationActionPolicy { get }
 
   /// Emits when we should go back to the project.
-  var goBackToProject: Signal<(), NoError> { get }
+  var goBackToProject: Signal<(), Never> { get }
 
   /// Emits when we should navigate to the message dialog.
-  var goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), NoError> { get }
+  var goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), Never> { get }
+
+  /// Emits when we should navigate to the rewards
+  var goToRewards: Signal<(Project, RefTag?), Never> { get }
 
   /// Emits when we should open a safari browser with the URL.
-  var goToSafariBrowser: Signal<URL, NoError> { get }
+  var goToSafariBrowser: Signal<URL, Never> { get }
 
   /// Emits when a web request is loading.
-  var isLoading: Signal<Bool, NoError> { get }
+  var isLoading: Signal<Bool, Never> { get }
 
   /// Emits a url request that should be loaded into the webview.
-  var loadWebViewRequest: Signal<URLRequest, NoError> { get }
+  var loadWebViewRequest: Signal<URLRequest, Never> { get }
+
+  /// Emits whether the pledgeCTAContainerView is hidden.
+  var pledgeCTAContainerViewIsHidden: Signal<Bool, Never> { get }
 
   /// Emits when an error should be displayed.
-  var showErrorAlert: Signal<Error, NoError> { get }
+  var showErrorAlert: Signal<Error, Never> { get }
 }
 
 public protocol ProjectDescriptionViewModelType {
@@ -53,11 +64,16 @@ public protocol ProjectDescriptionViewModelType {
 }
 
 public final class ProjectDescriptionViewModel: ProjectDescriptionViewModelType,
-ProjectDescriptionViewModelInputs, ProjectDescriptionViewModelOutputs {
-
+  ProjectDescriptionViewModelInputs, ProjectDescriptionViewModelOutputs {
   public init() {
-    let project = Signal.combineLatest(self.projectProperty.signal.skipNil(), self.viewDidLoadProperty.signal)
-      .map(first)
+    let projectAndRefTag = Signal.combineLatest(
+      self.projectAndRefTagProperty.signal.skipNil(),
+      self.viewDidLoadProperty.signal
+    )
+    .map(first)
+
+    let project = projectAndRefTag.map(first)
+
     let navigationAction = self.policyForNavigationActionProperty.signal.skipNil()
     let navigationActionLink = navigationAction
       .filter { $0.navigationType == .linkActivated }
@@ -97,10 +113,10 @@ ProjectDescriptionViewModelInputs, ProjectDescriptionViewModelOutputs {
         guard
           case let (.project(param, .root, _))? = navigation,
           String(project.id) == param.slug || project.slug == param.slug
-          else { return nil }
+        else { return nil }
 
         return project
-    }
+      }
 
     self.showErrorAlert = self.webViewDidFailProvisionalNavigationProperty.signal.skipNil()
 
@@ -111,22 +127,57 @@ ProjectDescriptionViewModelInputs, ProjectDescriptionViewModelOutputs {
 
     self.goToSafariBrowser = Signal.zip(
       navigationActionLink, possiblyGoToMessageDialog, possiblyGoBackToProject
-      )
-      .filter { $1 == nil && $2 == nil }
-      .filter { navigationAction, _, _ in navigationAction.navigationType == .linkActivated }
-      .map { navigationAction, _, _ in navigationAction.request.url }
-      .skipNil()
+    )
+    .filter { $1 == nil && $2 == nil }
+    .filter { navigationAction, _, _ in navigationAction.navigationType == .linkActivated }
+    .map { navigationAction, _, _ in navigationAction.request.url }
+    .skipNil()
+
+    self.pledgeCTAContainerViewIsHidden = projectAndRefTag
+      .map(shouldShowPledgeButton)
+      .negate()
+
+    self.configurePledgeCTAContainerView = projectAndRefTag
+      .combineLatest(with: self.pledgeCTAContainerViewIsHidden)
+      .filter(second >>> isFalse)
+      .map(first)
+      .map(Either.left)
+      .map { ($0, false, .projectDescription) }
+
+    self.goToRewards = projectAndRefTag
+      .takeWhen(self.pledgeCTAButtonTappedProperty.signal)
+
+    projectAndRefTag
+      .takeWhen(self.pledgeCTAButtonTappedProperty.signal)
+      .observeValues { project, refTag in
+        let cookieRefTag = cookieRefTagFor(project: project) ?? refTag
+        let optimizelyProps = optimizelyProperties() ?? [:]
+
+        AppEnvironment.current.koala.trackCampaignDetailsPledgeButtonClicked(
+          project: project,
+          location: .campaign,
+          refTag: refTag,
+          cookieRefTag: cookieRefTag,
+          optimizelyProperties: optimizelyProps
+        )
+        AppEnvironment.current.optimizelyClient?.track(eventName: "Campaign Details Pledge Button Clicked")
+      }
 
     project
       .takeWhen(self.goToSafariBrowser)
       .observeValues {
         AppEnvironment.current.koala.trackOpenedExternalLink(project: $0, context: .projectDescription)
-    }
+      }
   }
 
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
-  public func configureWith(project: Project) {
-    self.projectProperty.value = project
+  private let pledgeCTAButtonTappedProperty = MutableProperty<PledgeStateCTAType?>(nil)
+  public func pledgeCTAButtonTapped(with state: PledgeStateCTAType) {
+    self.pledgeCTAButtonTappedProperty.value = state
+  }
+
+  fileprivate let projectAndRefTagProperty = MutableProperty<(Project, RefTag?)?>(nil)
+  public func configureWith(value: (Project, RefTag?)) {
+    self.projectAndRefTagProperty.value = value
   }
 
   fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
@@ -159,12 +210,15 @@ ProjectDescriptionViewModelInputs, ProjectDescriptionViewModelOutputs {
     self.webViewDidStartProvisionalNavigationProperty.value = ()
   }
 
-  public let goBackToProject: Signal<(), NoError>
-  public let goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), NoError>
-  public let goToSafariBrowser: Signal<URL, NoError>
-  public let isLoading: Signal<Bool, NoError>
-  public let loadWebViewRequest: Signal<URLRequest, NoError>
-  public let showErrorAlert: Signal<Error, NoError>
+  public let configurePledgeCTAContainerView: Signal<PledgeCTAContainerViewData, Never>
+  public let goBackToProject: Signal<(), Never>
+  public let goToMessageDialog: Signal<(MessageSubject, Koala.MessageDialogContext), Never>
+  public let goToRewards: Signal<(Project, RefTag?), Never>
+  public let goToSafariBrowser: Signal<URL, Never>
+  public let isLoading: Signal<Bool, Never>
+  public let loadWebViewRequest: Signal<URLRequest, Never>
+  public let pledgeCTAContainerViewIsHidden: Signal<Bool, Never>
+  public let showErrorAlert: Signal<Error, Never>
 
   public var inputs: ProjectDescriptionViewModelInputs { return self }
   public var outputs: ProjectDescriptionViewModelOutputs { return self }
@@ -178,4 +232,14 @@ private func isMessageCreator(navigation: Navigation) -> Bool {
 private func allowed(navigationAction action: WKNavigationActionData) -> Bool {
   return action.request.url?.path.contains("/description") == .some(true)
     || action.targetFrame?.mainFrame == .some(false)
+}
+
+private func shouldShowPledgeButton(project: Project, refTag: RefTag?) -> Bool {
+  let isLive = project.state == .live
+  let notBacking = project.personalization.backing == nil
+  let isVariant2 = OptimizelyExperiment
+    .projectCampaignExperiment(project: project, refTag: refTag) == .variant2
+  let isNotCreator = currentUserIsCreator(of: project) == false
+
+  return [isLive, notBacking, isVariant2, isNotCreator].allSatisfy(isTrue)
 }

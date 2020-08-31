@@ -51,10 +51,10 @@ public struct ProjectStatsEnvelope {
   public struct RewardStats {
     public let backersCount: Int
     public let rewardId: Int
-    public let minimum: Int?
+    public let minimum: Double?
     public let pledged: Int
 
-    public static let zero = RewardStats(backersCount: 0, rewardId: 0, minimum: 0, pledged: 0)
+    public static let zero = RewardStats(backersCount: 0, rewardId: 0, minimum: 0.00, pledged: 0)
   }
 
   public struct VideoStats {
@@ -91,7 +91,7 @@ extension ProjectStatsEnvelope.CumulativeStats: Argo.Decodable {
 extension ProjectStatsEnvelope.CumulativeStats: Equatable {}
 public func == (lhs: ProjectStatsEnvelope.CumulativeStats, rhs: ProjectStatsEnvelope.CumulativeStats)
   -> Bool {
-    return lhs.averagePledge == rhs.averagePledge
+  return lhs.averagePledge == rhs.averagePledge
 }
 
 extension ProjectStatsEnvelope.FundingDateStats: Argo.Decodable {
@@ -108,24 +108,26 @@ extension ProjectStatsEnvelope.FundingDateStats: Argo.Decodable {
 extension ProjectStatsEnvelope.FundingDateStats: Equatable {}
 public func == (lhs: ProjectStatsEnvelope.FundingDateStats, rhs: ProjectStatsEnvelope.FundingDateStats)
   -> Bool {
-    return lhs.date == rhs.date
+  return lhs.date == rhs.date
 }
 
 extension ProjectStatsEnvelope.ReferralAggregateStats: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<ProjectStatsEnvelope.ReferralAggregateStats> {
     return curry(ProjectStatsEnvelope.ReferralAggregateStats.init)
-    <^> json <| "custom"
-    <*> (json <| "external" >>- stringToDouble)
-    <*> json <| "internal"
+      <^> json <| "custom"
+      <*> (json <| "external" >>- stringToDouble)
+      <*> json <| "internal"
   }
 }
 
 extension ProjectStatsEnvelope.ReferralAggregateStats: Equatable {}
-public func == (lhs: ProjectStatsEnvelope.ReferralAggregateStats,
-                rhs: ProjectStatsEnvelope.ReferralAggregateStats) -> Bool {
+public func == (
+  lhs: ProjectStatsEnvelope.ReferralAggregateStats,
+  rhs: ProjectStatsEnvelope.ReferralAggregateStats
+) -> Bool {
   return lhs.custom == rhs.custom &&
-  lhs.external == rhs.external &&
-  lhs.kickstarter == rhs.kickstarter
+    lhs.external == rhs.external &&
+    lhs.kickstarter == rhs.kickstarter
 }
 
 extension ProjectStatsEnvelope.ReferrerStats: Argo.Decodable {
@@ -148,14 +150,14 @@ public func == (lhs: ProjectStatsEnvelope.ReferrerStats, rhs: ProjectStatsEnvelo
 
 extension ProjectStatsEnvelope.ReferrerStats.ReferrerType: Argo.Decodable {
   public static func decode(_ json: JSON) -> Decoded<ProjectStatsEnvelope.ReferrerStats.ReferrerType> {
-    if case .string(let referrerType) = json {
+    if case let .string(referrerType) = json {
       switch referrerType.lowercased() {
       case "custom":
         return .success(.custom)
       case "external":
         return .success(.external)
       case "kickstarter":
-        return .success(.`internal`)
+        return .success(.internal)
       default:
         return .success(.unknown)
       }
@@ -169,7 +171,7 @@ extension ProjectStatsEnvelope.RewardStats: Argo.Decodable {
     return curry(ProjectStatsEnvelope.RewardStats.init)
       <^> json <| "backers_count"
       <*> json <| "reward_id"
-      <*> ((json <|? "minimum" >>- stringToInt) <|> (json <|? "minimum"))
+      <*> ((json <|? "minimum" >>- stringToDouble) <|> (json <|? "minimum"))
       <*> (json <| "pledged" >>- stringToIntOrZero)
   }
 }
@@ -223,8 +225,14 @@ private func stringToInt(_ string: String?) -> Decoded<Int?> {
 
   return
     Double(string).flatMap(Int.init).map(Decoded.success)
-      ?? Int(string).map(Decoded.success)
+      ?? Int(string).map(Decoded<Int?>.success)
       ?? .failure(.custom("Could not parse string into int."))
+}
+
+private func stringToDouble(_ string: String?) -> Decoded<Double?> {
+  guard let string = string else { return .success(nil) }
+
+  return Double(string).map(Decoded<Double?>.success) ?? .success(0)
 }
 
 private func stringToDouble(_ string: String) -> Decoded<Double> {

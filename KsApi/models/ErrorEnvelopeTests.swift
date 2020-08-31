@@ -1,9 +1,8 @@
-import XCTest
+import Argo
 @testable import KsApi
-@testable import Argo
+import XCTest
 
 class ErrorEnvelopeTests: XCTestCase {
-
   func testJsonDecodingWithFullData() {
     let env = ErrorEnvelope.decodeJSONDictionary([
       "error_messages": ["hello"],
@@ -13,7 +12,7 @@ class ErrorEnvelopeTests: XCTestCase {
         "backtrace": ["hello"],
         "message": "hello"
       ]
-      ])
+    ])
     XCTAssertNotNil(env)
   }
 
@@ -26,7 +25,7 @@ class ErrorEnvelopeTests: XCTestCase {
         "backtrace": ["hello"],
         "message": "hello"
       ]
-      ])
+    ])
     XCTAssertNil(env.error)
     XCTAssertEqual(ErrorEnvelope.KsrCode.UnknownCode, env.value?.ksrCode)
   }
@@ -44,7 +43,6 @@ class ErrorEnvelopeTests: XCTestCase {
     ])
     XCTAssertNil(env.error)
     XCTAssertEqual(ErrorEnvelope.KsrCode.UnknownCode, env.value?.ksrCode)
-    // swiftlint:disable:next force_unwrapping
     XCTAssertEqual(["Bad amount"], env.value!.errorMessages)
     XCTAssertEqual(406, env.value?.httpCode)
   }

@@ -1,11 +1,10 @@
 import KsApi
 import Prelude
-import ReactiveSwift
 import ReactiveExtensions
-import Result
+import ReactiveSwift
 
 public enum ProjectActivitiesGoTo {
-  case backing(Project, User)
+  case backing(ManagePledgeViewParamConfigData)
   case comments(Project?, Update?)
   case project(Project)
   case sendMessage(Backing, Koala.MessageDialogContext)
@@ -21,7 +20,7 @@ public protocol ProjectActivitiesViewModelInputs {
   func configureWith(_ project: Project)
 
   /// Call when the backing cell's backing button is pressed.
-  func projectActivityBackingCellGoToBacking(project: Project, user: User)
+  func projectActivityBackingCellGoToBacking(project: Project, backing: Backing)
 
   /// Call when the backing cell's send message button is pressed.
   func projectActivityBackingCellGoToSendMessage(project: Project, backing: Backing)
@@ -49,16 +48,16 @@ public protocol ProjectActivitiesViewModelInputs {
 
 public protocol ProjectActivitiesViewModelOutputs {
   /// Emits when another screen should be loaded.
-  var goTo: Signal<ProjectActivitiesGoTo, NoError> { get }
+  var goTo: Signal<ProjectActivitiesGoTo, Never> { get }
 
   /// Emits a boolean that indicates whether the view is refreshing.
-  var isRefreshing: Signal<Bool, NoError> { get }
+  var isRefreshing: Signal<Bool, Never> { get }
 
   /// Emits project activity data.
-  var projectActivityData: Signal<ProjectActivityData, NoError> { get }
+  var projectActivityData: Signal<ProjectActivityData, Never> { get }
 
   /// Emits `true` when the empty state should be shown, and `false` when it should be hidden.
-  var showEmptyState: Signal<Bool, NoError> { get }
+  var showEmptyState: Signal<Bool, Never> { get }
 }
 
 public protocol ProjectActivitiesViewModelType {
@@ -68,7 +67,6 @@ public protocol ProjectActivitiesViewModelType {
 
 public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
   ProjectActivitiesViewModelInputs, ProjectActivitiesViewModelOutputs {
-
   public init() {
     let project = self.projectProperty.signal.skipNil()
 
@@ -84,10 +82,10 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
           self.viewDidLoadProperty.signal,
           self.refreshProperty.signal
         )
-    )
+      )
 
-    let activities: Signal<[Activity], NoError>
-    let pageCount: Signal<Int, NoError>
+    let activities: Signal<[Activity], Never>
+    let pageCount: Signal<Int, Never>
     (activities, self.isRefreshing, pageCount) = paginate(
       requestFirstPageWith: requestFirstPage,
       requestNextPageWhen: isCloseToBottom,
@@ -103,7 +101,8 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
         ProjectActivityData(
           activities: activities,
           project: project,
-          groupedDates: !AppEnvironment.current.isVoiceOverRunning())
+          groupedDates: !AppEnvironment.current.isVoiceOverRunning()
+        )
       }
 
     self.showEmptyState = activities
@@ -111,11 +110,11 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
       .skipRepeats()
 
     let cellTappedGoTo = self.activityAndProjectCellTappedProperty.signal.skipNil()
-      .flatMap { activity, project -> SignalProducer<(ProjectActivitiesGoTo), NoError> in
+      .flatMap { activity, project -> SignalProducer<ProjectActivitiesGoTo, Never> in
         switch activity.category {
         case .backing, .backingAmount, .backingCanceled, .backingReward:
-          guard let user = activity.user else { return .empty }
-          return .init(value: .backing(project, user))
+          guard let params = backingParams(project: project, activity: activity) else { return .empty }
+          return .init(value: params)
         case .commentProject:
           return .init(value: .comments(project, nil))
         case .commentPost:
@@ -129,21 +128,28 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
           assertionFailure("Unsupported activity: \(activity)")
           return .empty
         }
-    }
+      }
 
-    let projectActivityBackingCellGoToBacking =
-      self.projectActivityBackingCellGoToBackingProperty.signal.skipNil()
-        .map { project, user in ProjectActivitiesGoTo.backing(project, user) }
+    let projectActivityBackingCellGoToBacking = self.projectActivityBackingCellGoToBackingProperty.signal
+      .skipNil()
+      .filterMap(backingParams(project:backing:))
 
     let projectActivityBackingCellGoToSendMessage =
       self.projectActivityBackingCellGoToSendMessageProperty.signal.skipNil()
         .map { _, backing in
           ProjectActivitiesGoTo.sendMessage(backing, Koala.MessageDialogContext.creatorActivity)
-    }
+        }
 
     let projectActivityCommentCellGoToBacking =
       self.projectActivityCommentCellGoToBackingProperty.signal.skipNil()
-        .map { project, user in ProjectActivitiesGoTo.backing(project, user) }
+        .switchMap { project, user in
+          AppEnvironment.current.apiService.fetchBacking(forProject: project, forUser: user)
+            .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+            .map { backing in (project, backing) }
+            .materialize()
+        }
+        .values()
+        .filterMap(backingParams(project:backing:))
 
     let projectActivityCommentCellGoToSendReply =
       self.projectActivityCommentCellGoToSendReplyProperty.signal.skipNil()
@@ -170,7 +176,7 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
       .takePairWhen(pageCount.skip(first: 1).filter { $0 > 1 })
       .observeValues { project, pageCount in
         AppEnvironment.current.koala.trackLoadedOlderProjectActivity(project: project, page: pageCount)
-    }
+      }
   }
 
   private let activityAndProjectCellTappedProperty = MutableProperty<(Activity, Project)?>(nil)
@@ -181,9 +187,9 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
   private let projectProperty = MutableProperty<Project?>(nil)
   public func configureWith(_ project: Project) { self.projectProperty.value = project }
 
-  private let projectActivityBackingCellGoToBackingProperty = MutableProperty<(Project, User)?>(nil)
-  public func projectActivityBackingCellGoToBacking(project: Project, user: User) {
-    self.projectActivityBackingCellGoToBackingProperty.value = (project, user)
+  private let projectActivityBackingCellGoToBackingProperty = MutableProperty<(Project, Backing)?>(nil)
+  public func projectActivityBackingCellGoToBacking(project: Project, backing: Backing) {
+    self.projectActivityBackingCellGoToBackingProperty.value = (project, backing)
   }
 
   private let projectActivityBackingCellGoToSendMessageProperty = MutableProperty<(Project, Backing)?>(nil)
@@ -198,9 +204,11 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
 
   private let projectActivityCommentCellGoToSendReplyProperty
     = MutableProperty<(Project, Update?, Comment)?>(nil)
-  public func projectActivityCommentCellGoToSendReply(project: Project,
-                                                      update: Update?,
-                                                      comment: Comment) {
+  public func projectActivityCommentCellGoToSendReply(
+    project: Project,
+    update: Update?,
+    comment: Comment
+  ) {
     self.projectActivityCommentCellGoToSendReplyProperty.value = (project, update, comment)
   }
 
@@ -215,11 +223,25 @@ public final class ProjectActivitiesViewModel: ProjectActivitiesViewModelType,
     self.willDisplayRowProperty.value = (row, totalRows)
   }
 
-  public let goTo: Signal<ProjectActivitiesGoTo, NoError>
-  public let isRefreshing: Signal<Bool, NoError>
-  public let projectActivityData: Signal<ProjectActivityData, NoError>
-  public let showEmptyState: Signal<Bool, NoError>
+  public let goTo: Signal<ProjectActivitiesGoTo, Never>
+  public let isRefreshing: Signal<Bool, Never>
+  public let projectActivityData: Signal<ProjectActivityData, Never>
+  public let showEmptyState: Signal<Bool, Never>
 
   public var inputs: ProjectActivitiesViewModelInputs { return self }
   public var outputs: ProjectActivitiesViewModelOutputs { return self }
+}
+
+private func backingParams(project: Project, activity: Activity) -> ProjectActivitiesGoTo? {
+  let backingId = activity.memberData.backing?.id
+
+  return ProjectActivitiesGoTo.backing(
+    (projectParam: Param.slug(project.slug), backingParam: backingId.flatMap(Param.id))
+  )
+}
+
+private func backingParams(project: Project, backing: Backing) -> ProjectActivitiesGoTo? {
+  return ProjectActivitiesGoTo.backing(
+    (projectParam: Param.slug(project.slug), backingParam: Param.id(backing.id))
+  )
 }

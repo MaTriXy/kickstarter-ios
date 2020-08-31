@@ -1,8 +1,8 @@
 import KsApi
-import LiveStream
 import Prelude
 import ReactiveSwift
-import Result
+
+public typealias BackingData = (Project, User?)
 
 public protocol ProjectPamphletViewModelInputs {
   /// Call with the project given to the view controller.
@@ -14,6 +14,19 @@ public protocol ProjectPamphletViewModelInputs {
   /// Call after the view loads and passes the initial TopConstraint constant.
   func initial(topConstraint: CGFloat)
 
+  /// Call when the Thank you page is dismissed after finishing backing the project
+  func didBackProject()
+
+  /// Call when the ManagePledgeViewController finished updating/cancelling a pledge with an optional message
+  func managePledgeViewControllerFinished(with message: String?)
+
+  /// Call when the pledge CTA button is tapped
+  func pledgeCTAButtonTapped(with state: PledgeStateCTAType)
+
+  /// Call when pledgeRetryButton is tapped.
+  func pledgeRetryButtonTapped()
+
+  /// Call when the view did appear, and pass the animated parameter.
   func viewDidAppear(animated: Bool)
 
   /// Call when the view will appear, and pass the animated parameter.
@@ -25,20 +38,29 @@ public protocol ProjectPamphletViewModelInputs {
 
 public protocol ProjectPamphletViewModelOutputs {
   /// Emits a project that should be used to configure all children view controllers.
-  var configureChildViewControllersWithProjectAndLiveStreams: Signal<(Project, [LiveStreamEvent],
-    RefTag?), NoError> { get }
+  var configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never> { get }
 
-  /// Return this value from the view's `prefersStatusBarHidden` method.
-  var prefersStatusBarHidden: Bool { get }
+  /// Emits PledgeCTAContainerViewData to configure PledgeCTAContainerView
+  var configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never> { get }
+
+  var dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never> { get }
+
+  var goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never> { get }
+
+  /// Emits a project and refTag to be used to navigate to the reward selection screen.
+  var goToRewards: Signal<(Project, RefTag?), Never> { get }
+
+  /// Emits when the navigation stack should be popped to the root view controller.
+  var popToRootViewController: Signal<(), Never> { get }
 
   /// Emits two booleans that determine if the navigation bar should be hidden, and if it should be animated.
-  var setNavigationBarHiddenAnimated: Signal<(Bool, Bool), NoError> { get }
+  var setNavigationBarHiddenAnimated: Signal<(Bool, Bool), Never> { get }
 
   /// Emits when the `setNeedsStatusBarAppearanceUpdate` method should be called on the view.
-  var setNeedsStatusBarAppearanceUpdate: Signal<(), NoError> { get }
+  var setNeedsStatusBarAppearanceUpdate: Signal<(), Never> { get }
 
   /// Emits a float to update topLayoutConstraints constant.
-  var topLayoutConstraintConstant: Signal<CGFloat, NoError> { get }
+  var topLayoutConstraintConstant: Signal<CGFloat, Never> { get }
 }
 
 public protocol ProjectPamphletViewModelType {
@@ -47,27 +69,86 @@ public protocol ProjectPamphletViewModelType {
 }
 
 public final class ProjectPamphletViewModel: ProjectPamphletViewModelType, ProjectPamphletViewModelInputs,
-ProjectPamphletViewModelOutputs {
-
+  ProjectPamphletViewModelOutputs {
   public init() {
+    let isLoading = MutableProperty(false)
 
-    let freshProjectAndLiveStreamsAndRefTag = self.configDataProperty.signal.skipNil()
+    self.popToRootViewController = self.didBackProjectProperty.signal.ignoreValues()
+
+    let freshProjectAndRefTagEvent = self.configDataProperty.signal.skipNil()
       .takePairWhen(Signal.merge(
         self.viewDidLoadProperty.signal.mapConst(true),
-        self.viewDidAppearAnimated.signal.filter(isTrue).mapConst(false)
+        self.didBackProjectProperty.signal.ignoreValues().mapConst(false),
+        self.managePledgeViewControllerFinishedWithMessageProperty.signal.ignoreValues().mapConst(false),
+        self.pledgeRetryButtonTappedProperty.signal.mapConst(false)
       ))
       .map(unpack)
       .switchMap { projectOrParam, refTag, shouldPrefix in
-        fetchProjectAndLiveStreams(projectOrParam: projectOrParam, shouldPrefix: shouldPrefix)
-          .map { project, liveStreams in
-            (project, liveStreams, refTag.map(cleanUp(refTag:)))
+
+        fetchProject(projectOrParam: projectOrParam, shouldPrefix: shouldPrefix)
+          .on(
+            starting: { isLoading.value = true },
+            terminated: { isLoading.value = false }
+          )
+          .map { project in
+            (project, refTag.map(cleanUp(refTag:)))
+          }
+          .materialize()
+      }
+
+    let freshProjectAndRefTag = freshProjectAndRefTagEvent.values()
+
+    let project = freshProjectAndRefTag
+      .map(first)
+    let refTag = freshProjectAndRefTag
+      .map(second)
+
+    let projectAndBacking = project
+      .filter { $0.personalization.isBacking ?? false }
+      .filterMap { project -> (Project, Backing)? in
+        guard let backing = project.personalization.backing else {
+          return nil
         }
-    }
 
-    self.configureChildViewControllersWithProjectAndLiveStreams = freshProjectAndLiveStreamsAndRefTag
-      .map { project, liveStreams, refTag in (project, liveStreams ?? [], refTag) }
+        return (project, backing)
+      }
 
-    self.prefersStatusBarHiddenProperty <~ self.viewWillAppearAnimated.signal.mapConst(true)
+    let ctaButtonTappedWithType = self.pledgeCTAButtonTappedProperty.signal
+      .skipNil()
+
+    let shouldGoToRewards = ctaButtonTappedWithType
+      .filter { [.pledge, .viewRewards, .viewYourRewards, .seeTheRewards, .viewTheRewards].contains($0) }
+      .ignoreValues()
+
+    let shouldGoToManagePledge = ctaButtonTappedWithType
+      .filter(shouldGoToManagePledge(with:))
+      .ignoreValues()
+
+    self.goToRewards = freshProjectAndRefTag
+      .takeWhen(shouldGoToRewards)
+
+    self.goToManagePledge = projectAndBacking
+      .takeWhen(shouldGoToManagePledge)
+      .map(first)
+      .map { project -> ManagePledgeViewParamConfigData? in
+        guard let backing = project.personalization.backing else {
+          return nil
+        }
+
+        return (projectParam: Param.slug(project.slug), backingParam: Param.id(backing.id))
+      }
+      .skipNil()
+
+    let projectError: Signal<ErrorEnvelope, Never> = freshProjectAndRefTagEvent.errors()
+
+    self.configurePledgeCTAView = Signal.combineLatest(
+      Signal.merge(freshProjectAndRefTag.map(Either.left), projectError.map(Either.right)),
+      isLoading.signal
+    )
+    .map { ($0, $1, PledgeCTAContainerViewContext.projectPamphlet) }
+
+    self.configureChildViewControllersWithProject = freshProjectAndRefTag
+      .map { project, refTag in (project, refTag) }
 
     self.setNeedsStatusBarAppearanceUpdate = Signal.merge(
       self.viewWillAppearAnimated.signal.ignoreValues(),
@@ -81,38 +162,81 @@ ProjectPamphletViewModelOutputs {
 
     self.topLayoutConstraintConstant = self.initialTopConstraintProperty.signal.skipNil()
       .takePairWhen(self.willTransitionToCollectionProperty.signal.skipNil())
-      .map(topLayoutConstraintConstant(initialTopConstraint:traitCollection:))
+      .map(layoutConstraintConstant(initialTopConstraint:traitCollection:))
 
-    let cookieRefTag = freshProjectAndLiveStreamsAndRefTag
-      .map { project, _, refTag in
+    self.dismissManagePledgeAndShowMessageBannerWithMessage
+      = self.managePledgeViewControllerFinishedWithMessageProperty.signal
+      .skipNil()
+
+    let cookieRefTag = freshProjectAndRefTag
+      .map { project, refTag in
         cookieRefTagFor(project: project) ?? refTag
       }
       .take(first: 1)
 
-    Signal.combineLatest(freshProjectAndLiveStreamsAndRefTag,
-                         cookieRefTag,
-                         self.viewDidAppearAnimated.signal.ignoreValues()
-      )
-      .map { (project: $0.0, liveStreamEvents: $0.1, refTag: $0.2, cookieRefTag: $1, _: $2) }
-      .filter { _, liveStreamEvents, _, _, _ in liveStreamEvents != nil }
-      .take(first: 1)
-      .observeValues { project, liveStreamEvents, refTag, cookieRefTag, _ in
-        AppEnvironment.current.koala.trackProjectShow(project,
-                                                      liveStreamEvents: liveStreamEvents,
-                                                      refTag: refTag,
-                                                      cookieRefTag: cookieRefTag)
+    let freshProjectRefTagAndCookieRefTag: Signal<(Project, RefTag?, RefTag?), Never> = Signal.zip(
+      freshProjectAndRefTag.skip(first: 1),
+      self.viewDidAppearAnimated.signal.ignoreValues()
+    )
+    .map(unpack)
+    .map { project, refTag, _ in
+      let cookieRefTag = cookieRefTagFor(project: project) ?? refTag
+
+      return (project: project, refTag: refTag, cookieRefTag: cookieRefTag)
     }
 
-    Signal.combineLatest(cookieRefTag.skipNil(), freshProjectAndLiveStreamsAndRefTag.map(first))
+    freshProjectRefTagAndCookieRefTag
+      .observeValues { project, refTag, cookieRefTag in
+        let optimizelyProps = optimizelyProperties() ?? [:]
+
+        AppEnvironment.current.koala.trackProjectViewed(
+          project,
+          refTag: refTag,
+          cookieRefTag: cookieRefTag,
+          optimizelyProperties: optimizelyProps
+        )
+        AppEnvironment.current.optimizelyClient?.track(eventName: "Project Page Viewed")
+      }
+
+    Signal.combineLatest(cookieRefTag.skipNil(), freshProjectAndRefTag.map(first))
       .take(first: 1)
       .map(cookieFrom(refTag:project:))
       .skipNil()
       .observeValues { AppEnvironment.current.cookieStorage.setCookie($0) }
+
+    let shouldTrackCTATappedEvent = ctaButtonTappedWithType
+      .filter { [.pledge, .seeTheRewards, .viewTheRewards].contains($0) }
+
+    Signal.combineLatest(project, refTag)
+      .takeWhen(shouldTrackCTATappedEvent)
+      .observeValues { _, _ in
+        AppEnvironment.current.optimizelyClient?.track(eventName: "Project Page Pledge Button Clicked")
+      }
   }
 
   private let configDataProperty = MutableProperty<(Either<Project, Param>, RefTag?)?>(nil)
   public func configureWith(projectOrParam: Either<Project, Param>, refTag: RefTag?) {
     self.configDataProperty.value = (projectOrParam, refTag)
+  }
+
+  private let didBackProjectProperty = MutableProperty<Void>(())
+  public func didBackProject() {
+    self.didBackProjectProperty.value = ()
+  }
+
+  private let managePledgeViewControllerFinishedWithMessageProperty = MutableProperty<String?>(nil)
+  public func managePledgeViewControllerFinished(with message: String?) {
+    self.managePledgeViewControllerFinishedWithMessageProperty.value = message
+  }
+
+  private let pledgeCTAButtonTappedProperty = MutableProperty<PledgeStateCTAType?>(nil)
+  public func pledgeCTAButtonTapped(with state: PledgeStateCTAType) {
+    self.pledgeCTAButtonTappedProperty.value = state
+  }
+
+  private let pledgeRetryButtonTappedProperty = MutableProperty(())
+  public func pledgeRetryButtonTapped() {
+    self.pledgeRetryButtonTappedProperty.value = ()
   }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
@@ -141,115 +265,45 @@ ProjectPamphletViewModelOutputs {
     self.willTransitionToCollectionProperty.value = collection
   }
 
-  public let configureChildViewControllersWithProjectAndLiveStreams: Signal<(Project, [LiveStreamEvent],
-    RefTag?), NoError>
-  fileprivate let prefersStatusBarHiddenProperty = MutableProperty(false)
-  public var prefersStatusBarHidden: Bool {
-    return self.prefersStatusBarHiddenProperty.value
-  }
-
-  public let setNavigationBarHiddenAnimated: Signal<(Bool, Bool), NoError>
-  public let setNeedsStatusBarAppearanceUpdate: Signal<(), NoError>
-  public let topLayoutConstraintConstant: Signal<CGFloat, NoError>
+  public let configureChildViewControllersWithProject: Signal<(Project, RefTag?), Never>
+  public let configurePledgeCTAView: Signal<PledgeCTAContainerViewData, Never>
+  public let dismissManagePledgeAndShowMessageBannerWithMessage: Signal<String, Never>
+  public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
+  public let goToRewards: Signal<(Project, RefTag?), Never>
+  public let popToRootViewController: Signal<(), Never>
+  public let setNavigationBarHiddenAnimated: Signal<(Bool, Bool), Never>
+  public let setNeedsStatusBarAppearanceUpdate: Signal<(), Never>
+  public let topLayoutConstraintConstant: Signal<CGFloat, Never>
 
   public var inputs: ProjectPamphletViewModelInputs { return self }
   public var outputs: ProjectPamphletViewModelOutputs { return self }
 }
 
-private let cookieSeparator = "?"
-private let escapedCookieSeparator = "%3F"
-
-private func topLayoutConstraintConstant(initialTopConstraint: CGFloat,
-                                         traitCollection: UITraitCollection) -> CGFloat {
+private func layoutConstraintConstant(
+  initialTopConstraint: CGFloat,
+  traitCollection: UITraitCollection
+) -> CGFloat {
   guard !traitCollection.isRegularRegular else {
     return 0.0
   }
-   return traitCollection.isVerticallyCompact ? 0.0 : initialTopConstraint
+
+  return traitCollection.isVerticallyCompact ? 0.0 : initialTopConstraint
 }
 
-// Extracts the ref tag stored in cookies for a particular project. Returns `nil` if no such cookie has
-// been previously set.
-private func cookieRefTagFor(project: Project) -> RefTag? {
+private func fetchProject(projectOrParam: Either<Project, Param>, shouldPrefix: Bool)
+  -> SignalProducer<Project, ErrorEnvelope> {
+  let param = projectOrParam.ifLeft({ Param.id($0.id) }, ifRight: id)
 
-  return AppEnvironment.current.cookieStorage.cookies?
-    .filter { cookie in cookie.name == cookieName(project) }
-    .first
-    .map(refTagName(fromCookie:))
-    .flatMap(RefTag.init(code:))
-}
+  let projectProducer = AppEnvironment.current.apiService.fetchProject(param: param)
+    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
 
-// Derives the name of the ref cookie from the project.
-private func cookieName(_ project: Project) -> String {
-  return "ref_\(project.id)"
-}
-
-// Tries to extract the name of the ref tag from a cookie. It has to do double work in case the cookie
-// is accidentally encoded with a `%3F` instead of a `?`.
-private func refTagName(fromCookie cookie: HTTPCookie) -> String {
-
-  return cleanUp(refTagString: cookie.value)
-}
-
-// Tries to remove cruft from a ref tag.
-private func cleanUp(refTag: RefTag) -> RefTag {
-  return RefTag(code: cleanUp(refTagString: refTag.stringTag))
-}
-
-// Tries to remove cruft from a ref tag string.
-private func cleanUp(refTagString: String) -> String {
-
-  let secondPass = refTagString.components(separatedBy: escapedCookieSeparator)
-  if let name = secondPass.first, secondPass.count == 2 {
-    return String(name)
+  if let project = projectOrParam.left, shouldPrefix {
+    return projectProducer.prefix(value: project)
   }
 
-  let firstPass = refTagString.components(separatedBy: cookieSeparator)
-  if let name = firstPass.first, firstPass.count == 2 {
-    return String(name)
-  }
-
-  return refTagString
+  return projectProducer
 }
 
-// Constructs a cookie from a ref tag and project.
-private func cookieFrom(refTag: RefTag, project: Project) -> HTTPCookie? {
-
-  let timestamp = Int(AppEnvironment.current.scheduler.currentDate.timeIntervalSince1970)
-
-  var properties: [HTTPCookiePropertyKey: Any] = [:]
-  properties[.name]    = cookieName(project)
-  properties[.value]   = "\(refTag.stringTag)\(cookieSeparator)\(timestamp)"
-  properties[.domain]  = URL(string: project.urls.web.project)?.host
-  properties[.path]    = URL(string: project.urls.web.project)?.path
-  properties[.version] = 0
-  properties[.expires] = AppEnvironment.current.dateType
-    .init(timeIntervalSince1970: project.dates.deadline).date
-
-  return HTTPCookie(properties: properties)
-}
-
-private func fetchProjectAndLiveStreams(projectOrParam: Either<Project, Param>, shouldPrefix: Bool)
-  -> SignalProducer<(Project, [LiveStreamEvent]?), NoError> {
-
-    let param = projectOrParam.ifLeft({ Param.id($0.id) }, ifRight: id)
-
-    let projectAndLiveStreams = AppEnvironment.current.apiService.fetchProject(param: param)
-      .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-      .demoteErrors()
-      .flatMap { project -> SignalProducer<(Project, [LiveStreamEvent]?), NoError> in
-
-        AppEnvironment.current.liveStreamService
-          .fetchEvents(forProjectId: project.id, uid: AppEnvironment.current.currentUser?.id)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .flatMapError { _ in SignalProducer(error: SomeError()) }
-          .timeout(after: 5, raising: SomeError(), on: AppEnvironment.current.scheduler)
-          .materialize()
-          .map { (project, .some($0.value?.liveStreamEvents ?? [])) }
-          .take(first: 1)
-    }
-
-    if let project = projectOrParam.left, shouldPrefix {
-      return projectAndLiveStreams.prefix(value: (project, nil))
-    }
-    return projectAndLiveStreams
+private func shouldGoToManagePledge(with type: PledgeStateCTAType) -> Bool {
+  return type.isAny(of: .viewBacking, .manage, .fix)
 }

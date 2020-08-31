@@ -4,7 +4,7 @@ import Prelude
 import ReactiveExtensions
 import UIKit
 
-internal protocol BackingCellDelegate: class {
+internal protocol BackingCellDelegate: AnyObject {
   /// Call when should navigate to Backing Info.
   func backingCellGoToBackingInfo()
 }
@@ -12,26 +12,30 @@ internal protocol BackingCellDelegate: class {
 internal final class BackingCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: BackingCellViewModelType = BackingCellViewModel()
 
-  @IBOutlet private weak var backingInfoButton: UIButton!
-  @IBOutlet private weak var deliveryLabel: UILabel!
-  @IBOutlet private weak var dividerView: UIView!
-  @IBOutlet private weak var pledgedLabel: UILabel!
-  @IBOutlet private weak var rewardLabel: UILabel!
-  @IBOutlet private weak var rootStackView: UIStackView!
+  @IBOutlet private var backingInfoButton: UIButton!
+  @IBOutlet private var deliveryLabel: UILabel!
+  @IBOutlet private var dividerView: UIView!
+  @IBOutlet private var pledgedLabel: UILabel!
+  @IBOutlet private var rewardLabel: UILabel!
+  @IBOutlet private var rootStackView: UIStackView!
 
   internal weak var delegate: BackingCellDelegate?
 
   internal override func awakeFromNib() {
     super.awakeFromNib()
 
-    self.backingInfoButton.addTarget(self, action: #selector(backingInfoButtonTapped),
-                                     for: .touchUpInside)
+    self.backingInfoButton.addTarget(
+      self, action: #selector(self.backingInfoButtonTapped),
+      for: .touchUpInside
+    )
   }
 
   internal func configureWith(value: (backing: Backing, project: Project, isFromBacking: Bool)) {
-    self.viewModel.inputs.configureWith(backing: value.backing,
-                                        project: value.project,
-                                        isFromBacking: value.isFromBacking)
+    self.viewModel.inputs.configureWith(
+      backing: value.backing,
+      project: value.project,
+      isFromBacking: value.isFromBacking
+    )
   }
 
   internal override func bindStyles() {
@@ -43,16 +47,16 @@ internal final class BackingCell: UITableViewCell, ValueCell {
         cell.traitCollection.isRegularRegular
           ? .init(topBottom: Styles.grid(6), leftRight: Styles.grid(16))
           : .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
-    }
+      }
 
     _ = self.backingInfoButton
-      |> borderButtonStyle
+      |> greyButtonStyle
       |> UIButton.lens.title(for: .normal) %~ { _ in Strings.backing_info_info_button() }
       |> UIButton.lens.contentEdgeInsets %~~ { _, button in
         button.traitCollection.isRegularRegular
           ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(3))
           : .init(topBottom: Styles.gridHalf(3), leftRight: Styles.gridHalf(5))
-    }
+      }
 
     _ = self.deliveryLabel
       |> UILabel.lens.textColor .~ .ksr_dark_grey_500
@@ -62,7 +66,7 @@ internal final class BackingCell: UITableViewCell, ValueCell {
       |> separatorStyle
 
     _ = self.pledgedLabel
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
       |> UILabel.lens.font .~ UIFont.ksr_headline()
 
     _ = self.rewardLabel

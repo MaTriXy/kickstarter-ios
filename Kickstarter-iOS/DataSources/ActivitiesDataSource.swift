@@ -5,6 +5,7 @@ import UIKit
 
 internal final class ActivitiesDataSource: ValueCellDataSource {
   internal enum Section: Int {
+    case erroredBackings
     case surveys
     case facebookConnect
     case findFriends
@@ -12,15 +13,19 @@ internal final class ActivitiesDataSource: ValueCellDataSource {
   }
 
   internal func facebookConnect(source: FriendsSource, visible: Bool) {
-    self.set(values: visible ? [source] : [],
-             cellClass: FindFriendsFacebookConnectCell.self,
-             inSection: Section.facebookConnect.rawValue)
+    self.set(
+      values: visible ? [source] : [],
+      cellClass: FindFriendsFacebookConnectCell.self,
+      inSection: Section.facebookConnect.rawValue
+    )
   }
 
   internal func findFriends(source: FriendsSource, visible: Bool) {
-    self.set(values: visible ? [source] : [],
-             cellClass: FindFriendsHeaderCell.self,
-             inSection: Section.findFriends.rawValue)
+    self.set(
+      values: visible ? [source] : [],
+      cellClass: FindFriendsHeaderCell.self,
+      inSection: Section.findFriends.rawValue
+    )
   }
 
   internal func removeFacebookConnectRows() -> [IndexPath] {
@@ -35,14 +40,28 @@ internal final class ActivitiesDataSource: ValueCellDataSource {
     return [IndexPath(row: 0, section: Section.findFriends.rawValue)]
   }
 
+  internal func load(erroredBackings: [GraphBacking]) {
+    self.clearValues(section: Section.erroredBackings.rawValue)
+
+    guard !erroredBackings.isEmpty else { return }
+
+    self.set(
+      values: [erroredBackings],
+      cellClass: ActivityErroredBackingsCell.self,
+      inSection: Section.erroredBackings.rawValue
+    )
+  }
+
   internal func load(surveys: [SurveyResponse]) {
     let surveysWithPosition = surveys.enumerated().map { idx, survey in
       (surveyResponse: survey, count: surveys.count, position: idx)
     }
 
-    self.set(values: surveysWithPosition,
-             cellClass: ActivitySurveyResponseCell.self,
-             inSection: Section.surveys.rawValue)
+    self.set(
+      values: surveysWithPosition,
+      cellClass: ActivitySurveyResponseCell.self,
+      inSection: Section.surveys.rawValue
+    )
   }
 
   internal func load(activities: [Activity]) {
@@ -68,6 +87,8 @@ internal final class ActivitiesDataSource: ValueCellDataSource {
 
   override func configureCell(tableCell cell: UITableViewCell, withValue value: Any) {
     switch (cell, value) {
+    case let (cell as ActivityErroredBackingsCell, value as [GraphBacking]):
+      cell.configureWith(value: value)
     case let (cell as ActivityUpdateCell, activity as Activity):
       cell.configureWith(value: activity)
     case let (cell as ActivityFriendBackingCell, activity as Activity):

@@ -1,43 +1,40 @@
-// swiftlint:disable force_cast
-import XCTest
-@testable import Library
 @testable import KsApi
-@testable import ReactiveExtensions_TestHelpers
-import Result
-import KsApi
+@testable import Library
 import Prelude
+import ReactiveExtensions_TestHelpers
+import XCTest
 
 final class FindFriendsHeaderCellViewModelTests: TestCase {
   let vm: FindFriendsHeaderCellViewModelType = FindFriendsHeaderCellViewModel()
 
-  let notifyPresenterGoToFriends = TestObserver<(), NoError>()
-  let notifyPresenterToDismissHeader = TestObserver<(), NoError>()
+  let notifyPresenterGoToFriends = TestObserver<(), Never>()
+  let notifyPresenterToDismissHeader = TestObserver<(), Never>()
 
   override func setUp() {
     super.setUp()
 
-    vm.outputs.notifyDelegateGoToFriends.observe(notifyPresenterGoToFriends.observer)
-    vm.outputs.notifyDelegateToDismissHeader.observe(notifyPresenterToDismissHeader.observer)
+    self.vm.outputs.notifyDelegateGoToFriends.observe(self.notifyPresenterGoToFriends.observer)
+    self.vm.outputs.notifyDelegateToDismissHeader.observe(self.notifyPresenterToDismissHeader.observer)
   }
 
   func testGoToFriends() {
-    vm.inputs.configureWith(source: FriendsSource.activity)
+    self.vm.inputs.configureWith(source: FriendsSource.activity)
 
-    notifyPresenterGoToFriends.assertValueCount(0)
+    self.notifyPresenterGoToFriends.assertValueCount(0)
 
-    vm.inputs.findFriendsButtonTapped()
+    self.vm.inputs.findFriendsButtonTapped()
 
-    notifyPresenterGoToFriends.assertValueCount(1)
+    self.notifyPresenterGoToFriends.assertValueCount(1)
   }
 
   func testDismissal() {
-    vm.inputs.configureWith(source: FriendsSource.activity)
+    self.vm.inputs.configureWith(source: FriendsSource.activity)
 
-    notifyPresenterToDismissHeader.assertValueCount(0)
+    self.notifyPresenterToDismissHeader.assertValueCount(0)
 
-    vm.inputs.closeButtonTapped()
+    self.vm.inputs.closeButtonTapped()
 
-    notifyPresenterToDismissHeader.assertValueCount(1)
+    self.notifyPresenterToDismissHeader.assertValueCount(1)
     XCTAssertEqual(["Close Find Friends"], self.trackingClient.events)
     XCTAssertEqual(["activity"], self.trackingClient.properties.map { $0["source"] as! String? })
   }

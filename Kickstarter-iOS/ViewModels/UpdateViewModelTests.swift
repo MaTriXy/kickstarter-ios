@@ -1,12 +1,10 @@
-// swiftlint:disable force_unwrapping
-@testable import Library
 @testable import Kickstarter_Framework
 @testable import KsApi
-@testable import ReactiveExtensions_TestHelpers
-import KsApi
+@testable import Library
 import Prelude
+import ReactiveExtensions_TestHelpers
 import ReactiveSwift
-import Result
+import WebKit
 import XCTest
 
 final class UpdateViewModelTests: TestCase {
@@ -16,11 +14,11 @@ final class UpdateViewModelTests: TestCase {
   fileprivate let update = .template
     |> Update.lens.projectId .~ 1
 
-  fileprivate let goToComments = TestObserver<Update, NoError>()
-  fileprivate let goToProject = TestObserver<Project, NoError>()
-  fileprivate let goToSafariBrowser = TestObserver<URL, NoError>()
-  fileprivate let title = TestObserver<String, NoError>()
-  fileprivate let webViewLoadRequest = TestObserver<String?, NoError>()
+  fileprivate let goToComments = TestObserver<Update, Never>()
+  fileprivate let goToProject = TestObserver<Project, Never>()
+  fileprivate let goToSafariBrowser = TestObserver<URL, Never>()
+  fileprivate let title = TestObserver<String, Never>()
+  fileprivate let webViewLoadRequest = TestObserver<String?, Never>()
 
   override func setUp() {
     super.setUp()
@@ -65,7 +63,6 @@ final class UpdateViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     withEnvironment(apiService: MockService(fetchUpdateResponse: prevUpdate)) {
-
       let request = URLRequest(url: prevUpdateUrl)
       let navigationAction = WKNavigationActionData(
         navigationType: .linkActivated,
@@ -107,7 +104,6 @@ final class UpdateViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
 
     withEnvironment(apiService: MockService(fetchProjectResponse: anotherProject)) {
-
       let request = URLRequest(url: anotherProjectUrl)
       let navigationAction = WKNavigationActionData(
         navigationType: .linkActivated,
@@ -145,9 +141,13 @@ final class UpdateViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: commentsRequest)
     )
 
-    XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue,
-                   self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue)
+    XCTAssertEqual(
+      WKNavigationActionPolicy.cancel.rawValue,
+      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+    )
     self.goToComments.assertValues([self.update])
+    self.goToProject.assertDidNotEmitValue()
+    self.goToSafariBrowser.assertDidNotEmitValue()
   }
 
   func testGoToSafariBrowser() {
@@ -162,9 +162,12 @@ final class UpdateViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: updateRequest)
     )
 
-    XCTAssertEqual(WKNavigationActionPolicy.allow.rawValue,
-                   self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue)
+    XCTAssertEqual(
+      WKNavigationActionPolicy.allow.rawValue,
+      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+    )
     self.webViewLoadRequest.assertValueCount(1)
+    self.goToSafariBrowser.assertDidNotEmitValue()
 
     let outsideUrl = URL(string: "http://www.wikipedia.com")!
     let outsideRequest = URLRequest(url: outsideUrl)
@@ -176,14 +179,83 @@ final class UpdateViewModelTests: TestCase {
       targetFrame: WKFrameInfoData(mainFrame: true, request: outsideRequest)
     )
 
-    XCTAssertEqual(WKNavigationActionPolicy.cancel.rawValue,
-                   self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue)
+    XCTAssertEqual(
+      WKNavigationActionPolicy.cancel.rawValue,
+      self.vm.inputs.decidePolicyFor(navigationAction: navigationAction).rawValue
+    )
     self.goToComments.assertValueCount(0)
     self.goToProject.assertValueCount(0)
     self.webViewLoadRequest.assertValueCount(1)
     self.goToSafariBrowser.assertValues([outsideUrl])
 
     XCTAssertEqual(["Opened External Link"], self.trackingClient.events)
-    XCTAssertEqual("project_update", self.trackingClient.properties.last!["context"] as? String)
+    XCTAssertEqual("project_update", self.trackingClient.properties.last?["context"] as? String)
+  }
+
+  func testGoToSafariBrowser_PrelaunchProject() {
+    let prelaunchProject = Project.template
+      |> Project.lens.id .~ 10
+      |> Project.lens.prelaunchActivated .~ true
+    let prelaunchProjectURL = URL(string: prelaunchProject.urls.web.project)
+      .flatMap { $0.deletingLastPathComponent() }
+      .map { $0.appendingPathComponent(String(prelaunchProject.id)) }!
+
+    self.vm.inputs.configureWith(project: self.project, update: self.update)
+    self.vm.inputs.viewDidLoad()
+
+    withEnvironment(apiService: MockService(fetchProjectResponse: prelaunchProject)) {
+      guard let google = URL(string: "https://www.google.com") else {
+        XCTFail("Should have a URL")
+        return
+      }
+
+      let request1 = URLRequest(url: google)
+
+      let navigationAction1 = WKNavigationActionData(
+        navigationType: .other,
+        request: request1,
+        sourceFrame: WKFrameInfoData(mainFrame: true, request: request1),
+        targetFrame: WKFrameInfoData(mainFrame: true, request: request1)
+      )
+
+      XCTAssertEqual(
+        WKNavigationActionPolicy.allow.rawValue,
+        self.vm.inputs.decidePolicyFor(navigationAction: navigationAction1).rawValue
+      )
+
+      self.scheduler.run()
+
+      self.goToProject.assertDidNotEmitValue()
+      self.goToComments.assertDidNotEmitValue()
+      self.webViewLoadRequest.assertValueCount(1, "Initial update load request")
+      self.goToSafariBrowser.assertValues([])
+
+      XCTAssertEqual([], self.trackingClient.events)
+      XCTAssertEqual(nil, self.trackingClient.properties.last?["context"] as? String)
+
+      let request2 = URLRequest(url: prelaunchProjectURL)
+
+      let navigationAction2 = WKNavigationActionData(
+        navigationType: .linkActivated,
+        request: request2,
+        sourceFrame: WKFrameInfoData(mainFrame: true, request: request2),
+        targetFrame: WKFrameInfoData(mainFrame: true, request: request2)
+      )
+
+      XCTAssertEqual(
+        WKNavigationActionPolicy.cancel.rawValue,
+        self.vm.inputs.decidePolicyFor(navigationAction: navigationAction2).rawValue
+      )
+
+      self.scheduler.run()
+
+      self.goToProject.assertDidNotEmitValue()
+      self.goToComments.assertDidNotEmitValue()
+      self.webViewLoadRequest.assertValueCount(1, "Initial update load request")
+      self.goToSafariBrowser.assertValues([prelaunchProjectURL])
+
+      XCTAssertEqual(["Opened External Link"], self.trackingClient.events)
+      XCTAssertEqual("project_update", self.trackingClient.properties.last?["context"] as? String)
+    }
   }
 }

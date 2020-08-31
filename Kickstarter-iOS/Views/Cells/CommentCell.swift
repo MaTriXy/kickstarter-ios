@@ -1,38 +1,44 @@
-import Library
 import KsApi
+import Library
 import Prelude
 import UIKit
 
 internal final class CommentCell: UITableViewCell, ValueCell {
   fileprivate let viewModel = CommentCellViewModel()
 
-  @IBOutlet fileprivate weak var authorAndTimestampStackView: UIStackView!
-  @IBOutlet fileprivate weak var authorStackView: UIStackView!
-  @IBOutlet fileprivate weak var avatarImageView: UIImageView!
-  @IBOutlet fileprivate weak var bodyTextView: UITextView!
-  @IBOutlet fileprivate weak var commentStackView: UIStackView!
-  @IBOutlet fileprivate weak var creatorLabel: UILabel!
-  @IBOutlet fileprivate weak var creatorView: UIView!
-  @IBOutlet fileprivate weak var nameLabel: UILabel!
-  @IBOutlet fileprivate weak var rootStackView: UIStackView!
-  @IBOutlet fileprivate weak var separatorView: UIView!
-  @IBOutlet fileprivate weak var timestampLabel: UILabel!
-  @IBOutlet fileprivate weak var youLabel: UILabel!
-  @IBOutlet fileprivate weak var youView: UIView!
+  @IBOutlet fileprivate var authorAndTimestampStackView: UIStackView!
+  @IBOutlet fileprivate var authorStackView: UIStackView!
+  @IBOutlet fileprivate var avatarImageView: UIImageView!
+  @IBOutlet fileprivate var bodyTextView: UITextView!
+  @IBOutlet fileprivate var commentStackView: UIStackView!
+  @IBOutlet fileprivate var creatorLabel: UILabel!
+  @IBOutlet fileprivate var creatorView: UIView!
+  @IBOutlet fileprivate var nameLabel: UILabel!
+  @IBOutlet fileprivate var rootStackView: UIStackView!
+  @IBOutlet fileprivate var separatorView: UIView!
+  @IBOutlet fileprivate var timestampLabel: UILabel!
+  @IBOutlet fileprivate var youLabel: UILabel!
+  @IBOutlet fileprivate var youView: UIView!
 
   internal override func bindStyles() {
     super.bindStyles()
 
+    let cellBackgroundColor = UIColor.white
+
     _ = self
       |> baseTableViewCellStyle()
-      |> UITableViewCell.lens.backgroundColor .~ .white
+      |> UITableViewCell.lens.backgroundColor .~ cellBackgroundColor
       |> UITableViewCell.lens.contentView.layoutMargins .~
       .init(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
+
+    _ = self.avatarImageView
+      |> ignoresInvertColorsImageViewStyle
 
     _ = self.bodyTextView
       |> UITextView.lens.isScrollEnabled .~ false
       |> UITextView.lens.textContainerInset .~ UIEdgeInsets.zero
       |> UITextView.lens.textContainer.lineFragmentPadding .~ 0
+      |> UITextView.lens.backgroundColor .~ cellBackgroundColor
 
     _ = self.authorAndTimestampStackView
       |> UIStackView.lens.spacing .~ Styles.gridHalf(1)
@@ -42,19 +48,22 @@ internal final class CommentCell: UITableViewCell, ValueCell {
 
     _ = self.commentStackView
       |> UIStackView.lens.spacing .~ Styles.grid(2)
+      |> UIStackView.lens.backgroundColor .~ cellBackgroundColor
 
     _ = self.creatorLabel
       |> authorBadgeLabelStyle
       |> UILabel.lens.textColor .~ .white
       |> UILabel.lens.text %~ { _ in Strings.update_comments_creator() }
+      |> UILabel.lens.backgroundColor .~ .ksr_soft_black
 
     _ = self.creatorView
       |> authorBadgeViewStyle
-      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_900
+      |> UIView.lens.backgroundColor .~ .ksr_soft_black
 
     _ = self.nameLabel
       |> UILabel.lens.font .~ .ksr_headline(size: 16.0)
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
+      |> UILabel.lens.backgroundColor .~ cellBackgroundColor
 
     _ = self.rootStackView
       |> UIStackView.lens.spacing .~ Styles.grid(2)
@@ -65,6 +74,7 @@ internal final class CommentCell: UITableViewCell, ValueCell {
     _ = self.timestampLabel
       |> UILabel.lens.font .~ .ksr_body(size: 12.0)
       |> UILabel.lens.textColor .~ .ksr_text_dark_grey_400
+      |> UILabel.lens.backgroundColor .~ cellBackgroundColor
 
     _ = self.youLabel
       |> authorBadgeLabelStyle
@@ -80,25 +90,25 @@ internal final class CommentCell: UITableViewCell, ValueCell {
     self.viewModel.outputs.avatarUrl
       .observeForUI()
       .on(event: { [weak self] _ in
-        self?.avatarImageView.af_cancelImageRequest()
+        self?.avatarImageView.af.cancelImageRequest()
         self?.avatarImageView.image = nil
-        })
+      })
       .skipNil()
       .observeValues { [weak self] url in
-        self?.avatarImageView.af_setImage(withURL: url)
-    }
+        self?.avatarImageView.af.setImage(withURL: url)
+      }
 
     self.viewModel.outputs.bodyColor
       .observeForUI()
       .observeValues { [weak self] color in
         self?.bodyTextView.textColor = color
-    }
+      }
 
     self.viewModel.outputs.bodyFont
       .observeForUI()
       .observeValues { [weak self] font in
         self?.bodyTextView.font = font
-    }
+      }
 
     self.bodyTextView.rac.text = self.viewModel.outputs.body
     self.creatorView.rac.hidden = self.viewModel.outputs.creatorHidden

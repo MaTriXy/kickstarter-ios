@@ -5,14 +5,13 @@ import ReactiveSwift
 import UIKit
 
 internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
-
-  @IBOutlet fileprivate weak var avatarImageView: CircleAvatarImageView!
-  @IBOutlet fileprivate weak var friendNameLabel: UILabel!
-  @IBOutlet fileprivate weak var friendLocationLabel: UILabel!
-  @IBOutlet fileprivate weak var projectsBackedLabel: UILabel!
-  @IBOutlet fileprivate weak var projectsCreatedLabel: UILabel!
-  @IBOutlet fileprivate weak var followButton: UIButton!
-  @IBOutlet fileprivate weak var unfollowButton: UIButton!
+  @IBOutlet fileprivate var avatarImageView: CircleAvatarImageView!
+  @IBOutlet fileprivate var friendNameLabel: UILabel!
+  @IBOutlet fileprivate var friendLocationLabel: UILabel!
+  @IBOutlet fileprivate var projectsBackedLabel: UILabel!
+  @IBOutlet fileprivate var projectsCreatedLabel: UILabel!
+  @IBOutlet fileprivate var followButton: UIButton!
+  @IBOutlet fileprivate var unfollowButton: UIButton!
 
   fileprivate let viewModel: FindFriendsFriendFollowCellViewModelType = FindFriendsFriendFollowCellViewModel()
 
@@ -48,20 +47,23 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
     self.viewModel.outputs.imageURL
       .observeForUI()
       .on(event: { [weak avatarImageView] _ in
-        avatarImageView?.af_cancelImageRequest()
+        avatarImageView?.af.cancelImageRequest()
         avatarImageView?.image = nil
-        })
+      })
       .skipNil()
       .observeValues { [weak avatarImageView] url in
         avatarImageView?.ksr_setImageWithURL(url)
-    }
+      }
   }
 
   override func bindStyles() {
     super.bindStyles()
 
+    _ = self.avatarImageView
+      |> ignoresInvertColorsImageViewStyle
+
     _ = self.friendNameLabel
-      |> UILabel.lens.textColor .~ .ksr_text_dark_grey_900
+      |> UILabel.lens.textColor .~ .ksr_soft_black
       |> UILabel.lens.font .~ UIFont.ksr_headline(size: 14.0)
 
     _ = self.self.friendLocationLabel
@@ -77,19 +79,16 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
       |> UILabel.lens.font .~ .ksr_footnote()
 
     _ = self.followButton
-      |> navyButtonStyle
-      |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
-      |> UIButton.lens.targets .~ [(self, action: #selector(followButtonTapped), .touchUpInside)]
+      |> blackButtonStyle
+      |> UIButton.lens.targets .~ [(self, action: #selector(self.followButtonTapped), .touchUpInside)]
       |> UIButton.lens.title(for: .normal) %~ { _ in Strings.social_following_friend_buttons_follow() }
 
     _ = self.unfollowButton
-      |> lightNavyButtonStyle
-      |> UIButton.lens.titleLabel.font .~ .ksr_headline(size: 12)
-      |> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_navy_600
-      |> UIButton.lens.targets .~ [(self, action: #selector(unfollowButtonTapped), .touchUpInside)]
+      |> greyButtonStyle
+      |> UIButton.lens.targets .~ [(self, action: #selector(self.unfollowButtonTapped), .touchUpInside)]
       |> UIButton.lens.title(for: .normal) %~ { _ in
         Strings.social_following_friend_buttons_following()
-    }
+      }
 
     _ = self
       |> baseTableViewCellStyle()
@@ -98,7 +97,7 @@ internal final class FindFriendsFriendFollowCell: UITableViewCell, ValueCell {
         cell.traitCollection.isRegularRegular
           ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(20))
           : .init(all: Styles.grid(2))
-    }
+      }
   }
 
   @objc func followButtonTapped() {

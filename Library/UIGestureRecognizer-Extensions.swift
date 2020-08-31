@@ -1,11 +1,11 @@
-import enum UIKit.UIGestureRecognizerState
+import UIKit
 
-public extension UIGestureRecognizerState {
-  public var isStartingState: Bool {
+public extension UIGestureRecognizer.State {
+  var isStartingState: Bool {
     return self == .began
   }
 
-  public var isTerminatingState: Bool {
+  var isTerminatingState: Bool {
     return self == .cancelled || self == .ended || self == .failed
   }
 }

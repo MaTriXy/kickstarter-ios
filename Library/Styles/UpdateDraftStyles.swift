@@ -32,11 +32,13 @@ public let updateBackersOnlyButtonStyle =
     <> UIButton.lens.image(for: .selected) %~ { _ in
       image(named: "update-draft-visibility-backers-only-icon")
     }
+
     <> UIButton.lens.tintColor .~ .ksr_navy_600
     <> UIButton.lens.title(for: .normal) %~ { _ in Strings.dashboard_post_update_compose_public_label() }
     <> UIButton.lens.title(for: .selected) %~ { _ in
       Strings.dashboard_post_update_compose_private_label()
     }
+
     <> UIButton.lens.titleColor(for: .normal) .~ .ksr_text_navy_600
     <> UIButton.lens.titleEdgeInsets .~ .init(top: 0, left: 7, bottom: 0, right: 0)
     <> UIButton.lens.titleLabel.font %~ { _ in .ksr_caption1() }
@@ -58,6 +60,7 @@ public let updateAddAttachmentExpandedButtonStyle =
     <> UIButton.lens.title(for: .normal) %~ { _ in
       Strings.dashboard_post_update_compose_attachment_buttons_add_attachment()
     }
+
     <> UIButton.lens.titleLabel.font %~ { _ in .ksr_caption1() }
 
 public let updateAttachmentsScrollViewStyle =

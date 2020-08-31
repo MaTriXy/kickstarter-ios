@@ -7,18 +7,18 @@ import UIKit
 internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
   fileprivate let viewModel: BackerDashboardProjectCellViewModelType = BackerDashboardProjectCellViewModel()
 
-  @IBOutlet fileprivate weak var cardView: UIView!
-  @IBOutlet fileprivate weak var mainContentContainerView: UIView!
-  @IBOutlet fileprivate weak var metadataBackgroundView: UIView!
-  @IBOutlet fileprivate weak var metadataIconImageView: UIImageView!
-  @IBOutlet fileprivate weak var metadataLabel: UILabel!
-  @IBOutlet fileprivate weak var metadataStackView: UIStackView!
-  @IBOutlet fileprivate weak var percentFundedLabel: UILabel!
-  @IBOutlet fileprivate weak var projectNameLabel: UILabel!
-  @IBOutlet fileprivate weak var projectImageView: UIImageView!
-  @IBOutlet fileprivate weak var progressStaticView: UIView!
-  @IBOutlet fileprivate weak var progressBarView: UIView!
-  @IBOutlet fileprivate weak var savedIconImageView: UIImageView!
+  @IBOutlet fileprivate var cardView: UIView!
+  @IBOutlet fileprivate var mainContentContainerView: UIView!
+  @IBOutlet fileprivate var metadataBackgroundView: UIView!
+  @IBOutlet fileprivate var metadataIconImageView: UIImageView!
+  @IBOutlet fileprivate var metadataLabel: UILabel!
+  @IBOutlet fileprivate var metadataStackView: UIStackView!
+  @IBOutlet fileprivate var percentFundedLabel: UILabel!
+  @IBOutlet fileprivate var projectNameLabel: UILabel!
+  @IBOutlet fileprivate var projectImageView: UIImageView!
+  @IBOutlet fileprivate var progressStaticView: UIView!
+  @IBOutlet fileprivate var progressBarView: UIView!
+  @IBOutlet fileprivate var savedIconImageView: UIImageView!
 
   internal func configureWith(value: Project) {
     self.viewModel.inputs.configureWith(project: value)
@@ -30,7 +30,7 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
     self.metadataIconImageView.rac.hidden = self.viewModel.outputs.metadataIconIsHidden
     self.percentFundedLabel.rac.attributedText = self.viewModel.outputs.percentFundedText
     self.projectNameLabel.rac.attributedText = self.viewModel.outputs.projectTitleText
-    self.projectImageView.rac.imageUrl = self.viewModel.outputs.photoURL
+    self.projectImageView.rac.ksr_imageUrl = self.viewModel.outputs.photoURL
     self.progressBarView.rac.backgroundColor = self.viewModel.outputs.progressBarColor
     self.savedIconImageView.rac.hidden = self.viewModel.outputs.savedIconIsHidden
 
@@ -40,7 +40,7 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
         let anchorX = progress == 0 ? 0 : 0.5 / progress
         element?.layer.anchorPoint = CGPoint(x: CGFloat(max(anchorX, 0.5)), y: 0.5)
         element?.transform = CGAffineTransform(scaleX: CGFloat(min(progress, 1.0)), y: 1.0)
-    }
+      }
   }
 
   internal override func bindStyles() {
@@ -50,21 +50,23 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
       |> baseTableViewCellStyle()
       |> UITableViewCell.lens.isAccessibilityElement .~ true
       |> UITableViewCell.lens.accessibilityHint %~ { _ in Strings.Opens_project() }
-      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraits.button
       |> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
         cell.traitCollection.isRegularRegular
           ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(20))
           : .init(topBottom: Styles.grid(1), leftRight: Styles.grid(2))
-    }
+      }
 
     _ = self.cardView
       |> cardStyle()
 
     _ = self.mainContentContainerView
-      |> UIView.lens.layoutMargins .~ .init(top: Styles.gridHalf(3),
-                                            left: Styles.grid(2),
-                                            bottom: Styles.grid(1),
-                                            right: Styles.grid(2))
+      |> UIView.lens.layoutMargins .~ .init(
+        top: Styles.gridHalf(3),
+        left: Styles.grid(2),
+        bottom: Styles.grid(1),
+        right: Styles.grid(2)
+      )
 
     _ = self.metadataBackgroundView
       |> UIView.lens.layer.borderColor .~ UIColor.white.cgColor
@@ -80,9 +82,18 @@ internal final class BackerDashboardProjectCell: UITableViewCell, ValueCell {
     _ = self.metadataIconImageView
       |> UIImageView.lens.tintColor .~ .white
 
+    _ = self.percentFundedLabel
+      |> UILabel.lens.backgroundColor .~ .white
+
+    _ = self.projectNameLabel
+      |> UILabel.lens.backgroundColor .~ .white
+
     _ = self.progressStaticView
-      |> UIView.lens.backgroundColor .~ .ksr_dark_grey_900
+      |> UIView.lens.backgroundColor .~ .ksr_soft_black
       |> UIView.lens.alpha .~ 0.15
+
+    _ = self.projectImageView
+      |> ignoresInvertColorsImageViewStyle
 
     _ = self.savedIconImageView
       |> UIImageView.lens.tintColor .~ .init(white: 1.0, alpha: 0.99)

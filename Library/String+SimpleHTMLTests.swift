@@ -1,10 +1,8 @@
-import XCTest
 @testable import Library
+import XCTest
 
 final class StringSimpleHTMLTests: XCTestCase {
-
   func testHtmlParsing() {
-
     let font = UIFont.systemFont(ofSize: 12.0)
     let html = "<b>Hello</b> <i>Brandon</i>, how are you?"
     let stripped = "Hello Brandon, how are you?"
@@ -29,7 +27,7 @@ final class StringSimpleHTMLTests: XCTestCase {
       return
     }
 
-    let extractedBold = string.attribute(NSAttributedStringKey.font, at: 1, effectiveRange: nil) as? UIFont
+    let extractedBold = string.attribute(NSAttributedString.Key.font, at: 1, effectiveRange: nil) as? UIFont
 
     if let testBold = extractedBold {
       XCTAssertEqual(testBold.pointSize, bold.pointSize)
@@ -38,7 +36,7 @@ final class StringSimpleHTMLTests: XCTestCase {
       XCTAssertTrue(false, "Couldn't find font in attributed string")
     }
 
-    let extractedItalic = string.attribute(NSAttributedStringKey.font, at: 7, effectiveRange: nil) as? UIFont
+    let extractedItalic = string.attribute(NSAttributedString.Key.font, at: 7, effectiveRange: nil) as? UIFont
     if let testItalic = extractedItalic {
       XCTAssertEqual(testItalic.pointSize, italic.pointSize)
       XCTAssert(testItalic.fontDescriptor.symbolicTraits.contains(.traitItalic))
@@ -46,7 +44,7 @@ final class StringSimpleHTMLTests: XCTestCase {
       XCTAssertTrue(false, "Couldn't find font in attributed string")
     }
 
-    let extractedBase = string.attribute(NSAttributedStringKey.font, at: 16, effectiveRange: nil) as? UIFont
+    let extractedBase = string.attribute(NSAttributedString.Key.font, at: 16, effectiveRange: nil) as? UIFont
     if let testBase = extractedBase {
       XCTAssertEqual(testBase.pointSize, font.pointSize)
       XCTAssertFalse(testBase.fontDescriptor.symbolicTraits.contains(.traitBold))
@@ -66,7 +64,7 @@ final class StringSimpleHTMLTests: XCTestCase {
       XCTAssert(false, "Couldn't parse HTML string")
     }
 
-    let extractedBold = string?.attribute(NSAttributedStringKey.font, at: 1, effectiveRange: nil) as? UIFont
+    let extractedBold = string?.attribute(NSAttributedString.Key.font, at: 1, effectiveRange: nil) as? UIFont
     if let testBold = extractedBold {
       XCTAssertEqual(testBold.pointSize, font.pointSize)
       XCTAssert(testBold.fontDescriptor.symbolicTraits.contains(.traitBold))
@@ -74,7 +72,11 @@ final class StringSimpleHTMLTests: XCTestCase {
       XCTAssert(false, "Couldn't find font in attributed string")
     }
 
-    let extractedItalic = string?.attribute(NSAttributedStringKey.font, at: 7, effectiveRange: nil) as? UIFont
+    let extractedItalic = string?.attribute(
+      NSAttributedString.Key.font,
+      at: 7,
+      effectiveRange: nil
+    ) as? UIFont
     if let testItalic = extractedItalic {
       XCTAssertEqual(testItalic.pointSize, font.pointSize)
       XCTAssert(testItalic.fontDescriptor.symbolicTraits.contains(.traitItalic))
@@ -82,7 +84,11 @@ final class StringSimpleHTMLTests: XCTestCase {
       XCTAssertTrue(false, "Couldn't find font in attributed string")
     }
 
-    let extractedBase = string?.attribute(NSAttributedStringKey.font, at: 16, effectiveRange: nil) as? UIFont
+    let extractedBase = string?.attribute(
+      NSAttributedString.Key.font,
+      at: 16,
+      effectiveRange: nil
+    ) as? UIFont
     if let testBase = extractedBase {
       XCTAssertEqual(testBase.pointSize, font.pointSize)
       XCTAssertFalse(testBase.fontDescriptor.symbolicTraits.contains(.traitBold))

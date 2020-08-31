@@ -1,17 +1,15 @@
 import Argo
-import Runes
 import FBSDKCoreKit
 import Foundation
 import KsApi
-import LiveStream
 import Prelude
 import ReactiveSwift
-import Result
+import Runes
 
 /**
  A global stack that captures the current state of global objects that the app wants access to.
  */
-public struct AppEnvironment {
+public struct AppEnvironment: AppEnvironmentType {
   internal static let environmentStorageKey = "com.kickstarter.AppEnvironment.current"
   internal static let oauthTokenStorageKey = "com.kickstarter.AppEnvironment.oauthToken"
 
@@ -27,10 +25,10 @@ public struct AppEnvironment {
    - parameter envelope: An access token envelope with the api access token and user.
    */
   public static func login(_ envelope: AccessTokenEnvelope) {
-    replaceCurrentEnvironment(
-      apiService: current.apiService.login(OauthToken(token: envelope.accessToken)),
+    self.replaceCurrentEnvironment(
+      apiService: self.current.apiService.login(OauthToken(token: envelope.accessToken)),
       currentUser: envelope.user,
-      koala: current.koala |> Koala.lens.loggedInUser .~ envelope.user
+      koala: self.current.koala |> Koala.lens.loggedInUser .~ envelope.user
     )
   }
 
@@ -41,14 +39,25 @@ public struct AppEnvironment {
    - parameter user: A user model.
    */
   public static func updateCurrentUser(_ user: User) {
-    replaceCurrentEnvironment(
+    self.replaceCurrentEnvironment(
       currentUser: user,
-      koala: current.koala |> Koala.lens.loggedInUser .~ user
+      koala: self.current.koala |> Koala.lens.loggedInUser .~ user
+    )
+  }
+
+  public static func updateDebugData(_ debugData: DebugData) {
+    self.replaceCurrentEnvironment(
+      debugData: debugData
+    )
+  }
+
+  public static func updateOptimizelyClient(_ optimizelyClient: OptimizelyClientType?) {
+    self.replaceCurrentEnvironment(
+      optimizelyClient: optimizelyClient
     )
   }
 
   public static func updateServerConfig(_ config: ServerConfigType) {
-
     let service = Service(serverConfig: config)
 
     replaceCurrentEnvironment(
@@ -57,10 +66,17 @@ public struct AppEnvironment {
   }
 
   public static func updateConfig(_ config: Config) {
-    replaceCurrentEnvironment(
-      config: config,
-      koala: AppEnvironment.current.koala |> Koala.lens.config .~ config
+    let debugConfigOrConfig = self.current.debugData?.config ?? config
+
+    self.replaceCurrentEnvironment(
+      config: debugConfigOrConfig,
+      countryCode: debugConfigOrConfig.countryCode,
+      koala: AppEnvironment.current.koala |> Koala.lens.config .~ debugConfigOrConfig
     )
+  }
+
+  public static func updateLanguage(_ language: Language) {
+    self.replaceCurrentEnvironment(language: language)
   }
 
   // Invoke when you want to end the user's session.
@@ -68,11 +84,11 @@ public struct AppEnvironment {
     let storage = AppEnvironment.current.cookieStorage
     storage.cookies?.forEach(storage.deleteCookie)
 
-    replaceCurrentEnvironment(
+    self.replaceCurrentEnvironment(
       apiService: AppEnvironment.current.apiService.logout(),
       cache: type(of: AppEnvironment.current.cache).init(),
       currentUser: nil,
-      koala: current.koala |> Koala.lens.loggedInUser .~ nil
+      koala: self.current.koala |> Koala.lens.loggedInUser .~ nil
     )
   }
 
@@ -83,76 +99,88 @@ public struct AppEnvironment {
 
   // Push a new environment onto the stack.
   public static func pushEnvironment(_ env: Environment) {
-    saveEnvironment(environment: env, ubiquitousStore: env.ubiquitousStore, userDefaults: env.userDefaults)
-    stack.append(env)
+    self.saveEnvironment(
+      environment: env, ubiquitousStore: env.ubiquitousStore, userDefaults: env.userDefaults
+    )
+    self.stack.append(env)
   }
 
   // Pop an environment off the stack.
   @discardableResult
   public static func popEnvironment() -> Environment? {
-    let last = stack.popLast()
-    let next = current ?? Environment()
-    saveEnvironment(environment: next,
-                    ubiquitousStore: next.ubiquitousStore,
-                    userDefaults: next.userDefaults)
+    let last = self.stack.popLast()
+    let next = self.current ?? Environment()
+    self.saveEnvironment(
+      environment: next,
+      ubiquitousStore: next.ubiquitousStore,
+      userDefaults: next.userDefaults
+    )
     return last
   }
 
   // Replace the current environment with a new environment.
   public static func replaceCurrentEnvironment(_ env: Environment) {
-    pushEnvironment(env)
-    stack.remove(at: stack.count - 2)
+    self.pushEnvironment(env)
+    self.stack.remove(at: self.stack.count - 2)
   }
 
   // Pushes a new environment onto the stack that changes only a subset of the current global dependencies.
   public static func pushEnvironment(
     apiService: ServiceType = AppEnvironment.current.apiService,
     apiDelayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
+    applePayCapabilities: ApplePayCapabilitiesType = AppEnvironment.current.applePayCapabilities,
+    application: UIApplicationType = UIApplication.shared,
     assetImageGeneratorType: AssetImageGeneratorType.Type = AppEnvironment.current.assetImageGeneratorType,
     cache: KSCache = AppEnvironment.current.cache,
     calendar: Calendar = AppEnvironment.current.calendar,
     config: Config? = AppEnvironment.current.config,
     cookieStorage: HTTPCookieStorageProtocol = AppEnvironment.current.cookieStorage,
+    coreTelephonyNetworkInfo: CoreTelephonyNetworkInfoType = AppEnvironment.current.coreTelephonyNetworkInfo,
     countryCode: String = AppEnvironment.current.countryCode,
     currentUser: User? = AppEnvironment.current.currentUser,
     dateType: DateProtocol.Type = AppEnvironment.current.dateType,
     debounceInterval: DispatchTimeInterval = AppEnvironment.current.debounceInterval,
+    debugData: DebugData? = AppEnvironment.current.debugData,
     device: UIDeviceType = AppEnvironment.current.device,
-    facebookAppDelegate: FacebookAppDelegateProtocol = AppEnvironment.current.facebookAppDelegate,
     isVoiceOverRunning: @escaping (() -> Bool) = AppEnvironment.current.isVoiceOverRunning,
     koala: Koala = AppEnvironment.current.koala,
     language: Language = AppEnvironment.current.language,
     launchedCountries: LaunchedCountries = AppEnvironment.current.launchedCountries,
-    liveStreamService: LiveStreamServiceProtocol = AppEnvironment.current.liveStreamService,
     locale: Locale = AppEnvironment.current.locale,
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
-    reachability: SignalProducer<Reachability, NoError> = AppEnvironment.current.reachability,
+    optimizelyClient: OptimizelyClientType? = AppEnvironment.current.optimizelyClient,
+    pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
+    reachability: SignalProducer<Reachability, Never> = AppEnvironment.current.reachability,
     scheduler: DateScheduler = AppEnvironment.current.scheduler,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
-    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults) {
-
-    pushEnvironment(
+    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults
+  ) {
+    self.pushEnvironment(
       Environment(
         apiService: apiService,
         apiDelayInterval: apiDelayInterval,
+        applePayCapabilities: applePayCapabilities,
+        application: application,
         assetImageGeneratorType: assetImageGeneratorType,
         cache: cache,
         calendar: calendar,
         config: config,
         cookieStorage: cookieStorage,
+        coreTelephonyNetworkInfo: coreTelephonyNetworkInfo,
         countryCode: countryCode,
         currentUser: currentUser,
         dateType: dateType,
         debounceInterval: debounceInterval,
+        debugData: debugData,
         device: device,
-        facebookAppDelegate: facebookAppDelegate,
         isVoiceOverRunning: isVoiceOverRunning,
         koala: koala,
         language: language,
         launchedCountries: launchedCountries,
-        liveStreamService: liveStreamService,
         locale: locale,
         mainBundle: mainBundle,
+        optimizelyClient: optimizelyClient,
+        pushRegistrationType: pushRegistrationType,
         reachability: reachability,
         scheduler: scheduler,
         ubiquitousStore: ubiquitousStore,
@@ -166,51 +194,59 @@ public struct AppEnvironment {
   public static func replaceCurrentEnvironment(
     apiService: ServiceType = AppEnvironment.current.apiService,
     apiDelayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
+    applePayCapabilities: ApplePayCapabilitiesType = AppEnvironment.current.applePayCapabilities,
+    application: UIApplicationType = UIApplication.shared,
     assetImageGeneratorType: AssetImageGeneratorType.Type = AppEnvironment.current.assetImageGeneratorType,
     cache: KSCache = AppEnvironment.current.cache,
     calendar: Calendar = AppEnvironment.current.calendar,
     config: Config? = AppEnvironment.current.config,
     cookieStorage: HTTPCookieStorageProtocol = AppEnvironment.current.cookieStorage,
+    coreTelephonyNetworkInfo: CoreTelephonyNetworkInfoType = AppEnvironment.current.coreTelephonyNetworkInfo,
     countryCode: String = AppEnvironment.current.countryCode,
     currentUser: User? = AppEnvironment.current.currentUser,
     dateType: DateProtocol.Type = AppEnvironment.current.dateType,
     debounceInterval: DispatchTimeInterval = AppEnvironment.current.debounceInterval,
+    debugData: DebugData? = AppEnvironment.current.debugData,
     device: UIDeviceType = AppEnvironment.current.device,
-    facebookAppDelegate: FacebookAppDelegateProtocol = AppEnvironment.current.facebookAppDelegate,
     isVoiceOverRunning: @escaping (() -> Bool) = AppEnvironment.current.isVoiceOverRunning,
     koala: Koala = AppEnvironment.current.koala,
     language: Language = AppEnvironment.current.language,
     launchedCountries: LaunchedCountries = AppEnvironment.current.launchedCountries,
-    liveStreamService: LiveStreamServiceProtocol = AppEnvironment.current.liveStreamService,
     locale: Locale = AppEnvironment.current.locale,
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
-    reachability: SignalProducer<Reachability, NoError> = AppEnvironment.current.reachability,
+    optimizelyClient: OptimizelyClientType? = AppEnvironment.current.optimizelyClient,
+    pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
+    reachability: SignalProducer<Reachability, Never> = AppEnvironment.current.reachability,
     scheduler: DateScheduler = AppEnvironment.current.scheduler,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
-    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults) {
-
-    replaceCurrentEnvironment(
+    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults
+  ) {
+    self.replaceCurrentEnvironment(
       Environment(
         apiService: apiService,
         apiDelayInterval: apiDelayInterval,
+        applePayCapabilities: applePayCapabilities,
+        application: application,
         assetImageGeneratorType: assetImageGeneratorType,
         cache: cache,
         calendar: calendar,
         config: config,
         cookieStorage: cookieStorage,
+        coreTelephonyNetworkInfo: coreTelephonyNetworkInfo,
         countryCode: countryCode,
         currentUser: currentUser,
         dateType: dateType,
         debounceInterval: debounceInterval,
+        debugData: debugData,
         device: device,
-        facebookAppDelegate: facebookAppDelegate,
         isVoiceOverRunning: isVoiceOverRunning,
         koala: koala,
         language: language,
         launchedCountries: launchedCountries,
-        liveStreamService: liveStreamService,
         locale: locale,
         mainBundle: mainBundle,
+        optimizelyClient: optimizelyClient,
+        pushRegistrationType: pushRegistrationType,
         reachability: reachability,
         scheduler: scheduler,
         ubiquitousStore: ubiquitousStore,
@@ -220,13 +256,14 @@ public struct AppEnvironment {
   }
 
   // Returns the last saved environment from user defaults.
-  public static func fromStorage(ubiquitousStore: KeyValueStoreType,
-                                 userDefaults: KeyValueStoreType) -> Environment {
+  public static func fromStorage(
+    ubiquitousStore _: KeyValueStoreType,
+    userDefaults: KeyValueStoreType
+  ) -> Environment {
+    let data = userDefaults.dictionary(forKey: self.environmentStorageKey) ?? [:]
 
-    let data = userDefaults.dictionary(forKey: environmentStorageKey) ?? [:]
-
-    var service = current.apiService
-    var currentUser: User? = nil
+    var service = self.current.apiService
+    var currentUser: User?
     let config: Config? = data["config"].flatMap(decode)
 
     if let oauthToken = data["apiService.oauthToken.token"] as? String {
@@ -247,12 +284,11 @@ public struct AppEnvironment {
           webBaseUrl: service.serverConfig.webBaseUrl,
           apiClientAuth: ClientAuth(clientId: clientId),
           basicHTTPAuth: service.serverConfig.basicHTTPAuth,
-          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl,
-          helpCenterUrl: service.serverConfig.helpCenterUrl
+          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl
         ),
         oauthToken: service.oauthToken,
-        language: current.language.rawValue,
-        currency: current.locale.currencyCode ?? "USD"
+        language: self.current.language.rawValue,
+        currency: self.current.locale.currencyCode ?? "USD"
       )
     }
 
@@ -261,38 +297,47 @@ public struct AppEnvironment {
       let apiBaseUrl = URL(string: apiBaseUrlString),
       let webBaseUrlString = data["apiService.serverConfig.webBaseUrl"] as? String,
       let webBaseUrl = URL(string: webBaseUrlString) {
-
       service = Service(
         serverConfig: ServerConfig(
           apiBaseUrl: apiBaseUrl,
           webBaseUrl: webBaseUrl,
           apiClientAuth: service.serverConfig.apiClientAuth,
           basicHTTPAuth: service.serverConfig.basicHTTPAuth,
-          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl,
-          helpCenterUrl: service.serverConfig.helpCenterUrl
+          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl
         ),
         oauthToken: service.oauthToken,
-        language: current.language.rawValue,
-        currency: current.locale.currencyCode ?? "USD"
+        language: self.current.language.rawValue,
+        currency: self.current.locale.currencyCode ?? "USD"
       )
     }
 
     // Try restoring the basic auth data for the api service
     if let username = data["apiService.serverConfig.basicHTTPAuth.username"] as? String,
       let password = data["apiService.serverConfig.basicHTTPAuth.password"] as? String {
-
       service = Service(
         serverConfig: ServerConfig(
           apiBaseUrl: service.serverConfig.apiBaseUrl,
           webBaseUrl: service.serverConfig.webBaseUrl,
           apiClientAuth: service.serverConfig.apiClientAuth,
           basicHTTPAuth: BasicHTTPAuth(username: username, password: password),
-          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl,
-          helpCenterUrl: service.serverConfig.helpCenterUrl
+          graphQLEndpointUrl: service.serverConfig.graphQLEndpointUrl
         ),
         oauthToken: service.oauthToken,
-        language: current.language.rawValue,
-        currency: current.locale.currencyCode ?? "USD"
+        language: self.current.language.rawValue,
+        currency: self.current.locale.currencyCode ?? "USD"
+      )
+    }
+
+    // Try restoring the environment
+    if let environment = data["apiService.serverConfig.environment"] as? String,
+      let environmentType = EnvironmentType(rawValue: environment) {
+      let serverConfig = ServerConfig.config(for: environmentType)
+
+      service = Service(
+        serverConfig: serverConfig,
+        oauthToken: service.oauthToken,
+        language: self.current.language.rawValue,
+        currency: self.current.locale.currencyCode ?? "USD"
       )
     }
 
@@ -305,31 +350,33 @@ public struct AppEnvironment {
       apiService: service,
       config: config,
       currentUser: currentUser,
-      koala: current.koala |> Koala.lens.loggedInUser .~ currentUser
+      koala: self.current.koala |> Koala.lens.loggedInUser .~ currentUser
     )
   }
 
   // Saves some key data for the current environment
-  internal static func saveEnvironment(environment env: Environment = AppEnvironment.current,
-                                       ubiquitousStore: KeyValueStoreType,
-                                       userDefaults: KeyValueStoreType) {
-
+  internal static func saveEnvironment(
+    environment env: Environment = AppEnvironment.current,
+    ubiquitousStore _: KeyValueStoreType,
+    userDefaults: KeyValueStoreType
+  ) {
     var data: [String: Any] = [:]
 
+    // swiftformat:disable wrap
     data["apiService.oauthToken.token"] = env.apiService.oauthToken?.token
     data["apiService.serverConfig.apiBaseUrl"] = env.apiService.serverConfig.apiBaseUrl.absoluteString
-    // swiftlint:disable line_length
     data["apiService.serverConfig.apiClientAuth.clientId"] = env.apiService.serverConfig.apiClientAuth.clientId
     data["apiService.serverConfig.basicHTTPAuth.username"] = env.apiService.serverConfig.basicHTTPAuth?.username
     data["apiService.serverConfig.basicHTTPAuth.password"] = env.apiService.serverConfig.basicHTTPAuth?.password
-    // swiftlint:enable line_length
     data["apiService.serverConfig.webBaseUrl"] = env.apiService.serverConfig.webBaseUrl.absoluteString
+    data["apiService.serverConfig.environment"] = env.apiService.serverConfig.environment.description
     data["apiService.language"] = env.apiService.language
     data["apiService.currency"] = env.apiService.currency
     data["config"] = env.config?.encode()
     data["currentUser"] = env.currentUser?.encode()
+    // swiftformat:enable wrap
 
-    userDefaults.set(data, forKey: environmentStorageKey)
+    userDefaults.set(data, forKey: self.environmentStorageKey)
   }
 }
 

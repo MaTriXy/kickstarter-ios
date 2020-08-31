@@ -1,7 +1,7 @@
 import KsApi
 import Library
 import ReactiveSwift
-import Result
+import WebKit
 
 internal protocol UpdatePreviewViewModelInputs {
   /// Call with the update draft.
@@ -26,16 +26,16 @@ internal protocol UpdatePreviewViewModelInputs {
 
 internal protocol UpdatePreviewViewModelOutputs {
   /// Emits when publishing succeeds.
-  var goToUpdate: Signal<(Project, Update), NoError> { get }
+  var goToUpdate: Signal<(Project, Update), Never> { get }
 
   /// Emits when the view should show a publish confirmation alert with detail message.
-  var showPublishConfirmation: Signal<String, NoError> { get }
+  var showPublishConfirmation: Signal<String, Never> { get }
 
   /// Emits when publishing fails.
-  var showPublishFailure: Signal<(), NoError> { get }
+  var showPublishFailure: Signal<(), Never> { get }
 
   /// Emits a request that should be loaded into the webview.
-  var webViewLoadRequest: Signal<URLRequest, NoError> { get }
+  var webViewLoadRequest: Signal<URLRequest, Never> { get }
 }
 
 internal protocol UpdatePreviewViewModelType {
@@ -45,8 +45,7 @@ internal protocol UpdatePreviewViewModelType {
 
 internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
   UpdatePreviewViewModelOutputs, UpdatePreviewViewModelType {
-
-    internal init() {
+  internal init() {
     let draft = self.draftProperty.signal.skipNil()
 
     let initialRequest = draft
@@ -70,22 +69,21 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
         action.navigationType == .other || action.targetFrame?.mainFrame == .some(false)
           ? .allow
           : .cancel
-    }
+      }
 
     let projectEvent = draft
       .switchMap {
         AppEnvironment.current.apiService.fetchProject(param: .id($0.update.projectId))
           .materialize()
-    }
+      }
     let project = projectEvent
       .values()
 
     self.showPublishConfirmation = project
       .map {
-        // swiftlint:disable line_length
-        Strings
-          .dashboard_post_update_preview_confirmation_alert_this_will_notify_backers_that_a_new_update_is_available(backer_count: $0.stats.backersCount)
-        // swiftlint:enable line_length
+        // swiftformat:disable wrap
+        Strings.dashboard_post_update_preview_confirmation_alert_this_will_notify_backers_that_a_new_update_is_available(backer_count: $0.stats.backersCount)
+        // swiftformat:enable wrap
       }
       .takeWhen(self.publishButtonTappedProperty.signal)
 
@@ -95,7 +93,7 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
         AppEnvironment.current.apiService.publish(draft: $0)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
-    }
+      }
     let update = publishEvent
       .values()
 
@@ -110,32 +108,32 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
       .takeWhen(self.publishButtonTappedProperty.signal)
       .observeValues {
         AppEnvironment.current.koala.trackTriggeredPublishConfirmationModal(forProject: $0)
-    }
+      }
 
     project
       .takeWhen(self.publishConfirmationButtonTappedProperty.signal)
       .observeValues {
         AppEnvironment.current.koala.trackConfirmedPublishUpdate(forProject: $0)
-    }
+      }
 
     project
       .takeWhen(self.publishCancelButtonTappedProperty.signal)
       .observeValues {
         AppEnvironment.current.koala.trackCanceledPublishUpdate(forProject: $0)
-    }
+      }
 
     self.goToUpdate
       .observeValues {
         AppEnvironment.current.koala.trackPublishedUpdate(forProject: $0, isPublic: $1.isPublic)
-    }
+      }
   }
 
   fileprivate let policyForNavigationActionProperty = MutableProperty<WKNavigationActionData?>(nil)
   fileprivate let policyDecisionProperty = MutableProperty(WKNavigationActionPolicy.allow)
   internal func decidePolicyFor(navigationAction: WKNavigationActionData)
     -> WKNavigationActionPolicy {
-      self.policyForNavigationActionProperty.value = navigationAction
-      return self.policyDecisionProperty.value
+    self.policyForNavigationActionProperty.value = navigationAction
+    return self.policyDecisionProperty.value
   }
 
   fileprivate let publishButtonTappedProperty = MutableProperty(())
@@ -163,10 +161,10 @@ internal final class UpdatePreviewViewModel: UpdatePreviewViewModelInputs,
     self.viewDidLoadProperty.value = ()
   }
 
-  let goToUpdate: Signal<(Project, Update), NoError>
-  let showPublishConfirmation: Signal<String, NoError>
-  let showPublishFailure: Signal<(), NoError>
-  let webViewLoadRequest: Signal<URLRequest, NoError>
+  let goToUpdate: Signal<(Project, Update), Never>
+  let showPublishConfirmation: Signal<String, Never>
+  let showPublishFailure: Signal<(), Never>
+  let webViewLoadRequest: Signal<URLRequest, Never>
 
   internal var inputs: UpdatePreviewViewModelInputs { return self }
   internal var outputs: UpdatePreviewViewModelOutputs { return self }

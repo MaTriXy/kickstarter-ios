@@ -1,61 +1,74 @@
-import XCTest
-@testable import KsApi
 import Argo
 import Curry
+@testable import KsApi
 import Runes
+import XCTest
 
 final class ConfigTests: XCTestCase {
-
-  func testDecoding() {
-    let abExperiments = [
+  let json: [String: Any] = [
+    "ab_experiments": [
       "2001_space_odyssey": "control",
       "dr_strangelove": "experiment"
-    ]
-    let features = [
+    ],
+    "app_id": 123_456_789,
+    "apple_pay_countries": ["US", "GB", "CA"],
+    "country_code": "US",
+    "features": [
       "feature1": true,
-      "feature2": false,
-      ]
-    let json: [String: Any] = [
-      "ab_experiments": abExperiments,
-      "app_id": 123456789,
-      "apple_pay_countries": ["US", "GB", "CA"],
-      "country_code": "US",
-      "features": features,
-      "itunes_link": "http://www.itunes.com",
-      "launched_countries": [
-        [ "trailing_code": false,
-          "currency_symbol": "€",
-          "currency_code": "EUR",
-          "name": "ES" ],
-        [
-          "trailing_code": false,
-          "currency_symbol": "€",
-          "currency_code": "EUR",
-          "name": "FR" ]
+      "feature2": false
+    ],
+    "itunes_link": "http://www.itunes.com",
+    "launched_countries": [
+      [
+        "trailing_code": false,
+        "currency_symbol": "€",
+        "currency_code": "EUR",
+        "name": "ES"
       ],
-      "locale": "en",
-      "stripe": [
-        "publishable_key": "pk"
+      [
+        "trailing_code": false,
+        "currency_symbol": "€",
+        "currency_code": "EUR",
+        "name": "FR"
       ]
+    ],
+    "locale": "en",
+    "stripe": [
+      "publishable_key": "pk"
     ]
+  ]
 
+  func testSwiftDecoding() {
+    let data = try? JSONSerialization.data(withJSONObject: self.json, options: [])
+
+    if let data = data, let config = try? JSONDecoder().decode(Config.self, from: data) {
+      self.assertValues(of: config)
+    } else {
+      XCTFail("Config should not be nil")
+    }
+  }
+
+  func testDecoding() {
     // Confirm json decoded successfully
-    let decodedConfig = Config.decodeJSONDictionary(json)
+    let decodedConfig = Config.decodeJSONDictionary(self.json)
     XCTAssertNil(decodedConfig.error)
 
-    // Confirm fields decoded properly
-    // swiftlint:disable:next force_unwrapping
     let config = decodedConfig.value!
-    XCTAssertEqual(abExperiments, config.abExperiments)
-    XCTAssertEqual(123456789, config.appId)
+    self.assertValues(of: config)
+  }
+
+  private func assertValues(of config: Config) {
+    XCTAssertEqual(["2001_space_odyssey": "control", "dr_strangelove": "experiment"], config.abExperiments)
+    XCTAssertEqual(123_456_789, config.appId)
     XCTAssertEqual("US", config.countryCode)
     XCTAssertEqual(["US", "GB", "CA"], config.applePayCountries)
-    XCTAssertEqual(features, config.features)
+    XCTAssertEqual(["feature1": true, "feature2": false], config.features)
     XCTAssertEqual("http://www.itunes.com", config.iTunesLink)
     XCTAssertEqual([.es, .fr], config.launchedCountries)
     XCTAssertEqual("en", config.locale)
     XCTAssertEqual("pk", config.stripePublishableKey)
-    XCTAssertEqual(["2001_space_odyssey[control]", "dr_strangelove[experiment]"], config.abExperimentsArray)
+    XCTAssertTrue(config.abExperimentsArray.contains("2001_space_odyssey[control]") &&
+      config.abExperimentsArray.contains("dr_strangelove[experiment]"))
     // Confirm that encoding and decoding again results in the same config.
     XCTAssertEqual(config, Config.decodeJSONDictionary(config.encode()).value)
   }

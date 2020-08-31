@@ -4,18 +4,19 @@ import Prelude
 import UIKit
 
 internal final class DashboardProjectsDrawerCell: UITableViewCell, ValueCell {
-
-  @IBOutlet fileprivate weak var projectNumLabel: UILabel!
-  @IBOutlet fileprivate weak var projectNameLabel: UILabel!
-  @IBOutlet fileprivate weak var checkmarkImageView: UIImageView!
+  @IBOutlet fileprivate var projectNumLabel: UILabel!
+  @IBOutlet fileprivate var projectNameLabel: UILabel!
+  @IBOutlet fileprivate var checkmarkImageView: UIImageView!
 
   fileprivate let viewModel: DashboardProjectsDrawerCellViewModelType =
     DashboardProjectsDrawerCellViewModel()
 
   internal func configureWith(value: ProjectsDrawerData) {
-    self.viewModel.inputs.configureWith(project: value.project,
-                                        indexNum: value.indexNum,
-                                        isChecked: value.isChecked)
+    self.viewModel.inputs.configureWith(
+      project: value.project,
+      indexNum: value.indexNum,
+      isChecked: value.isChecked
+    )
   }
 
   internal override func bindViewModel() {
@@ -34,7 +35,7 @@ internal final class DashboardProjectsDrawerCell: UITableViewCell, ValueCell {
 
     _ = self
       |> UITableViewCell.lens.isAccessibilityElement .~ true
-      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+      |> UITableViewCell.lens.accessibilityTraits .~ UIAccessibilityTraits.button
 
     _ = self.projectNumLabel |> dashboardDrawerProjectNumberTextLabelStyle
     _ = self.projectNameLabel |> dashboardDrawerProjectNameTextLabelStyle

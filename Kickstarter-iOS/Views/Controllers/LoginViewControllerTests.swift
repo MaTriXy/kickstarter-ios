@@ -1,15 +1,16 @@
-import Library
+import Foundation
 @testable import Kickstarter_Framework
+import Library
 
 internal final class LoginViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
   }
 
   func testView() {
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
+    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
       withEnvironment(language: language) {
         let controller = Storyboard.Login.instantiate(LoginViewController.self)
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)

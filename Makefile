@@ -4,12 +4,15 @@ BUILD_FLAGS = -scheme $(SCHEME) -destination $(DESTINATION)
 SCHEME ?= $(TARGET)-$(PLATFORM)
 TARGET ?= Kickstarter-Framework
 PLATFORM ?= iOS
-RELEASE ?= beta
-IOS_VERSION ?= 11.3
+RELEASE ?= itunes
+IOS_VERSION ?= 13.6
 IPHONE_NAME ?= iPhone 8
 BRANCH ?= master
 DIST_BRANCH = $(RELEASE)-dist
-OPENTOK_VERSION ?= 2.10.2
+FABRIC_SDK_VERSION ?= 3.13.2
+FABRIC_SDK_URL ?= https://s3.amazonaws.com/kits-crashlytics-com/ios/com.twitter.crashlytics.ios/INSERT_SDK_VERSION/com.crashlytics.ios-manual.zip
+COMMIT ?= $(CIRCLE_SHA1)
+CURRENT_BRANCH ?= $(CIRCLE_BRANCH)
 
 ifeq ($(PLATFORM),iOS)
 	DESTINATION ?= 'platform=iOS Simulator,name=$(IPHONE_NAME),OS=$(IOS_VERSION)'
@@ -36,17 +39,12 @@ test: bootstrap
 clean:
 	$(XCODEBUILD) clean $(BUILD_FLAGS) $(XCPRETTY)
 
-dependencies: submodules configs secrets opentok
+dependencies: carthage-bootstrap configs secrets fabric
 
 bootstrap: hooks dependencies
-	brew update || brew update
-	brew unlink swiftlint || true
-	brew install swiftlint
-	brew link --overwrite swiftlint
 
-submodules:
-	git submodule sync --recursive || true
-	git submodule update --init --recursive || true
+carthage-bootstrap:
+	set -o pipefail; bin/carthage.sh;
 
 configs = $(basename $(wildcard Kickstarter-iOS/Configs/*.example))
 $(configs):
@@ -72,9 +70,9 @@ deploy:
 		echo "There are commits in oss/$(BRANCH) that are not in private/$(BRANCH). Please sync the remotes before deploying."; \
 		exit 1; \
 	fi
-	@if test "$(RELEASE)" != "beta" && test "$(RELEASE)" != "itunes"; \
+	@if test "$(RELEASE)" != "itunes"; \
 	then \
-		echo "RELEASE must be 'beta' or 'itunes'."; \
+		echo "RELEASE must be 'itunes'."; \
 		exit 1; \
 	fi
 	@if test "$(RELEASE)" = "itunes" && test "$(BRANCH)" != "master"; \
@@ -90,20 +88,52 @@ deploy:
 	@echo "Deploy has been kicked off to CircleCI!"
 
 alpha:
-	@echo "Deploying private/alpha-dist..."
+	@echo "Adding remotes..."
+	@git remote add oss https://github.com/kickstarter/ios-oss
+	@git remote add private https://github.com/kickstarter/ios-private
 
-	@git branch -f alpha-dist private/alpha-dist
-	@git push -f private alpha-dist
-	@git branch -d alpha-dist
+	@echo "Deploying private/alpha-dist-$(CURRENT_BRANCH)-$(COMMIT)..."
+
+	@git branch -f alpha-dist-$(CURRENT_BRANCH)-$(COMMIT)
+	@git push -f private alpha-dist-$(CURRENT_BRANCH)-$(COMMIT)
+	@git branch -d alpha-dist-$(CURRENT_BRANCH)-$(COMMIT)
 
 	@echo "Deploy has been kicked off to CircleCI!"
 
-lint:
-	swiftlint lint --reporter json --strict
+beta:
+	@echo "Adding remotes..."
+	@git remote add oss https://github.com/kickstarter/ios-oss
+	@git remote add private https://github.com/kickstarter/ios-private
+
+	@echo "Deploying private/beta-dist-$(COMMIT)..."
+
+	@git branch -f beta-dist-$(COMMIT)
+	@git push -f private beta-dist-$(COMMIT)
+	@git branch -d beta-dist-$(COMMIT)
+
+	@echo "Deploy has been kicked off to CircleCI!"
+
+sync:
+	@echo "Syncing oss and private remotes..."
+
+	@git checkout $(BRANCH)
+	@git pull oss $(BRANCH)
+	@git push private $(BRANCH)
+
+	@echo "private and oss remotes are now synced!"
+
+cleanup:
+	@echo "Adding remotes..."
+	@git remote add oss https://github.com/kickstarter/ios-oss
+	@git remote add private https://github.com/kickstarter/ios-private
+
+	@echo "Deleting temporary branch: $(CIRCLE_BRANCH)"
+
+	@git push -d private $(CIRCLE_BRANCH)
 
 strings:
-	cat Frameworks/native-secrets/ios/Secrets.swift bin/strings.swift \
-		| xcrun -sdk macosx swift -
+	cp Frameworks/native-secrets/ios/Secrets.swift bin/StringsScript/Sources/StringsScriptCore
+	./bin/strings-script "./Library/Strings.swift" "./Kickstarter-iOS/Locales"
 
 secrets:
 	-@rm -rf Frameworks/native-secrets
@@ -115,23 +145,7 @@ secrets:
 		|| true; \
 	fi
 
-VERSION_FILE = Frameworks/OpenTok/version
-CURRENT_OPENTOK_VERSION = $(shell cat $(VERSION_FILE))
-ifeq ($(CURRENT_OPENTOK_VERSION),)
-	CURRENT_OPENTOK_VERSION = first
-endif
-opentok:
-	@if [ $(OPENTOK_VERSION) != $(CURRENT_OPENTOK_VERSION) ]; \
-	then \
-		echo "Downloading OpenTok v$(OPENTOK_VERSION)"; \
-		mkdir -p Frameworks/OpenTok; \
-		curl -s -N -L https://tokbox.com/downloads/opentok-ios-sdk-$(OPENTOK_VERSION) \
-		| tar -xz --strip 1 --directory Frameworks/OpenTok OpenTok-iOS-$(OPENTOK_VERSION)/OpenTok.framework \
-		|| true; \
-	fi
-	@if [ -e Frameworks/OpenTok/OpenTok.framework ]; \
-	then \
-		echo "$(OPENTOK_VERSION)" > $(VERSION_FILE); \
-	fi
+fabric:
+	bin/download_framework.sh Fabric $(FABRIC_SDK_VERSION) $(FABRIC_SDK_URL); \
 
-.PHONY: test-all test clean dependencies submodules deploy lint secrets strings opentok
+.PHONY: test-all test clean dependencies submodules deploy secrets strings fabric

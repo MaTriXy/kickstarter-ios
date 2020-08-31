@@ -3,6 +3,7 @@ import Library
 import Prelude
 import ReactiveSwift
 import UIKit
+import WebKit
 
 internal final class WebModalViewController: WebViewController {
   fileprivate let viewModel: WebModalViewModelType = WebModalViewModel()
@@ -17,10 +18,12 @@ internal final class WebModalViewController: WebViewController {
     super.viewDidLoad()
 
     self.navigationItem.leftBarButtonItem =
-      UIBarButtonItem(title: Strings.general_navigation_buttons_close(),
-                      style: .plain,
-                      target: self,
-                      action: #selector(closeButtonTapped))
+      UIBarButtonItem(
+        title: Strings.general_navigation_buttons_close(),
+        style: .plain,
+        target: self,
+        action: #selector(self.closeButtonTapped)
+      )
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -32,22 +35,24 @@ internal final class WebModalViewController: WebViewController {
       .observeForControllerAction()
       .observeValues { [weak self] in
         self?.dismiss(animated: true, completion: nil)
-    }
+      }
 
     self.viewModel.outputs.webViewLoadRequest
       .observeForControllerAction()
       .observeValues { [weak self] request in
         _ = self?.webView.load(request)
-    }
+      }
   }
 
   @objc fileprivate func closeButtonTapped() {
     self.viewModel.inputs.closeButtonTapped()
   }
 
-  internal func webView(_ webView: WKWebView,
-                        decidePolicyFor navigationAction: WKNavigationAction,
-                        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+  internal func webView(
+    _: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
     decisionHandler(
       self.viewModel.inputs.decidePolicyFor(
         navigationAction: WKNavigationActionData(navigationAction: navigationAction)

@@ -1,20 +1,18 @@
-import XCTest
-@testable import Library
 @testable import KsApi
-@testable import ReactiveExtensions_TestHelpers
-import Result
-import KsApi
+@testable import Library
 import Prelude
+import ReactiveExtensions_TestHelpers
+import XCTest
 
 final class ProjectActivitiesViewModelTests: TestCase {
   fileprivate let vm: ProjectActivitiesViewModelType = ProjectActivitiesViewModel()
 
-  fileprivate let activitiesPresent = TestObserver<Bool, NoError>()
-  fileprivate let goTo = TestObserver<ProjectActivitiesGoTo, NoError>()
-  fileprivate let groupedDates = TestObserver<Bool, NoError>()
-  fileprivate let isRefreshing = TestObserver<Bool, NoError>()
-  fileprivate let project = TestObserver<Project, NoError>()
-  fileprivate let showEmptyState = TestObserver<Bool, NoError>()
+  fileprivate let activitiesPresent = TestObserver<Bool, Never>()
+  fileprivate let goTo = TestObserver<ProjectActivitiesGoTo, Never>()
+  fileprivate let groupedDates = TestObserver<Bool, Never>()
+  fileprivate let isRefreshing = TestObserver<Bool, Never>()
+  fileprivate let project = TestObserver<Project, Never>()
+  fileprivate let showEmptyState = TestObserver<Bool, Never>()
 
   override func setUp() {
     super.setUp()
@@ -38,8 +36,10 @@ final class ProjectActivitiesViewModelTests: TestCase {
   func testFlow() {
     let project = Project.template
 
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse:
-      [.template |> Activity.lens.id .~ 1])) {
+    withEnvironment(apiService: MockService(
+      fetchProjectActivitiesResponse:
+      [.template |> Activity.lens.id .~ 1]
+    )) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.activitiesPresent.assertDidNotEmitValue("No activities")
@@ -48,39 +48,55 @@ final class ProjectActivitiesViewModelTests: TestCase {
       self.activitiesPresent.assertValues([true], "Show activities after scheduler advances")
       self.groupedDates.assertValues([true], "Group dates by default")
       self.project.assertValues([project], "Emits project")
-      XCTAssertEqual(["Viewed Project Activity", "Creator Activity View"],
-                     self.trackingClient.events, "View event and its deprecated version are tracked")
+      XCTAssertEqual(
+        ["Viewed Project Activity", "Creator Activity View"],
+        self.trackingClient.events, "View event and its deprecated version are tracked"
+      )
     }
 
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse:
-      [.template |> Activity.lens.id .~ 2])) {
+    withEnvironment(apiService: MockService(
+      fetchProjectActivitiesResponse:
+      [.template |> Activity.lens.id .~ 2]
+    )) {
       self.vm.inputs.refresh()
       self.scheduler.advance()
 
       self.activitiesPresent.assertValues([true, true], "Activities refreshed")
       self.groupedDates.assertValues([true, true], "Group dates by default")
       self.project.assertValues([project, project], "Emits project")
-      XCTAssertEqual(["Viewed Project Activity", "Creator Activity View", "Loaded Newer Project Activity",
-        "Creator Activity View Load Newer"],
-                     self.trackingClient.events, "Load newer event and its deprecated version are tracked")
+      XCTAssertEqual(
+        [
+          "Viewed Project Activity", "Creator Activity View", "Loaded Newer Project Activity",
+          "Creator Activity View Load Newer"
+        ],
+        self.trackingClient.events, "Load newer event and its deprecated version are tracked"
+      )
     }
 
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse:
-      [.template |> Activity.lens.id .~ 3])) {
+    withEnvironment(apiService: MockService(
+      fetchProjectActivitiesResponse:
+      [.template |> Activity.lens.id .~ 3]
+    )) {
       self.vm.inputs.willDisplayRow(9, outOf: 10)
       self.scheduler.advance()
 
       self.activitiesPresent.assertValues([true, true, true], "Activities paginate")
       self.groupedDates.assertValues([true, true, true], "Group dates by default")
       self.project.assertValues([project, project, project], "Emits project")
-      XCTAssertEqual(["Viewed Project Activity", "Creator Activity View", "Loaded Newer Project Activity",
-        "Creator Activity View Load Newer", "Loaded Older Project Activity",
-        "Creator Activity View Load Older"],
-                     self.trackingClient.events, "Load older event and its deprecated version are tracked")
+      XCTAssertEqual(
+        [
+          "Viewed Project Activity", "Creator Activity View", "Loaded Newer Project Activity",
+          "Creator Activity View Load Newer", "Loaded Older Project Activity",
+          "Creator Activity View Load Older"
+        ],
+        self.trackingClient.events, "Load older event and its deprecated version are tracked"
+      )
     }
 
-    self.showEmptyState.assertValues([false],
-                                     "Don't show, because each activity emission was a non-empty array")
+    self.showEmptyState.assertValues(
+      [false],
+      "Don't show, because each activity emission was a non-empty array"
+    )
   }
 
   func testEmptyState() {
@@ -98,9 +114,9 @@ final class ProjectActivitiesViewModelTests: TestCase {
   }
 
   func testGoTo() {
-    let project = Project.template
+    let backing = Backing.template |> Backing.lens.projectId .~ Project.template.id
+    let project = Project.template |> Project.lens.personalization.backing .~ backing
     let comment = Comment.template
-    let backing = Backing.template |> Backing.lens.projectId .~ project.id
     let update = Update.template
     let user = User.template
 
@@ -134,8 +150,10 @@ final class ProjectActivitiesViewModelTests: TestCase {
       |> Activity.lens.update .~ update
       |> Activity.lens.user .~ user
 
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse:
-    [backingActivity, commentPostActivity, commentProjectActivity, successActivity, updateActivity])) {
+    withEnvironment(apiService: MockService(
+      fetchProjectActivitiesResponse:
+      [backingActivity, commentPostActivity, commentProjectActivity, successActivity, updateActivity]
+    )) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()
@@ -159,22 +177,29 @@ final class ProjectActivitiesViewModelTests: TestCase {
 
       // Testing delegate methods
 
-      self.vm.inputs.projectActivityBackingCellGoToBacking(project: project, user: user)
+      self.vm.inputs.projectActivityBackingCellGoToBacking(project: project, backing: backing)
       self.goTo.assertValueCount(6, "Should go to backing")
 
       self.vm.inputs.projectActivityBackingCellGoToSendMessage(project: project, backing: backing)
       self.goTo.assertValueCount(7, "Should go to send message")
 
-      self.vm.inputs.projectActivityCommentCellGoToBacking(project: project, user: user)
-      self.goTo.assertValueCount(8, "Should go to backing")
-
       self.vm.inputs.projectActivityCommentCellGoToSendReply(project: project, update: nil, comment: comment)
-      self.goTo.assertValueCount(9, "Should go to comments for project")
+      self.goTo.assertValueCount(8, "Should go to comments for project")
 
-      self.vm.inputs.projectActivityCommentCellGoToSendReply(project: project,
-                                                             update: update,
-                                                             comment: comment)
-      self.goTo.assertValueCount(10, "Should go to comments for update")
+      self.vm.inputs.projectActivityCommentCellGoToSendReply(
+        project: project,
+        update: update,
+        comment: comment
+      )
+      self.goTo.assertValueCount(9, "Should go to comments for update")
+
+      withEnvironment(apiService: MockService(fetchBackingResponse: .template)) {
+        self.vm.inputs.projectActivityCommentCellGoToBacking(project: project, user: user)
+
+        self.scheduler.advance()
+
+        self.goTo.assertValueCount(10, "Should go to backing after fetching backing")
+      }
     }
   }
 
@@ -182,13 +207,14 @@ final class ProjectActivitiesViewModelTests: TestCase {
     let project = Project.template
     let activities = [.template |> Activity.lens.project .~ project]
 
-    let isVoiceOverRunning = { false }
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse: activities),
-                    isVoiceOverRunning: isVoiceOverRunning) {
+    withEnvironment(
+      apiService: MockService(fetchProjectActivitiesResponse: activities),
+      isVoiceOverRunning: { false }
+    ) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()
-      self.groupedDates.assertValues([true], "Group dates when voice over is not running")
+      self.groupedDates.assertValues([true], "Group dates when VoiceOver is not running")
     }
   }
 
@@ -196,13 +222,14 @@ final class ProjectActivitiesViewModelTests: TestCase {
     let project = Project.template
     let activities = [.template |> Activity.lens.project .~ project]
 
-    let isVoiceOverRunning = { true }
-    withEnvironment(apiService: MockService(fetchProjectActivitiesResponse: activities),
-                    isVoiceOverRunning: isVoiceOverRunning) {
+    withEnvironment(
+      apiService: MockService(fetchProjectActivitiesResponse: activities),
+      isVoiceOverRunning: { true }
+    ) {
       self.vm.inputs.configureWith(project)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()
-      self.groupedDates.assertValues([false], "Don't group dates when voice over is running")
+      self.groupedDates.assertValues([false], "Don't group dates when VoiceOver is running")
     }
   }
 }

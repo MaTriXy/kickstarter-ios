@@ -1,7 +1,9 @@
 import Foundation
+import KsApi
 
 public enum KickstarterBundleIdentifier: String {
-  case alpha = "com.kickstarter.kickstarter.alpha"
+  case debug = "com.kickstarter.kickstarter.debug"
+  case alpha = "com.kickstarter.kickstarter.kickalpha"
   case beta = "com.kickstarter.kickstarter.beta"
   case release = "com.kickstarter.kickstarter"
 }
@@ -15,6 +17,21 @@ public protocol NSBundleType {
 }
 
 extension NSBundleType {
+  public var appCenterAppSecret: String? {
+    guard let bundleId = kickstarterBundleId else {
+      return nil
+    }
+
+    switch bundleId {
+    case .beta:
+      return KsApi.Secrets.AppCenter.beta
+    case .alpha:
+      return KsApi.Secrets.AppCenter.alpha
+    default:
+      return nil
+    }
+  }
+
   public var identifier: String {
     return self.infoDictionary?["CFBundleIdentifier"] as? String ?? "Unknown"
   }
@@ -25,6 +42,16 @@ extension NSBundleType {
 
   public var version: String {
     return self.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+  }
+
+  public var appVersionString: String {
+    let versionString = self.shortVersionString
+    let build = self.isRelease ? "" : " #\(self.version)"
+    return "\(versionString)\(build)"
+  }
+
+  public var isDebug: Bool {
+    return self.identifier == KickstarterBundleIdentifier.debug.rawValue
   }
 
   public var isAlpha: Bool {
@@ -38,6 +65,10 @@ extension NSBundleType {
   public var isRelease: Bool {
     return self.identifier == KickstarterBundleIdentifier.release.rawValue
   }
+
+  public var kickstarterBundleId: KickstarterBundleIdentifier? {
+    return KickstarterBundleIdentifier(rawValue: self.identifier)
+  }
 }
 
 extension Bundle: NSBundleType {
@@ -49,8 +80,7 @@ extension Bundle: NSBundleType {
 public struct LanguageDoubler: NSBundleType {
   fileprivate static let mainBundle = Bundle.main
 
-  public init() {
-  }
+  public init() {}
 
   public let bundleIdentifier: String? = "com.language.doubler"
 
@@ -72,10 +102,11 @@ public struct LanguageDoubler: NSBundleType {
 }
 
 public final class DoublerBundle: Bundle {
-  public override func localizedString(forKey key: String,
-                                       value: String?,
-                                       table tableName: String?) -> String {
-
+  public override func localizedString(
+    forKey key: String,
+    value: String?,
+    table tableName: String?
+  ) -> String {
     let s = super.localizedString(forKey: key, value: value, table: tableName)
     return "\(s) \(s)"
   }

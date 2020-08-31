@@ -1,14 +1,16 @@
 import KsApi
-import LiveStream
 import Library
+import PassKit
 import Prelude
 import Prelude_UIKit
 
 public protocol ProjectPamphletContentViewControllerDelegate: VideoViewControllerDelegate {
   func projectPamphletContent(_ controller: ProjectPamphletContentViewController, imageIsVisible: Bool)
   func projectPamphletContent(_ controller: ProjectPamphletContentViewController, didScrollToTop: Bool)
-  func projectPamphletContent(_ controller: ProjectPamphletContentViewController,
-                              scrollViewPanGestureRecognizerDidChange recognizer: UIPanGestureRecognizer)
+  func projectPamphletContent(
+    _ controller: ProjectPamphletContentViewController,
+    scrollViewPanGestureRecognizerDidChange recognizer: UIPanGestureRecognizer
+  )
 }
 
 public final class ProjectPamphletContentViewController: UITableViewController {
@@ -17,19 +19,20 @@ public final class ProjectPamphletContentViewController: UITableViewController {
   fileprivate let viewModel: ProjectPamphletContentViewModelType = ProjectPamphletContentViewModel()
   fileprivate var navBarController: ProjectNavBarViewController!
 
-  internal func configureWith(project: Project, liveStreamEvents: [LiveStreamEvent]) {
-    self.viewModel.inputs.configureWith(project: project, liveStreamEvents: liveStreamEvents)
+  internal func configureWith(value: (Project, RefTag?)) {
+    self.viewModel.inputs.configureWith(value: value)
   }
 
   public override func viewDidLoad() {
     super.viewDidLoad()
 
-    self.tableView.dataSource = dataSource
+    self.tableView.dataSource = self.dataSource
     self.tableView.panGestureRecognizer.addTarget(
-      self, action: #selector(scrollViewPanGestureRecognizerDidChange(_:))
+      self,
+      action: #selector(ProjectPamphletContentViewController.scrollViewPanGestureRecognizerDidChange(_:))
     )
 
-    self.tableView.register(nib: .RewardCell)
+    self.tableView.registerCellClass(ProjectPamphletCreatorHeaderCell.self)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -49,65 +52,49 @@ public final class ProjectPamphletContentViewController: UITableViewController {
 
     _ = self
       |> baseTableControllerStyle(estimatedRowHeight: 450)
-      |> (UITableViewController.lens.tableView..UITableView.lens.delaysContentTouches) .~ false
-      |> (UITableViewController.lens.tableView..UITableView.lens.canCancelContentTouches) .~ true
+      |> (UITableViewController.lens.tableView .. UITableView.lens.delaysContentTouches) .~ false
+      |> (UITableViewController.lens.tableView .. UITableView.lens.canCancelContentTouches) .~ true
   }
 
   public override func bindViewModel() {
     super.bindViewModel()
 
-    self.viewModel.outputs.loadProjectAndLiveStreamsIntoDataSource
+    self.viewModel.outputs.loadProjectPamphletContentDataIntoDataSource
       .observeForUI()
-      .observeValues { [weak self] project, liveStreamEvents, visible in
-        self?.dataSource.load(project: project, liveStreamEvents: liveStreamEvents, visible: visible )
+      .observeValues { [weak self] data in
+        self?.dataSource.load(data: data)
         self?.tableView.reloadData()
-    }
+      }
 
     self.viewModel.outputs.loadMinimalProjectIntoDataSource
       .observeForUI()
       .observeValues { [weak self] project in
         self?.dataSource.loadMinimal(project: project)
         self?.tableView.reloadData()
-    }
+      }
 
     self.viewModel.outputs.goToBacking
       .observeForControllerAction()
-      .observeValues { [weak self] in self?.goToBacking(project: $0) }
+      .observeValues { [weak self] in self?.goToBacking(params: $0) }
 
     self.viewModel.outputs.goToComments
       .observeForControllerAction()
       .observeValues { [weak self] in self?.goToComments(project: $0) }
 
-    self.viewModel.outputs.goToLiveStream
-      .observeForControllerAction()
-      .observeValues { [weak self] project, liveStreamEvent in
-        self?.goToLiveStream(project: project, liveStreamEvent: liveStreamEvent)
-    }
-
-    self.viewModel.outputs.goToLiveStreamCountdown
-      .observeForControllerAction()
-      .observeValues { [weak self] project, liveStreamEvent in
-        self?.goToLiveStreamCountdown(project: project, liveStreamEvent: liveStreamEvent)
-    }
-
     self.viewModel.outputs.goToUpdates
       .observeForControllerAction()
       .observeValues { [weak self] in self?.goToUpdates(project: $0) }
 
-    self.viewModel.outputs.goToRewardPledge
+    self.viewModel.outputs.goToDashboard
       .observeForControllerAction()
-      .observeValues { [weak self] project, reward in
-        self?.goToRewardPledge(project: project, reward: reward)
-    }
+      .observeValues { [weak self] param in
+        self?.goToDashboard(param: param)
+      }
   }
 
-  public override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+  public override func tableView(_: UITableView, didSelectRowAt indexPath: IndexPath) {
     if let (_, rewardOrBacking) = self.dataSource[indexPath] as? (Project, Either<Reward, Backing>) {
       self.viewModel.inputs.tapped(rewardOrBacking: rewardOrBacking)
-    } else if self.dataSource.indexPathIsPledgeAnyAmountCell(indexPath) {
-      self.viewModel.inputs.tappedPledgeAnyAmount()
-    } else if let liveStreamEvent = self.dataSource.liveStream(forIndexPath: indexPath) {
-      self.viewModel.inputs.tapped(liveStreamEvent: liveStreamEvent)
     } else if self.dataSource.indexPathIsCommentsSubpage(indexPath) {
       self.viewModel.inputs.tappedComments()
     } else if self.dataSource.indexPathIsUpdatesSubpage(indexPath) {
@@ -115,34 +102,34 @@ public final class ProjectPamphletContentViewController: UITableViewController {
     }
   }
 
-  public override func tableView(_ tableView: UITableView,
-                                 willDisplay cell: UITableViewCell,
-                                 forRowAt indexPath: IndexPath) {
-
+  public override func tableView(_: UITableView, willDisplay cell: UITableViewCell, forRowAt _: IndexPath) {
     if let cell = cell as? ProjectPamphletMainCell {
       cell.delegate = self
-    } else if let cell = cell as? RewardCell {
+    } else if let cell = cell as? ProjectPamphletCreatorHeaderCell {
       cell.delegate = self
     }
   }
 
-  fileprivate func goToRewardPledge(project: Project, reward: Reward) {
-    let vc = RewardPledgeViewController.configuredWith(project: project, reward: reward)
-    let nav = UINavigationController(rootViewController: vc)
-    nav.modalPresentationStyle = UIModalPresentationStyle.formSheet
-    self.present(nav, animated: true, completion: nil)
+  private func goToDashboard(param: Param) {
+    self.view.window?.rootViewController
+      .flatMap { $0 as? RootTabBarViewController }
+      .doIfSome { root in
+        UIView.transition(with: root.view, duration: 0.3, options: [.transitionCrossDissolve], animations: {
+          root.switchToDashboard(project: param)
+        }, completion: { [weak self] _ in
+          self?.dismiss(animated: true, completion: nil)
+        })
+      }
   }
 
-  fileprivate func goToBacking(project: Project) {
-    let vc = BackingViewController.configuredWith(project: project, backer: nil)
+  fileprivate func goToBacking(params: ManagePledgeViewParamConfigData) {
+    let vc = ManagePledgeViewController.controller(with: params)
 
     if self.traitCollection.userInterfaceIdiom == .pad {
-      let nav = UINavigationController(rootViewController: vc)
-      nav.modalPresentationStyle = UIModalPresentationStyle.formSheet
-      self.present(nav, animated: true, completion: nil)
-    } else {
-      self.navigationController?.pushViewController(vc, animated: true)
+      vc.modalPresentationStyle = UIModalPresentationStyle.formSheet
     }
+
+    self.present(vc, animated: true, completion: nil)
   }
 
   fileprivate func goToComments(project: Project) {
@@ -157,39 +144,12 @@ public final class ProjectPamphletContentViewController: UITableViewController {
     }
   }
 
-  private func goToLiveStream(project: Project, liveStreamEvent: LiveStreamEvent) {
-    let vc = LiveStreamContainerViewController.configuredWith(project: project,
-                                                              liveStreamEvent: liveStreamEvent,
-                                                              refTag: .projectPage,
-                                                              presentedFromProject: true)
-    let nav = UINavigationController(navigationBarClass: ClearNavigationBar.self, toolbarClass: nil)
-    nav.viewControllers = [vc]
-
-    DispatchQueue.main.async {
-      self.present(nav, animated: true, completion: nil)
-    }
-  }
-
-  private func goToLiveStreamCountdown(project: Project, liveStreamEvent: LiveStreamEvent) {
-    let vc = LiveStreamCountdownViewController.configuredWith(project: project,
-                                                              liveStreamEvent: liveStreamEvent,
-                                                              refTag: .projectPage,
-                                                              presentedFromProject: true)
-    let nav = UINavigationController(navigationBarClass: ClearNavigationBar.self, toolbarClass: nil)
-    nav.viewControllers = [vc]
-
-    DispatchQueue.main.async {
-      self.present(nav, animated: true, completion: nil)
-    }
-  }
-
   fileprivate func goToUpdates(project: Project) {
     let vc = ProjectUpdatesViewController.configuredWith(project: project)
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
-  override public func scrollViewDidScroll(_ scrollView: UIScrollView) {
-
+  public override func scrollViewDidScroll(_ scrollView: UIScrollView) {
     guard self.scrollingIsAllowed(scrollView) else {
       scrollView.contentOffset = .zero
       return
@@ -198,12 +158,12 @@ public final class ProjectPamphletContentViewController: UITableViewController {
     if let
       cell = self.tableView.cellForRow(at: self.dataSource.indexPathForMainCell() as IndexPath),
       let mainCell = cell as? ProjectPamphletMainCell {
-        mainCell.scrollContentOffset(scrollView.contentOffset.y + scrollView.contentInset.top)
+      mainCell.scrollContentOffset(scrollView.contentOffset.y + scrollView.contentInset.top)
     }
 
     self.delegate?.projectPamphletContent(
       self,
-      imageIsVisible: scrollView.contentOffset.y < scrollView.bounds.width * 9/16
+      imageIsVisible: scrollView.contentOffset.y < scrollView.bounds.width * 9 / 16
     )
 
     self.delegate?.projectPamphletContent(
@@ -223,24 +183,28 @@ public final class ProjectPamphletContentViewController: UITableViewController {
 }
 
 extension ProjectPamphletContentViewController: ProjectPamphletMainCellDelegate {
-  internal func projectPamphletMainCell(_ cell: ProjectPamphletMainCell,
-                                        goToCampaignForProject project: Project) {
-
-    let vc = ProjectDescriptionViewController.configuredWith(project: project)
+  internal func projectPamphletMainCell(
+    _: ProjectPamphletMainCell,
+    goToCampaignForProjectWith projectAndRefTag: (project: Project, refTag: RefTag?)
+  ) {
+    let vc = ProjectDescriptionViewController.configuredWith(value: projectAndRefTag)
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
-  internal func projectPamphletMainCell(_ cell: ProjectPamphletMainCell,
-                                        addChildController child: UIViewController) {
-    self.addChildViewController(child)
+  internal func projectPamphletMainCell(
+    _: ProjectPamphletMainCell,
+    addChildController child: UIViewController
+  ) {
+    self.addChild(child)
     child.beginAppearanceTransition(true, animated: false)
-    child.didMove(toParentViewController: self)
+    child.didMove(toParent: self)
     child.endAppearanceTransition()
   }
 
-  internal func projectPamphletMainCell(_ cell: ProjectPamphletMainCell,
-                                        goToCreatorForProject project: Project) {
-
+  internal func projectPamphletMainCell(
+    _: ProjectPamphletMainCell,
+    goToCreatorForProject project: Project
+  ) {
     let vc = ProjectCreatorViewController.configuredWith(project: project)
 
     if self.traitCollection.userInterfaceIdiom == .pad {
@@ -254,7 +218,6 @@ extension ProjectPamphletContentViewController: ProjectPamphletMainCellDelegate 
 }
 
 extension ProjectPamphletContentViewController: VideoViewControllerDelegate {
-
   public func videoViewControllerDidFinish(_ controller: VideoViewController) {
     self.delegate?.videoViewControllerDidFinish(controller)
   }
@@ -264,10 +227,11 @@ extension ProjectPamphletContentViewController: VideoViewControllerDelegate {
   }
 }
 
-extension ProjectPamphletContentViewController: RewardCellDelegate {
-  internal func rewardCellWantsExpansion(_ cell: RewardCell) {
-    cell.contentView.setNeedsUpdateConstraints()
-    self.tableView.beginUpdates()
-    self.tableView.endUpdates()
+extension ProjectPamphletContentViewController: ProjectPamphletCreatorHeaderCellDelegate {
+  func projectPamphletCreatorHeaderCellDidTapViewProgress(
+    _: ProjectPamphletCreatorHeaderCell,
+    with project: Project
+  ) {
+    self.viewModel.inputs.tappedViewProgress(of: project)
   }
 }

@@ -2,11 +2,10 @@
 @testable import KsApi
 @testable import Library
 import Prelude
-import Result
 import XCTest
 
 internal final class SortPagerViewControllerTests: TestCase {
-  fileprivate let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon, .mostFunded]
+  fileprivate let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon]
 
   override func setUp() {
     super.setUp()

@@ -1,10 +1,10 @@
-import UIKit
 import KsApi
 import Library
 import Prelude
 import Prelude_UIKit
+import UIKit
 
-internal protocol DashboardTitleViewDelegate: class {
+internal protocol DashboardTitleViewDelegate: AnyObject {
   /// Call when dashboard should show/hide the projects drawer view controller.
   func dashboardTitleViewShowHideProjectsDrawer()
 }
@@ -12,9 +12,9 @@ internal protocol DashboardTitleViewDelegate: class {
 internal final class DashboardTitleView: UIView {
   fileprivate let viewModel: DashboardTitleViewViewModelType = DashboardTitleViewViewModel()
 
-  @IBOutlet fileprivate weak var titleButton: UIButton!
-  @IBOutlet fileprivate weak var titleLabel: UILabel!
-  @IBOutlet fileprivate weak var arrowImageView: UIImageView!
+  @IBOutlet fileprivate var titleButton: UIButton!
+  @IBOutlet fileprivate var titleLabel: UILabel!
+  @IBOutlet fileprivate var arrowImageView: UIImageView!
 
   internal weak var delegate: DashboardTitleViewDelegate?
 
@@ -24,12 +24,12 @@ internal final class DashboardTitleView: UIView {
     _ = self.titleButton
       |> UIButton.lens.contentEdgeInsets %~ { insets in .init(topBottom: insets.top, leftRight: 0) }
       |> UIButton.lens.accessibilityLabel %~ { _ in Strings.tabbar_dashboard() }
-      |> UIButton.lens.accessibilityTraits .~ UIAccessibilityTraitStaticText
-      |> UIButton.lens.targets .~ [(self, #selector(titleButtonTapped), .touchUpInside)]
+      |> UIButton.lens.accessibilityTraits .~ UIAccessibilityTraits.staticText
+      |> UIButton.lens.targets .~ [(self, #selector(self.titleButtonTapped), .touchUpInside)]
 
     _ = self.arrowImageView
       |> UIImageView.lens.isHidden .~ true
-      |> UIImageView.lens.tintColor .~ .ksr_dark_grey_900
+      |> UIImageView.lens.tintColor .~ .ksr_soft_black
 
     _ = self.titleLabel |> dashboardTitleViewTextDisabledStyle
 
@@ -46,21 +46,21 @@ internal final class DashboardTitleView: UIView {
           _self.arrowImageView.isHidden = hide
         }
         if !hide {
-          _ = _self.titleButton |> UIView.lens.accessibilityTraits .~ UIAccessibilityTraitButton
+          _ = _self.titleButton |> UIView.lens.accessibilityTraits .~ UIAccessibilityTraits.button
         }
-    }
+      }
 
     self.viewModel.outputs.updateArrowState
       .observeForUI()
       .observeValues { [weak self] drawerState in
         self?.animateArrow(forDrawerState: drawerState)
-    }
+      }
 
     self.viewModel.outputs.notifyDelegateShowHideProjectsDrawer
       .observeForUI()
       .observeValues { [weak self] in
         self?.delegate?.dashboardTitleViewShowHideProjectsDrawer()
-    }
+      }
 
     self.viewModel.outputs.titleButtonIsEnabled
       .observeForUI()
@@ -69,7 +69,7 @@ internal final class DashboardTitleView: UIView {
         if isEnabled {
           _ = _titleLabel |> dashboardTitleViewTextEnabledStyle
         }
-    }
+      }
   }
 
   internal func updateData(_ data: DashboardTitleViewData) {
@@ -87,7 +87,7 @@ internal final class DashboardTitleView: UIView {
 
     UIView.animate(withDuration: 0.2, delay: 0.0, options: .curveEaseOut, animations: {
       self.arrowImageView.transform = CGAffineTransform(scaleX: 1.0, y: scale)
-      }, completion: nil)
+    }, completion: nil)
   }
 
   @objc fileprivate func titleButtonTapped() {

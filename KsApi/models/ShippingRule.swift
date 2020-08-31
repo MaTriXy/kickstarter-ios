@@ -19,8 +19,8 @@ extension ShippingRule: Argo.Decodable {
 
 extension ShippingRule: Equatable {}
 public func == (lhs: ShippingRule, rhs: ShippingRule) -> Bool {
-  // todo: change to compare id once that api is deployed
-  return lhs.location ==  rhs.location
+  // TODO: change to compare id once that api is deployed
+  return lhs.location == rhs.location
 }
 
 private func stringToDouble(_ string: String) -> Decoded<Double> {

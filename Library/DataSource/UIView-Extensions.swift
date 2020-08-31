@@ -1,33 +1,39 @@
 import UIKit
 
 private func swizzle(_ v: UIView.Type) {
+  [
+    (#selector(v.traitCollectionDidChange(_:)), #selector(v.ksr_traitCollectionDidChange(_:))),
+    (#selector(v.didMoveToSuperview), #selector(v.ksr_didMoveToSuperview))
+  ]
+  .forEach { original, swizzled in
 
-  [(#selector(v.traitCollectionDidChange(_:)), #selector(v.ksr_traitCollectionDidChange(_:)))]
-    .forEach { original, swizzled in
+    guard let originalMethod = class_getInstanceMethod(v, original),
+      let swizzledMethod = class_getInstanceMethod(v, swizzled) else { return }
 
-      guard let originalMethod = class_getInstanceMethod(v, original),
-        let swizzledMethod = class_getInstanceMethod(v, swizzled) else { return }
+    let didAddViewDidLoadMethod = class_addMethod(
+      v,
+      original,
+      method_getImplementation(swizzledMethod),
+      method_getTypeEncoding(swizzledMethod)
+    )
 
-      let didAddViewDidLoadMethod = class_addMethod(v,
-                                                    original,
-                                                    method_getImplementation(swizzledMethod),
-                                                    method_getTypeEncoding(swizzledMethod))
-
-      if didAddViewDidLoadMethod {
-        class_replaceMethod(v,
-                            swizzled,
-                            method_getImplementation(originalMethod),
-                            method_getTypeEncoding(originalMethod))
-      } else {
-        method_exchangeImplementations(originalMethod, swizzledMethod)
-      }
+    if didAddViewDidLoadMethod {
+      class_replaceMethod(
+        v,
+        swizzled,
+        method_getImplementation(originalMethod),
+        method_getTypeEncoding(originalMethod)
+      )
+    } else {
+      method_exchangeImplementations(originalMethod, swizzledMethod)
+    }
   }
 }
 
 private var hasSwizzled = false
 
 extension UIView {
-  final public class func doBadSwizzleStuff() {
+  public final class func doBadSwizzleStuff() {
     guard !hasSwizzled else { return }
 
     hasSwizzled = true
@@ -39,11 +45,9 @@ extension UIView {
     self.bindViewModel()
   }
 
-  @objc open func bindStyles() {
-  }
+  @objc open func bindStyles() {}
 
-  @objc open func bindViewModel() {
-  }
+  @objc open func bindViewModel() {}
 
   public static var defaultReusableId: String {
     return self.description()
@@ -54,6 +58,11 @@ extension UIView {
 
   @objc internal func ksr_traitCollectionDidChange(_ previousTraitCollection: UITraitCollection) {
     self.ksr_traitCollectionDidChange(previousTraitCollection)
+    self.bindStyles()
+  }
+
+  @objc internal func ksr_didMoveToSuperview() {
+    self.ksr_didMoveToSuperview()
     self.bindStyles()
   }
 }

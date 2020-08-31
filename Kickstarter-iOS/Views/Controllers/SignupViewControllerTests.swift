@@ -1,15 +1,15 @@
-import Library
+import Foundation
 @testable import Kickstarter_Framework
+import Library
 
 internal final class SignupViewControllerTests: TestCase {
-
   override func setUp() {
     super.setUp()
     AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
   }
 
   func testView() {
-    let devices = [Device.phone4_7inch, Device.pad, Device.phone4inch]
+    let devices = [Device.phone4_7inch, Device.phone5_8inch, Device.pad]
     combos(Language.allLanguages, devices).forEach { language, device in
       withEnvironment(language: language) {
         let controller = SignupViewController.instantiate()

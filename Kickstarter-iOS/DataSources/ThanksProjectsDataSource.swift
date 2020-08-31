@@ -1,14 +1,20 @@
-import UIKit
 import KsApi
 import Library
+import UIKit
 
 internal final class ThanksProjectsDataSource: ValueCellDataSource {
-  internal func loadData(projects: [Project], category: KsApi.Category) {
+  internal func loadData(projects: [Project],
+                         category: KsApi.Category,
+                         nativeProjectCardsVariant: OptimizelyExperiment.Variant = .control) {
     let values = projects.map { (project) -> DiscoveryProjectCellRowValue in
-      return DiscoveryProjectCellRowValue(project: project, category: category)
+      DiscoveryProjectCellRowValue(project: project, category: category, params: nil)
     }
 
-    self.set(values: values, cellClass: DiscoveryPostcardCell.self, inSection: 0)
+    if nativeProjectCardsVariant == .variant1 {
+      self.set(values: values, cellClass: DiscoveryProjectCardCell.self, inSection: 0)
+    } else {
+      self.set(values: values, cellClass: DiscoveryPostcardCell.self, inSection: 0)
+    }
 
     self.appendRow(
       value: category,
@@ -21,6 +27,8 @@ internal final class ThanksProjectsDataSource: ValueCellDataSource {
     switch (cell, value) {
     case let (cell as DiscoveryPostcardCell, value as DiscoveryProjectCellRowValue):
       cell.configureWith(value: value)
+    case let (cell as DiscoveryProjectCardCell, value as DiscoveryProjectCellRowValue):
+      cell.configureWith(value: value)
     case let (cell as ThanksCategoryCell, value as KsApi.Category):
       cell.configureWith(value: value)
     default:
@@ -29,10 +37,8 @@ internal final class ThanksProjectsDataSource: ValueCellDataSource {
   }
 
   internal func projectAtIndexPath(_ indexPath: IndexPath) -> Project? {
-    return self[indexPath] as? Project
-  }
+    let discoveryProjectCellRowValue = self[indexPath] as? DiscoveryProjectCellRowValue
 
-  internal func categoryAtIndexPath(_ indexPath: IndexPath) -> KsApi.Category? {
-    return self[indexPath] as? KsApi.Category
+    return discoveryProjectCellRowValue?.project
   }
 }

@@ -2,6 +2,7 @@ import KsApi
 import Library
 import Prelude
 import SafariServices
+import WebKit
 
 internal final class ProjectCreatorViewController: WebViewController {
   fileprivate let viewModel: ProjectCreatorViewModelType = ProjectCreatorViewModel()
@@ -19,7 +20,7 @@ internal final class ProjectCreatorViewController: WebViewController {
     self.navigationItem.title = Strings.project_subpages_menu_buttons_creator()
 
     if self.traitCollection.userInterfaceIdiom == .pad {
-      self.navigationItem.leftBarButtonItem = .close(self, selector: #selector(closeButtonTapped))
+      self.navigationItem.leftBarButtonItem = .close(self, selector: #selector(self.closeButtonTapped))
     }
   }
 
@@ -42,7 +43,7 @@ internal final class ProjectCreatorViewController: WebViewController {
       .observeForControllerAction()
       .observeValues { [weak self] in
         self?.goToLoginTout($0)
-    }
+      }
 
     self.viewModel.outputs.loadWebViewRequest
       .observeForControllerAction()
@@ -56,7 +57,7 @@ internal final class ProjectCreatorViewController: WebViewController {
         } else {
           self?.navigationController?.popViewController(animated: true)
         }
-    }
+      }
 
     self.viewModel.outputs.goToMessageDialog
       .observeForControllerAction()
@@ -65,13 +66,15 @@ internal final class ProjectCreatorViewController: WebViewController {
     self.viewModel.outputs.goToSafariBrowser
       .observeForControllerAction()
       .observeValues { [weak self] in
-        self?.goToSafariBrowser(url: $0)
-    }
+        self?.goTo(url: $0)
+      }
   }
 
-  internal func webView(_ webView: WKWebView,
-                        decidePolicyFor navigationAction: WKNavigationAction,
-                        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+  internal func webView(
+    _: WKWebView,
+    decidePolicyFor navigationAction: WKNavigationAction,
+    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+  ) {
     decisionHandler(
       self.viewModel.inputs.decidePolicy(
         forNavigationAction: WKNavigationActionData(navigationAction: navigationAction)
@@ -81,8 +84,9 @@ internal final class ProjectCreatorViewController: WebViewController {
 
   fileprivate func goToLoginTout(_ loginIntent: LoginIntent) {
     let vc = LoginToutViewController.configuredWith(loginIntent: loginIntent)
+    let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad
     let nav = UINavigationController(rootViewController: vc)
-    nav.modalPresentationStyle = .formSheet
+      |> \.modalPresentationStyle .~ (isIpad ? .formSheet : .fullScreen)
 
     self.present(nav, animated: true, completion: nil)
   }
@@ -95,12 +99,6 @@ internal final class ProjectCreatorViewController: WebViewController {
     self.present(nav, animated: true, completion: nil)
   }
 
-  fileprivate func goToSafariBrowser(url: URL) {
-    let controller = SFSafariViewController(url: url)
-    controller.modalPresentationStyle = .overFullScreen
-    self.present(controller, animated: true, completion: nil)
-  }
-
   @objc fileprivate func closeButtonTapped() {
     self.dismiss(animated: true, completion: nil)
   }
@@ -111,6 +109,5 @@ extension ProjectCreatorViewController: MessageDialogViewControllerDelegate {
     dialog.dismiss(animated: true, completion: nil)
   }
 
-  internal func messageDialog(_ dialog: MessageDialogViewController, postedMessage message: Message) {
-  }
+  internal func messageDialog(_: MessageDialogViewController, postedMessage _: Message) {}
 }

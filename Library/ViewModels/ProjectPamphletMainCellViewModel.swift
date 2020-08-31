@@ -1,17 +1,26 @@
 import KsApi
 import Prelude
 import ReactiveSwift
-import Result
+
+public typealias ProjectPamphletMainCellData = (
+  project: Project,
+  refTag: RefTag?,
+  creatorDetailsData: ProjectCreatorDetailsData,
+  projectSummaryitems: [ProjectSummaryEnvelope.ProjectSummaryItem]
+)
 
 public protocol ProjectPamphletMainCellViewModelInputs {
   /// Call when cell awakeFromNib is called.
   func awakeFromNib()
 
-  /// Call with the project provided to the view controller.
-  func configureWith(project: Project)
+  /// Call with the ProjectPamphletMainCellDataProjectPamphletMainCellData provided to the view controller.
+  func configureWith(value: ProjectPamphletMainCellData)
 
   /// Call when the creator button is tapped.
   func creatorButtonTapped()
+
+  /// Call when the creatorByline is tapped.
+  func creatorBylineTapped()
 
   /// Call when the delegate has been set on the cell.
   func delegateDidSet()
@@ -24,90 +33,122 @@ public protocol ProjectPamphletMainCellViewModelInputs {
 }
 
 public protocol ProjectPamphletMainCellViewModelOutputs {
-
   /// Emits a string to use for the backer subtitle label.
-  var backersSubtitleLabelText: Signal<String, NoError> { get }
+  var backersSubtitleLabelText: Signal<String, Never> { get }
 
   /// Emits a string to use for the backers title label.
-  var backersTitleLabelText: Signal<String, NoError> { get }
+  var backersTitleLabelText: Signal<String, Never> { get }
 
   /// Emits a string to use for the category name label.
-  var categoryNameLabelText: Signal<String, NoError> { get }
+  var categoryNameLabelText: Signal<String, Never> { get }
+
+  /// Emits a project when the creator by line view should be configured.
+  var configureCreatorBylineView: Signal<(Project, ProjectCreatorDetailsEnvelope), Never> { get }
 
   /// Emits a project when the video player controller should be configured.
-  var configureVideoPlayerController: Signal<Project, NoError> { get }
+  var configureVideoPlayerController: Signal<Project, Never> { get }
+
+  /// Emits the data to configure the configureProjectSummaryCarouselView.
+  var configureProjectSummaryCarouselView: Signal<[ProjectSummaryEnvelope.ProjectSummaryItem], Never> { get }
 
   /// Emits a boolean that determines if the conversion labels should be hidden.
-  var conversionLabelHidden: Signal<Bool, NoError> { get }
+  var conversionLabelHidden: Signal<Bool, Never> { get }
 
   /// Emits a string for the conversion label.
-  var conversionLabelText: Signal<String, NoError> { get }
+  var conversionLabelText: Signal<String, Never> { get }
+
+  /// Emits a bool to determine that creatorButton should be hidden.
+  var creatorButtonIsHidden: Signal<Bool, Never> { get }
+
+  /// Emits whether the CreatorBylineView should be hidden.
+  var creatorBylineViewHidden: Signal<Bool, Never> { get }
+
+  /// Emits whether the CreatorBylineView loading shimmer view should be hidden.
+  var creatorBylineShimmerViewHidden: Signal<Bool, Never> { get }
 
   /// Emits an image url to be loaded into the creator's image view.
-  var creatorImageUrl: Signal<URL?, NoError> { get }
+  var creatorImageUrl: Signal<URL?, Never> { get }
 
   /// Emits text to be put into the creator label.
-  var creatorLabelText: Signal<String, NoError> { get }
+  var creatorLabelText: Signal<String, Never> { get }
+
+  /// Emits whether the creator stack view should be hidden.
+  var creatorStackViewHidden: Signal<Bool, Never> { get }
 
   /// Emits the text for the deadline subtitle label.
-  var deadlineSubtitleLabelText: Signal<String, NoError> { get }
+  var deadlineSubtitleLabelText: Signal<String, Never> { get }
 
   /// Emits the text for the deadline title label.
-  var deadlineTitleLabelText: Signal<String, NoError> { get }
+  var deadlineTitleLabelText: Signal<String, Never> { get }
 
   /// Emits the background color of the funding progress bar view.
-  var fundingProgressBarViewBackgroundColor: Signal<UIColor, NoError> { get }
+  var fundingProgressBarViewBackgroundColor: Signal<UIColor, Never> { get }
 
   /// Emits a string to use for the location name label.
-  var locationNameLabelText: Signal<String, NoError> { get }
+  var locationNameLabelText: Signal<String, Never> { get }
 
-  /// Emits the project when we should go to the campaign view for the project.
-  var notifyDelegateToGoToCampaign: Signal<Project, NoError> { get }
+  /// Emits the project and refTag when we should go to the campaign view for the project.
+  var notifyDelegateToGoToCampaignWithProjectAndRefTag: Signal<(Project, RefTag?), Never> { get }
 
   /// Emits the project when we should go to the creator's view for the project.
-  var notifyDelegateToGoToCreator: Signal<Project, NoError> { get }
+  var notifyDelegateToGoToCreator: Signal<Project, Never> { get }
+
+  /// Emits the project when we should go to the creator's view from creatorByline for the project.
+  var notifyDelegateToGoToCreatorFromByline: Signal<Project, Never> { get }
 
   /// Emits an alpha value for views to create transition after full project loads.
-  var opacityForViews: Signal<CGFloat, NoError> { get }
+  var opacityForViews: Signal<CGFloat, Never> { get }
 
   /// Emits the text for the pledged subtitle label.
-  var pledgedSubtitleLabelText: Signal<String, NoError> { get }
+  var pledgedSubtitleLabelText: Signal<String, Never> { get }
 
   /// Emits the text for the pledged title label.
-  var pledgedTitleLabelText: Signal<String, NoError> { get }
+  var pledgedTitleLabelText: Signal<String, Never> { get }
 
   /// Emits the text color of the pledged title label.
-  var pledgedTitleLabelTextColor: Signal<UIColor, NoError> { get }
+  var pledgedTitleLabelTextColor: Signal<UIColor, Never> { get }
 
   /// Emits a percentage between 0.0 and 1.0 that can be used to render the funding progress bar.
-  var progressPercentage: Signal<Float, NoError> { get }
+  var progressPercentage: Signal<Float, Never> { get }
 
   /// Emits text to be put into the project blurb label.
-  var projectBlurbLabelText: Signal<String, NoError> { get }
+  var projectBlurbLabelText: Signal<String, Never> { get }
 
   /// Emits a URL to be loaded into the project's image view.
-  var projectImageUrl: Signal<URL?, NoError> { get }
+  var projectImageUrl: Signal<URL?, Never> { get }
 
   /// Emits text to be put into the project name label.
-  var projectNameLabelText: Signal<String, NoError> { get }
+  var projectNameLabelText: Signal<String, Never> { get }
 
   /// Emits a string that should be put into the project state label.
-  var projectStateLabelText: Signal<String, NoError> { get }
+  var projectStateLabelText: Signal<String, Never> { get }
 
   /// Emits the text color of the project state label.
-  var projectStateLabelTextColor: Signal<UIColor, NoError> { get }
+  var projectStateLabelTextColor: Signal<UIColor, Never> { get }
+
+  /// Emits whether the projectSummaryCarouselViewHidden should be hidden
+  var projectSummaryCarouselViewHidden: Signal<Bool, Never> { get }
 
   /// Emits the text color of the backer and deadline title label.
-  var projectUnsuccessfulLabelTextColor: Signal<UIColor, NoError> { get }
+  var projectUnsuccessfulLabelTextColor: Signal<UIColor, Never> { get }
+
+  /// Emits when the read more button should be hidden.
+  var readMoreButtonIsHidden: Signal<Bool, Never> { get }
+
+  /// Emits when the read more button is loading.
+  var readMoreButtonIsLoading: Signal<Bool, Never> { get }
+
+  /// Emits when the large read more button should be hidden.
+  var readMoreButtonLargeIsHidden: Signal<Bool, Never> { get }
 
   /// Emits a boolean that determines if the project state label should be hidden.
-  var stateLabelHidden: Signal<Bool, NoError> { get }
+  var stateLabelHidden: Signal<Bool, Never> { get }
 
   /// Emits a string to use for the stats stack view accessibility value.
-  var statsStackViewAccessibilityLabel: Signal<String, NoError> { get }
+  var statsStackViewAccessibilityLabel: Signal<String, Never> { get }
 
   /// Emits a boolean that determines if the "you're a backer" label should be hidden.
-  var youreABackerLabelHidden: Signal<Bool, NoError> { get }
+  var youreABackerLabelHidden: Signal<Bool, Never> { get }
 }
 
 public protocol ProjectPamphletMainCellViewModelType {
@@ -116,10 +157,49 @@ public protocol ProjectPamphletMainCellViewModelType {
 }
 
 public final class ProjectPamphletMainCellViewModel: ProjectPamphletMainCellViewModelType,
-ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs {
+  ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs {
+  public init() {
+    let data = Signal.combineLatest(
+      self.dataProperty.signal.skipNil(),
+      self.awakeFromNibProperty.signal
+    )
+    .map(first)
 
-    public init() {
-    let project = self.projectProperty.signal.skipNil()
+    let projectAndRefTag = data.map {
+      project, refTag, _, _ in (project, refTag)
+    }
+    let projectAndCreatorDetails = data.map { project, _, creatorDetails, _ in
+      (project, creatorDetails)
+    }
+    let creatorDetails = projectAndCreatorDetails.map { _, creatorDetails in creatorDetails.0 }.skipNil()
+    let projectSummaryItems = data.map { $0.projectSummaryitems }
+
+    self.creatorBylineViewHidden = projectAndCreatorDetails
+      .map(second)
+      .map { creatorDetails, isLoading in
+        creatorDetails == nil || isLoading
+      }
+
+    self.creatorBylineShimmerViewHidden = projectAndCreatorDetails
+      .map(second)
+      .map(second >>> isFalse)
+
+    self.creatorStackViewHidden = Signal.combineLatest(
+      self.creatorBylineViewHidden,
+      self.creatorBylineShimmerViewHidden
+    )
+    .map { creatorBylineViewHidden, creatorBylineShimmerViewHidden in
+      creatorBylineViewHidden && creatorBylineShimmerViewHidden
+    }
+    .negate()
+
+    self.configureProjectSummaryCarouselView = projectSummaryItems
+
+    self.projectSummaryCarouselViewHidden = projectSummaryItems.map { $0.isEmpty }
+
+    self.creatorButtonIsHidden = self.creatorStackViewHidden
+
+    let project = projectAndRefTag.map(first)
 
     self.projectNameLabelText = project.map(Project.lens.name.view)
     self.projectBlurbLabelText = project.map(Project.lens.blurb.view)
@@ -131,6 +211,16 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
     self.creatorImageUrl = project.map { URL(string: $0.creator.avatar.small) }
 
     self.stateLabelHidden = project.map { $0.state == .live }
+
+    let projectCampaignExperimentVariant = projectAndRefTag
+      .map(OptimizelyExperiment.projectCampaignExperiment)
+
+    self.configureCreatorBylineView = Signal.combineLatest(project, creatorDetails)
+
+    let isProjectCampaignExperimentVariant = projectCampaignExperimentVariant.map { $0 != .control }
+
+    self.readMoreButtonIsHidden = isProjectCampaignExperimentVariant
+    self.readMoreButtonLargeIsHidden = isProjectCampaignExperimentVariant.negate()
 
     self.projectStateLabelText = project
       .filter { $0.state != .live }
@@ -145,11 +235,13 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
 
     self.projectUnsuccessfulLabelTextColor = project
       .map { $0.state == .successful || $0.state == .live ?
-        UIColor.ksr_text_dark_grey_500 : UIColor.ksr_text_dark_grey_500 }
+        UIColor.ksr_text_dark_grey_500 : UIColor.ksr_text_dark_grey_500
+      }
 
     self.pledgedTitleLabelTextColor = project
-      .map { $0.state == .successful  || $0.state == .live ?
-        UIColor.ksr_green_700 : UIColor.ksr_text_dark_grey_500 }
+      .map { $0.state == .successful || $0.state == .live ?
+        UIColor.ksr_green_700 : UIColor.ksr_text_dark_grey_500
+      }
 
     self.projectImageUrl = project.map { URL(string: $0.photo.full) }
 
@@ -172,12 +264,12 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
     }
 
     self.backersTitleLabelText = backersTitleAndSubtitleText.map { title, _ in title ?? "" }
-    self.backersSubtitleLabelText =  backersTitleAndSubtitleText.map { _, subtitle in subtitle ?? "" }
+    self.backersSubtitleLabelText = backersTitleAndSubtitleText.map { _, subtitle in subtitle ?? "" }
 
     self.categoryNameLabelText = project.map { $0.category.name }
 
     let deadlineTitleAndSubtitle = project.map {
-      return Format.duration(secondsInUTC: $0.dates.deadline, useToGo: true)
+      Format.duration(secondsInUTC: $0.dates.deadline, useToGo: true)
     }
 
     self.deadlineTitleLabelText = deadlineTitleAndSubtitle.map(first)
@@ -186,63 +278,101 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
     let projectAndNeedsConversion = project.map { project -> (Project, Bool) in
       (
         project,
-        AppEnvironment.current.config?.countryCode == "US" && project.country != .us
+        project.stats.needsConversion
       )
     }
 
     self.conversionLabelHidden = projectAndNeedsConversion.map(second).map(negate)
 
-    self.conversionLabelText = projectAndNeedsConversion
-      .filter(second)
-      .map(first)
-      .map { project in
-        Strings.discovery_baseball_card_stats_convert_from_pledged_of_goal(
-          pledged: Format.currency(project.stats.pledged, country: project.country),
-          goal: Format.currency(project.stats.goal, country: project.country)
-        )
-    }
-
     self.locationNameLabelText = project.map { $0.location.displayableName }
 
     self.pledgedTitleLabelText = projectAndNeedsConversion.map { project, needsConversion in
-      needsConversion
-        ? Format.currency(project.stats.pledgedUsd, country: .us)
-        : Format.currency(project.stats.pledged, country: project.country)
+      pledgedText(for: project, needsConversion)
     }
 
     self.pledgedSubtitleLabelText = projectAndNeedsConversion.map { project, needsConversion in
-      guard needsConversion else {
-        return Strings.activity_project_state_change_pledged_of_goal(
-          goal: Format.currency(project.stats.goal, country: project.country)
-        )
-      }
+      goalText(for: project, needsConversion)
+    }
 
-      return Strings.activity_project_state_change_pledged_of_goal(
-        goal: Format.currency(project.stats.goalUsd, country: .us)
-      )
+    self.conversionLabelText = projectAndNeedsConversion.filter(second).map(first).map { project in
+      conversionText(for: project)
     }
 
     self.statsStackViewAccessibilityLabel = projectAndNeedsConversion
-      .map(statsStackViewAccessibilityLabel(forProject:needsConversion:))
+      .map(statsStackViewAccessibilityLabelForProject(_:needsConversion:))
 
     self.progressPercentage = project
       .map(Project.lens.stats.fundingProgress.view)
       .map(clamp(0, 1))
 
-    self.notifyDelegateToGoToCampaign = project
+    self.notifyDelegateToGoToCampaignWithProjectAndRefTag = projectAndRefTag
       .takeWhen(self.readMoreButtonTappedProperty.signal)
 
     self.notifyDelegateToGoToCreator = project
       .takeWhen(self.creatorButtonTappedProperty.signal)
+
+    self.notifyDelegateToGoToCreatorFromByline = project
+      .takeWhen(self.creatorBylineTappedProperty.signal)
 
     self.configureVideoPlayerController = Signal.combineLatest(project, self.delegateDidSetProperty.signal)
       .map(first)
       .take(first: 1)
 
     self.opacityForViews = Signal.merge(
-      self.projectProperty.signal.skipNil().mapConst(1.0),
+      self.dataProperty.signal.skipNil().mapConst(1.0),
       self.awakeFromNibProperty.signal.mapConst(0.0)
     )
+
+    /* Read more button has initial loading state in second experiment variant
+     * while rewards are being loaded.
+     */
+    self.readMoreButtonIsLoading = Signal.combineLatest(
+      project,
+      projectCampaignExperimentVariant
+    )
+    .map { project, variant in
+      project.rewards.isEmpty && variant == .variant2
+    }
+
+    // Tracking
+
+    projectAndRefTag
+      .takeWhen(self.readMoreButtonTappedProperty.signal)
+      .observeValues { projectAndRefTag in
+        let (project, refTag) = projectAndRefTag
+        let includeOptimizelyProperties = project.state == .live && userIsBackingProject(project) == false
+        let cookieRefTag = cookieRefTagFor(project: project) ?? refTag
+        let optyProperties = includeOptimizelyProperties ? optimizelyProperties() : nil
+
+        AppEnvironment.current.koala.trackCampaignDetailsButtonClicked(
+          project: project,
+          location: .projectPage,
+          refTag: refTag,
+          cookieRefTag: cookieRefTag,
+          optimizelyProperties: optyProperties ?? [:]
+        )
+
+        AppEnvironment.current.optimizelyClient?.track(eventName: "Campaign Details Button Clicked")
+      }
+
+    projectAndRefTag
+      .takeWhen(self.creatorBylineTappedProperty.signal)
+      .observeValues { projectAndRefTag in
+        let (project, refTag) = projectAndRefTag
+        let includeOptimizelyProperties = project.state == .live && userIsBackingProject(project) == false
+        let cookieRefTag = cookieRefTagFor(project: project) ?? refTag
+        let optyProperties = includeOptimizelyProperties ? optimizelyProperties() : [:]
+
+        AppEnvironment.current.koala.trackCreatorDetailsClicked(
+          project: project,
+          location: .projectPage,
+          refTag: refTag,
+          cookieRefTag: cookieRefTag,
+          optimizelyProperties: optyProperties ?? [:]
+        )
+
+        AppEnvironment.current.optimizelyClient?.track(eventName: "Creator Details Clicked")
+      }
   }
 
   private let awakeFromNibProperty = MutableProperty(())
@@ -250,14 +380,20 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
     self.awakeFromNibProperty.value = ()
   }
 
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
-  public func configureWith(project: Project) {
-    self.projectProperty.value = project
+  fileprivate let dataProperty
+    = MutableProperty<ProjectPamphletMainCellData?>(nil)
+  public func configureWith(value: ProjectPamphletMainCellData) {
+    self.dataProperty.value = value
   }
 
   fileprivate let creatorButtonTappedProperty = MutableProperty(())
   public func creatorButtonTapped() {
     self.creatorButtonTappedProperty.value = ()
+  }
+
+  fileprivate let creatorBylineTappedProperty = MutableProperty(())
+  public func creatorBylineTapped() {
+    self.creatorBylineTappedProperty.value = ()
   }
 
   fileprivate let delegateDidSetProperty = MutableProperty(())
@@ -280,47 +416,66 @@ ProjectPamphletMainCellViewModelInputs, ProjectPamphletMainCellViewModelOutputs 
     self.videoDidStartProperty.value = ()
   }
 
-  public let backersSubtitleLabelText: Signal<String, NoError>
-  public let backersTitleLabelText: Signal<String, NoError>
-  public let categoryNameLabelText: Signal<String, NoError>
-  public let configureVideoPlayerController: Signal<Project, NoError>
-  public let conversionLabelHidden: Signal<Bool, NoError>
-  public let conversionLabelText: Signal<String, NoError>
-  public let creatorImageUrl: Signal<URL?, NoError>
-  public let creatorLabelText: Signal<String, NoError>
-  public let deadlineSubtitleLabelText: Signal<String, NoError>
-  public let deadlineTitleLabelText: Signal<String, NoError>
-  public let fundingProgressBarViewBackgroundColor: Signal<UIColor, NoError>
-  public let locationNameLabelText: Signal<String, NoError>
-  public let notifyDelegateToGoToCampaign: Signal<Project, NoError>
-  public let notifyDelegateToGoToCreator: Signal<Project, NoError>
-  public let opacityForViews: Signal<CGFloat, NoError>
-  public let pledgedSubtitleLabelText: Signal<String, NoError>
-  public let pledgedTitleLabelText: Signal<String, NoError>
-  public let pledgedTitleLabelTextColor: Signal<UIColor, NoError>
-  public let progressPercentage: Signal<Float, NoError>
-  public let projectBlurbLabelText: Signal<String, NoError>
-  public let projectImageUrl: Signal<URL?, NoError>
-  public let projectNameLabelText: Signal<String, NoError>
-  public let projectStateLabelText: Signal<String, NoError>
-  public let projectStateLabelTextColor: Signal<UIColor, NoError>
-  public let projectUnsuccessfulLabelTextColor: Signal<UIColor, NoError>
-  public let stateLabelHidden: Signal<Bool, NoError>
-  public let statsStackViewAccessibilityLabel: Signal<String, NoError>
-  public let youreABackerLabelHidden: Signal<Bool, NoError>
+  public let backersSubtitleLabelText: Signal<String, Never>
+  public let backersTitleLabelText: Signal<String, Never>
+  public let categoryNameLabelText: Signal<String, Never>
+  public let configureCreatorBylineView: Signal<(Project, ProjectCreatorDetailsEnvelope), Never>
+  public let configureVideoPlayerController: Signal<Project, Never>
+  public let configureProjectSummaryCarouselView: Signal<[ProjectSummaryEnvelope.ProjectSummaryItem], Never>
+  public let conversionLabelHidden: Signal<Bool, Never>
+  public let conversionLabelText: Signal<String, Never>
+  public let creatorButtonIsHidden: Signal<Bool, Never>
+  public let creatorBylineViewHidden: Signal<Bool, Never>
+  public let creatorBylineShimmerViewHidden: Signal<Bool, Never>
+  public let creatorImageUrl: Signal<URL?, Never>
+  public let creatorLabelText: Signal<String, Never>
+  public let creatorStackViewHidden: Signal<Bool, Never>
+  public let deadlineSubtitleLabelText: Signal<String, Never>
+  public let deadlineTitleLabelText: Signal<String, Never>
+  public let fundingProgressBarViewBackgroundColor: Signal<UIColor, Never>
+  public let locationNameLabelText: Signal<String, Never>
+  public let notifyDelegateToGoToCampaignWithProjectAndRefTag: Signal<(Project, RefTag?), Never>
+  public let notifyDelegateToGoToCreator: Signal<Project, Never>
+  public let notifyDelegateToGoToCreatorFromByline: Signal<Project, Never>
+  public let opacityForViews: Signal<CGFloat, Never>
+  public let pledgedSubtitleLabelText: Signal<String, Never>
+  public let pledgedTitleLabelText: Signal<String, Never>
+  public let pledgedTitleLabelTextColor: Signal<UIColor, Never>
+  public let progressPercentage: Signal<Float, Never>
+  public let projectBlurbLabelText: Signal<String, Never>
+  public let projectImageUrl: Signal<URL?, Never>
+  public let projectNameLabelText: Signal<String, Never>
+  public let projectStateLabelText: Signal<String, Never>
+  public let projectStateLabelTextColor: Signal<UIColor, Never>
+  public let projectSummaryCarouselViewHidden: Signal<Bool, Never>
+  public let projectUnsuccessfulLabelTextColor: Signal<UIColor, Never>
+  public let readMoreButtonIsHidden: Signal<Bool, Never>
+  public let readMoreButtonIsLoading: Signal<Bool, Never>
+  public let readMoreButtonLargeIsHidden: Signal<Bool, Never>
+  public let stateLabelHidden: Signal<Bool, Never>
+  public let statsStackViewAccessibilityLabel: Signal<String, Never>
+  public let youreABackerLabelHidden: Signal<Bool, Never>
 
   public var inputs: ProjectPamphletMainCellViewModelInputs { return self }
   public var outputs: ProjectPamphletMainCellViewModelOutputs { return self }
 }
 
-private func statsStackViewAccessibilityLabel(forProject project: Project, needsConversion: Bool) -> String {
+private func statsStackViewAccessibilityLabelForProject(_ project: Project, needsConversion: Bool) -> String {
+  let projectCurrencyData = pledgeAmountAndGoalAndCountry(
+    forProject: project,
+    needsConversion: needsConversion
+  )
 
-  let pledged = needsConversion
-    ? Format.currency(project.stats.pledged, country: project.country)
-    : Format.currency(project.stats.pledgedUsd, country: .us)
-  let goal = needsConversion
-    ? Format.currency(project.stats.goal, country: project.country)
-    : Format.currency(project.stats.goalUsd, country: .us)
+  let pledged = Format.currency(
+    projectCurrencyData.pledgedAmount,
+    country: projectCurrencyData.country,
+    omitCurrencyCode: project.stats.omitUSCurrencyCode
+  )
+  let goal = Format.currency(
+    projectCurrencyData.goalAmount,
+    country: projectCurrencyData.country,
+    omitCurrencyCode: project.stats.omitUSCurrencyCode
+  )
 
   let backersCount = project.stats.backersCount
   let (time, unit) = Format.duration(secondsInUTC: project.dates.deadline, useToGo: true)
@@ -329,16 +484,18 @@ private func statsStackViewAccessibilityLabel(forProject project: Project, needs
   return project.state == .live
     ? Strings.dashboard_graphs_funding_accessibility_live_stat_value(
       pledged: pledged, goal: goal, backers_count: backersCount, time_left: timeLeft
-      )
+    )
     : Strings.dashboard_graphs_funding_accessibility_non_live_stat_value(
       pledged: pledged, goal: goal, backers_count: backersCount, time_left: timeLeft
-  )
+    )
 }
 
 private func fundingStatus(forProject project: Project) -> String {
-  let date = Format.date(secondsInUTC: project.dates.stateChangedAt,
-                         dateStyle: .medium,
-                         timeStyle: .none)
+  let date = Format.date(
+    secondsInUTC: project.dates.stateChangedAt,
+    dateStyle: .medium,
+    timeStyle: .none
+  )
 
   switch project.state {
   case .canceled:
@@ -352,7 +509,69 @@ private func fundingStatus(forProject project: Project) -> String {
   case .live, .purged, .started, .submitted:
     return ""
   }
- }
+}
+
+typealias ConvertedCurrrencyProjectData = (pledgedAmount: Int, goalAmount: Int, country: Project.Country)
+
+private func pledgeAmountAndGoalAndCountry(
+  forProject project: Project,
+  needsConversion: Bool
+) -> ConvertedCurrrencyProjectData {
+  guard needsConversion else {
+    return (project.stats.pledged, project.stats.goal, project.country)
+  }
+
+  guard let goalCurrentCurrency = project.stats.goalCurrentCurrency,
+    let pledgedCurrentCurrency = project.stats.convertedPledgedAmount,
+    let currentCountry = project.stats.currentCountry else {
+    return (project.stats.pledgedUsd, project.stats.goalUsd, Project.Country.us)
+  }
+
+  return (pledgedCurrentCurrency, goalCurrentCurrency, currentCountry)
+}
+
+private func goalText(for project: Project, _ needsConversion: Bool) -> String {
+  let projectCurrencyData = pledgeAmountAndGoalAndCountry(
+    forProject: project,
+    needsConversion: needsConversion
+  )
+
+  return Strings.activity_project_state_change_pledged_of_goal(
+    goal: Format.currency(
+      projectCurrencyData.goalAmount,
+      country: projectCurrencyData.country,
+      omitCurrencyCode: project.stats.omitUSCurrencyCode
+    )
+  )
+}
+
+private func pledgedText(for project: Project, _ needsConversion: Bool) -> String {
+  let projectCurrencyData = pledgeAmountAndGoalAndCountry(
+    forProject: project,
+    needsConversion: needsConversion
+  )
+
+  return Format.currency(
+    projectCurrencyData.pledgedAmount,
+    country: projectCurrencyData.country,
+    omitCurrencyCode: project.stats.omitUSCurrencyCode
+  )
+}
+
+private func conversionText(for project: Project) -> String {
+  return Strings.discovery_baseball_card_stats_convert_from_pledged_of_goal(
+    pledged: Format.currency(
+      project.stats.pledged,
+      country: project.country,
+      omitCurrencyCode: project.stats.omitUSCurrencyCode
+    ),
+    goal: Format.currency(
+      project.stats.goal,
+      country: project.country,
+      omitCurrencyCode: project.stats.omitUSCurrencyCode
+    )
+  )
+}
 
 private func progressColor(forProject project: Project) -> UIColor {
   switch project.state {

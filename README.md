@@ -1,4 +1,4 @@
-# Kickstarter for iOS
+<a href="https://www.kickstarter.com"><img src=".github/ksr-wordmark.svg" width="36%" alt="Kickstarter for iOS"></a>
 
 [![Circle CI](https://circleci.com/gh/kickstarter/ios-oss.svg?style=svg)](https://circleci.com/gh/kickstarter/ios-oss)
 
@@ -9,11 +9,9 @@ build the app.
 We’ve also open sourced our [Android app](https://github.com/kickstarter/android-oss),
 and read more about our journey to open source [here](https://kickstarter.engineering/open-sourcing-our-android-and-ios-apps-6891be909fcd).
 
-![Kickstarter for iOS](.github/app.jpg)
-
 ## Getting Started
 
-1. [Download](https://developer.apple.com/xcode/download/) the Xcode 9 release.
+1. Install Xcode.
 1. Clone this repository.
 1. Run `make bootstrap` to install tools and dependencies.
 1. Run `make test-all` to build and run tests on all platforms.  
@@ -103,7 +101,7 @@ We do too, and we’re [hiring](https://www.kickstarter.com/jobs?ref=gh_ios_oss)
 ## License
 
 ```
-Copyright 2018 Kickstarter, PBC.
+Copyright 2019 Kickstarter, PBC.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

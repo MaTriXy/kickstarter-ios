@@ -1,10 +1,9 @@
 import AVFoundation
+import CoreTelephony
+import FBSDKCoreKit
 import Foundation
 import KsApi
-import LiveStream
 import ReactiveSwift
-import Result
-import FBSDKCoreKit
 
 /**
  A collection of **all** global variables and singletons that the app wants access to.
@@ -15,6 +14,12 @@ public struct Environment {
 
   /// The amount of time to delay API requests by. Used primarily for testing. Default value is `0.0`.
   public let apiDelayInterval: DispatchTimeInterval
+
+  /// A type that exposes Apple Pay capabilities
+  public let applePayCapabilities: ApplePayCapabilitiesType
+
+  /// The app instance
+  public let application: UIApplicationType
 
   /// A type that exposes how to extract a still image from an AVAsset.
   public let assetImageGeneratorType: AssetImageGeneratorType.Type
@@ -31,6 +36,9 @@ public struct Environment {
   /// A type that exposes how to interact with cookie storage. Default value is `HTTPCookieStorage.shared`.
   public let cookieStorage: HTTPCookieStorageProtocol
 
+  /// A type that provides telephony network info.
+  public let coreTelephonyNetworkInfo: CoreTelephonyNetworkInfoType
+
   /// The user’s current country. This is valid whether the user is logged-in or not.
   public let countryCode: String
 
@@ -43,13 +51,21 @@ public struct Environment {
   /// The amount of time to debounce signals by. Default value is `0.3`.
   public let debounceInterval: DispatchTimeInterval
 
+  /// Stored data used for debugging tools
+  public let debugData: DebugData?
+
   /// The current device running the app.
   public let device: UIDeviceType
 
-  /// A delegate to handle Facebook initialization and incoming url requests
-  public let facebookAppDelegate: FacebookAppDelegateProtocol
+  /// Returns the current environment type
+  public var environmentType: EnvironmentType {
+    return self.apiService.serverConfig.environment
+  }
 
-  /// A function that returns whether voice over mode is running.
+  /// The environment variables
+  public let environmentVariables: EnvironmentVariables
+
+  /// A function that returns whether VoiceOver mode is running.
   public let isVoiceOverRunning: () -> Bool
 
   /// A type that exposes endpoints for tracking various Kickstarter events.
@@ -61,9 +77,6 @@ public struct Environment {
   /// The current set of launched countries for Kickstarter.
   public let launchedCountries: LaunchedCountries
 
-  /// The current service being used for live stream requests.
-  public let liveStreamService: LiveStreamServiceProtocol
-
   /// The user’s current locale, which determines how numbers are formatted. Default value is
   /// `Locale.current`.
   public let locale: Locale
@@ -71,8 +84,14 @@ public struct Environment {
   /// A type that exposes how to interface with an NSBundle. Default value is `Bundle.main`.
   public let mainBundle: NSBundleType
 
+  /// The optimizely client
+  public let optimizelyClient: OptimizelyClientType?
+
+  /// A type that manages registration for push notifications.
+  public let pushRegistrationType: PushRegistrationType.Type
+
   /// A reachability signal producer.
-  public let reachability: SignalProducer<Reachability, NoError>
+  public let reachability: SignalProducer<Reachability, Never>
 
   /// A scheduler to use for all time-based RAC operators. Default value is
   /// `QueueScheduler.mainQueueScheduler`.
@@ -87,49 +106,59 @@ public struct Environment {
   public init(
     apiService: ServiceType = Service(),
     apiDelayInterval: DispatchTimeInterval = .seconds(0),
+    applePayCapabilities: ApplePayCapabilitiesType = ApplePayCapabilities(),
+    application: UIApplicationType = UIApplication.shared,
     assetImageGeneratorType: AssetImageGeneratorType.Type = AVAssetImageGenerator.self,
     cache: KSCache = KSCache(),
     calendar: Calendar = .current,
     config: Config? = nil,
     cookieStorage: HTTPCookieStorageProtocol = HTTPCookieStorage.shared,
+    coreTelephonyNetworkInfo: CoreTelephonyNetworkInfoType = CTTelephonyNetworkInfo.current(),
     countryCode: String = "US",
     currentUser: User? = nil,
     dateType: DateProtocol.Type = Date.self,
     debounceInterval: DispatchTimeInterval = .milliseconds(300),
+    debugData: DebugData? = nil,
     device: UIDeviceType = UIDevice.current,
-    facebookAppDelegate: FacebookAppDelegateProtocol = FBSDKApplicationDelegate.sharedInstance(),
-    isVoiceOverRunning: @escaping () -> Bool = UIAccessibilityIsVoiceOverRunning,
-    koala: Koala = Koala(client: KoalaTrackingClient(endpoint: .production)),
+    environmentVariables: EnvironmentVariables = EnvironmentVariables(),
+    isVoiceOverRunning: @escaping () -> Bool = { UIAccessibility.isVoiceOverRunning },
+    koala: Koala = Koala(),
     language: Language = Language(languageStrings: Locale.preferredLanguages) ?? Language.en,
     launchedCountries: LaunchedCountries = .init(),
-    liveStreamService: LiveStreamServiceProtocol = LiveStreamService(),
     locale: Locale = .current,
     mainBundle: NSBundleType = Bundle.main,
-    reachability: SignalProducer<Reachability, NoError> = Reachability.signalProducer,
+    optimizelyClient: OptimizelyClientType? = nil,
+    pushRegistrationType: PushRegistrationType.Type = PushRegistration.self,
+    reachability: SignalProducer<Reachability, Never> = Reachability.signalProducer,
     scheduler: DateScheduler = QueueScheduler.main,
     ubiquitousStore: KeyValueStoreType = NSUbiquitousKeyValueStore.default,
-    userDefaults: KeyValueStoreType = UserDefaults.standard) {
-
+    userDefaults: KeyValueStoreType = UserDefaults.standard
+  ) {
     self.apiService = apiService
     self.apiDelayInterval = apiDelayInterval
+    self.applePayCapabilities = applePayCapabilities
+    self.application = application
     self.assetImageGeneratorType = assetImageGeneratorType
     self.cache = cache
     self.calendar = calendar
     self.config = config
     self.cookieStorage = cookieStorage
     self.countryCode = countryCode
+    self.coreTelephonyNetworkInfo = coreTelephonyNetworkInfo
     self.currentUser = currentUser
     self.dateType = dateType
     self.debounceInterval = debounceInterval
+    self.debugData = debugData
     self.device = device
-    self.facebookAppDelegate = facebookAppDelegate
+    self.environmentVariables = environmentVariables
     self.isVoiceOverRunning = isVoiceOverRunning
     self.koala = koala
     self.language = language
     self.launchedCountries = launchedCountries
-    self.liveStreamService = liveStreamService
     self.locale = locale
     self.mainBundle = mainBundle
+    self.optimizelyClient = optimizelyClient
+    self.pushRegistrationType = pushRegistrationType
     self.reachability = reachability
     self.scheduler = scheduler
     self.ubiquitousStore = ubiquitousStore

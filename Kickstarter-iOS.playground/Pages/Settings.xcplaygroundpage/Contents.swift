@@ -1,22 +1,22 @@
+@testable import Kickstarter_Framework
 @testable import KsApi
 import Library
+import PlaygroundSupport
 import Prelude
 import Prelude_UIKit
 import UIKit
-import PlaygroundSupport
-@testable import Kickstarter_Framework
 
 // Set the user's backed project count stats.
 let user = .template
-  |> User.lens.stats.backedProjectsCount .~ 100
-  |> User.lens.stats.createdProjectsCount .~ 2
+  |> \.stats.backedProjectsCount .~ 100
+  |> \.stats.createdProjectsCount .~ 2
 
 // Set the device language and environment.
 AppEnvironment.replaceCurrentEnvironment(
   apiService: MockService(
     oauthToken: OauthToken(token: "deadbeef"),
     fetchUserSelfResponse: user
-    ),
+  ),
   language: .en,
   locale: Locale(identifier: "en") as Locale,
   mainBundle: Bundle(for: RootViewModel.self)
