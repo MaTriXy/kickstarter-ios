@@ -1,4 +1,21 @@
+import Foundation
 import Prelude
+
+extension ExtendedProjectProperties {
+  public enum lens {
+    public static let faqs = Lens<ExtendedProjectProperties, [ProjectFAQ]>(
+      view: { $0.faqs },
+      set: { ExtendedProjectProperties(
+        environmentalCommitments: $1.environmentalCommitments,
+        faqs: $0,
+        aiDisclosure: $1.aiDisclosure,
+        risks: $1.risks,
+        story: $1.story,
+        minimumPledgeAmount: $1.minimumPledgeAmount
+      ) }
+    )
+  }
+}
 
 extension Project {
   public enum lens {
@@ -6,10 +23,19 @@ extension Project {
       view: { $0.availableCardTypes },
       set: { Project(
         availableCardTypes: $0, blurb: $1.blurb, category: $1.category, country: $1.country,
-        creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        creator: $1.creator, extendedProjectProperties:
+        $1.extendedProjectProperties, memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -17,10 +43,19 @@ extension Project {
       view: { $0.blurb },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $0, category: $1.category, country: $1.country,
-        creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug, staffPick:
-        $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        creator: $1.creator, extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug, staffPick:
+        $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -28,10 +63,19 @@ extension Project {
       view: { $0.staffPick },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization,
-        photo: $1.photo, prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $0, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator, extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization,
+        photo: $1.photo, isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $0, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -39,10 +83,20 @@ extension Project {
       view: { $0.category },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $0, country: $1.country,
-        creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -50,10 +104,19 @@ extension Project {
       view: { $0.country },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category, country: $0,
-        creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        creator: $1.creator, extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -61,10 +124,20 @@ extension Project {
       view: { $0.creator },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $0, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $0,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -72,10 +145,60 @@ extension Project {
       view: { $0.dates },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $0, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $0,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let displayPrelaunch = Lens<Project, Bool?>(
+      view: { $0.displayPrelaunch },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator, extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $0, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let extendedProjectProperties = Lens<Project, ExtendedProjectProperties?>(
+      view: { $0.extendedProjectProperties },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country,
+        creator: $1.creator, extendedProjectProperties: $0, memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -83,10 +206,20 @@ extension Project {
       view: { $0.id },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $0,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $0,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -94,10 +227,19 @@ extension Project {
       view: { $0.location },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $0, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $0, name: $1.name, pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -105,10 +247,20 @@ extension Project {
       view: { $0.memberData },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $0, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $0, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -116,10 +268,20 @@ extension Project {
       view: { $0.name },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $0, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $0,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -127,10 +289,20 @@ extension Project {
       view: { $0.personalization },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $0, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation, personalization: $0,
+        photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -138,10 +310,82 @@ extension Project {
       view: { $0.photo },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $0,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $0,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let isInPostCampaignPledgingPhase = Lens<Project, Bool>(
+      view: { $0.isInPostCampaignPledgingPhase },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $0,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let pledgeOverTimeMinimumExplanation = Lens<Project, String>(
+      view: { $0.pledgeOverTimeMinimumExplanation },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name, pledgeOverTimeMinimumExplanation: $0,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let postCampaignPledgingEnabled = Lens<Project, Bool>(
+      view: { $0.postCampaignPledgingEnabled },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $0,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -149,21 +393,63 @@ extension Project {
       view: { $0.prelaunchActivated },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $0, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $0, rewardData: $1.rewardData, sendMetaCapiEvents: $1.sendMetaCapiEvents,
+        slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
-    public static let rewards = Lens<Project, [Reward]>(
-      view: { $0.rewards },
+    public static let rewardData = Lens<Project, RewardData>(
+      view: { $0.rewardData },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $0, slug: $1.slug, staffPick: $1.staffPick,
-        state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $0, sendMetaCapiEvents: $1.sendMetaCapiEvents,
+        slug: $1.slug, staffPick: $1.staffPick,
+        state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let sendMetaCapiEvents = Lens<Project, Bool>(
+      view: { $0.sendMetaCapiEvents },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData, sendMetaCapiEvents: $0,
+        slug: $1.slug,
+        staffPick: $1.staffPick,
+        state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -171,10 +457,21 @@ extension Project {
       view: { $0.slug },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $0, staffPick: $1.staffPick,
-        state: $1.state, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $0,
+        staffPick: $1.staffPick,
+        state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -182,10 +479,20 @@ extension Project {
       view: { $0.state },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $0, stats: $1.stats, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $0, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -193,10 +500,41 @@ extension Project {
       view: { $0.stats },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $0, urls: $1.urls, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $0, tags: $1.tags, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let tags = Lens<Project, [String]?>(
+      view: { $0.tags },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $0, urls: $1.urls, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -204,10 +542,20 @@ extension Project {
       view: { $0.urls },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $0, video: $1.video
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $0, video: $1.video,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
       ) }
     )
 
@@ -215,10 +563,62 @@ extension Project {
       view: { $0.video },
       set: { Project(
         availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
-        country: $1.country, creator: $1.creator, memberData: $1.memberData, dates: $1.dates, id: $1.id,
-        location: $1.location, name: $1.name, personalization: $1.personalization, photo: $1.photo,
-        prelaunchActivated: $1.prelaunchActivated, rewards: $1.rewards, slug: $1.slug,
-        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, urls: $1.urls, video: $0
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls, video: $0,
+        watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let watchesCount = Lens<Project, Int?>(
+      view: { $0.watchesCount },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $0,
+        isPledgeOverTimeAllowed: $1.isPledgeOverTimeAllowed
+      ) }
+    )
+
+    public static let isPledgeOverTimeAllowed = Lens<Project, Bool?>(
+      view: { $0.isPledgeOverTimeAllowed },
+      set: { Project(
+        availableCardTypes: $1.availableCardTypes, blurb: $1.blurb, category: $1.category,
+        country: $1.country, creator: $1.creator,
+        extendedProjectProperties: $1.extendedProjectProperties,
+        memberData: $1.memberData, dates: $1.dates,
+        displayPrelaunch: $1.displayPrelaunch, flagging: $1.flagging, id: $1.id,
+        location: $1.location, name: $1.name,
+        pledgeOverTimeMinimumExplanation: $1.pledgeOverTimeMinimumExplanation,
+        personalization: $1.personalization, photo: $1.photo,
+        isInPostCampaignPledgingPhase: $1.isInPostCampaignPledgingPhase,
+        postCampaignPledgingEnabled: $1.postCampaignPledgingEnabled,
+        prelaunchActivated: $1.prelaunchActivated, rewardData: $1.rewardData,
+        sendMetaCapiEvents: $1.sendMetaCapiEvents, slug: $1.slug,
+        staffPick: $1.staffPick, state: $1.state, stats: $1.stats, tags: $1.tags, urls: $1.urls,
+        video: $1.video, watchesCount: $1.watchesCount,
+        isPledgeOverTimeAllowed: $0
       ) }
     )
   }
@@ -280,7 +680,7 @@ extension Lens where Whole == Project, Part == Project.Stats {
     return Project.lens.stats .. lens(\Project.Stats.commentsCount)
   }
 
-  public var convertedPledgedAmount: Lens<Project, Int?> {
+  public var convertedPledgedAmount: Lens<Project, Float?> {
     return Project.lens.stats .. lens(\Project.Stats.convertedPledgedAmount)
   }
 
@@ -312,6 +712,10 @@ extension Lens where Whole == Project, Part == Project.Stats {
     return Project.lens.stats .. lens(\Project.Stats.updatesCount)
   }
 
+  public var usdExchangeRate: Lens<Project, Float?> {
+    return Project.lens.stats .. lens(\Project.Stats.usdExchangeRate)
+  }
+
   public var fundingProgress: Lens<Project, Float> {
     return Project.lens.stats .. Project.Stats.lens.fundingProgress
   }
@@ -332,7 +736,7 @@ extension Lens where Whole == Project, Part == Project.MemberData {
 }
 
 extension Lens where Whole == Project, Part == Project.Dates {
-  public var deadline: Lens<Project, TimeInterval> {
+  public var deadline: Lens<Project, TimeInterval?> {
     return Project.lens.dates .. Project.Dates.lens.deadline
   }
 
@@ -340,7 +744,7 @@ extension Lens where Whole == Project, Part == Project.Dates {
     return Project.lens.dates .. Project.Dates.lens.featuredAt
   }
 
-  public var launchedAt: Lens<Project, TimeInterval> {
+  public var launchedAt: Lens<Project, TimeInterval?> {
     return Project.lens.dates .. Project.Dates.lens.launchedAt
   }
 
@@ -364,6 +768,16 @@ extension Lens where Whole == Project, Part == Project.Personalization {
 
   public var isStarred: Lens<Project, Bool?> {
     return Project.lens.personalization .. Project.Personalization.lens.isStarred
+  }
+}
+
+extension Lens where Whole == Project, Part == Project.RewardData {
+  public var addOns: Lens<Project, [Reward]?> {
+    return Project.lens.rewardData .. Project.RewardData.lens.addOns
+  }
+
+  public var rewards: Lens<Project, [Reward]> {
+    return Project.lens.rewardData .. Project.RewardData.lens.rewards
   }
 }
 

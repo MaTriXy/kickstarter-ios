@@ -7,19 +7,27 @@ extension CreateBackingInput {
     isApplePay: Bool
   ) -> CreateBackingInput {
     let pledgeParams = sanitizedPledgeParameters(
-      from: createBackingData.reward,
-      pledgeAmount: createBackingData.pledgeAmount,
+      from: createBackingData.rewards,
+      selectedQuantities: createBackingData.selectedQuantities,
+      pledgeTotal: createBackingData.pledgeTotal,
       shippingRule: createBackingData.shippingRule
     )
+
+    let setupIntentClientSecret = isApplePay ? nil : createBackingData
+      .paymentSourceId == nil ? createBackingData.setupIntentClientSecret : nil
+    let paymentSourceId = isApplePay ? nil : createBackingData
+      .setupIntentClientSecret == nil ? createBackingData.paymentSourceId : nil
 
     return CreateBackingInput(
       amount: pledgeParams.pledgeTotal,
       applePay: isApplePay ? createBackingData.applePayParams : nil,
+      incremental: createBackingData.incremental,
       locationId: pledgeParams.locationId,
-      paymentSourceId: isApplePay ? nil : createBackingData.paymentSourceId,
+      paymentSourceId: paymentSourceId,
       projectId: createBackingData.project.graphID,
       refParam: createBackingData.refTag?.description,
-      rewardId: pledgeParams.rewardId
+      rewardIds: pledgeParams.rewardIds,
+      setupIntentClientSecret: setupIntentClientSecret
     )
   }
 }

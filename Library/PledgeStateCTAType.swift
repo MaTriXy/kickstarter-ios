@@ -1,15 +1,13 @@
 import UIKit
 
-public enum PledgeStateCTAType {
+public enum PledgeStateCTAType: Equatable {
   case fix
   case pledge
   case manage
   case viewBacking
   case viewRewards
   case viewYourRewards
-  // Experimental
-  case seeTheRewards
-  case viewTheRewards
+  case prelaunch(saved: Bool, watchCount: Int)
 
   public var buttonTitle: String {
     switch self {
@@ -25,10 +23,8 @@ public enum PledgeStateCTAType {
       return Strings.View_rewards()
     case .viewYourRewards:
       return Strings.View_your_rewards()
-    case .seeTheRewards:
-      return Strings.See_the_rewards()
-    case .viewTheRewards:
-      return Strings.View_the_rewards()
+    case let .prelaunch(saved, _):
+      return saved ? Strings.Saved() : Strings.Notify_me_on_launch()
     }
   }
 
@@ -36,18 +32,20 @@ public enum PledgeStateCTAType {
     switch self {
     case .fix:
       return .red
-    case .pledge, .seeTheRewards, .viewTheRewards:
+    case .pledge:
       return .green
     case .manage:
       return .blue
     case .viewBacking, .viewRewards, .viewYourRewards:
       return .black
+    case let .prelaunch(saved, _):
+      return saved ? .none : .black
     }
   }
 
   public var stackViewIsHidden: Bool {
     switch self {
-    case .pledge, .seeTheRewards, .viewBacking, .viewRewards, .viewYourRewards, .viewTheRewards:
+    case .pledge, .viewBacking, .viewRewards, .viewYourRewards, .prelaunch:
       return true
     case .fix, .manage:
       return false
@@ -76,7 +74,7 @@ public enum PledgeStateCTAType {
 
   public var stackViewAndSpacerAreHidden: Bool {
     switch self {
-    case .pledge, .seeTheRewards, .viewBacking, .viewRewards, .viewYourRewards, .viewTheRewards:
+    case .pledge, .viewBacking, .viewRewards, .viewYourRewards, .prelaunch:
       return true
     case .fix, .manage:
       return false

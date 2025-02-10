@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public enum EmptyState: String {
   case activity
@@ -80,9 +81,11 @@ public final class EmptyStatesViewModel: EmptyStatesViewModelType, EmptyStatesVi
     self.bottomLayoutConstraintConstant = emptyState
       .map { Styles.grid(5) + ($0 == .activity ? 50.0 : 0) }
 
-    emptyState
-      .takeWhen(self.mainButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackEmptyStateButtonTapped(type: $0) }
+    // Tracking
+
+    self.mainButtonTappedProperty.signal.observeValues { _ in
+      AppEnvironment.current.ksrAnalytics.trackExploreButtonClicked()
+    }
   }
 
   fileprivate let emptyStateProperty = MutableProperty<EmptyState?>(nil)

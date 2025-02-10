@@ -5,12 +5,11 @@ SCHEME ?= $(TARGET)-$(PLATFORM)
 TARGET ?= Kickstarter-Framework
 PLATFORM ?= iOS
 RELEASE ?= itunes
-IOS_VERSION ?= 13.6
-IPHONE_NAME ?= iPhone 8
-BRANCH ?= master
+# Keep simulator in sync with `Library/TestHelpers/TestCase.swift` and `.circleci/config.yml`
+IOS_VERSION ?= 17.5
+IPHONE_NAME ?= iPhone SE (3rd generation)
+BRANCH ?= main
 DIST_BRANCH = $(RELEASE)-dist
-FABRIC_SDK_VERSION ?= 3.13.2
-FABRIC_SDK_URL ?= https://s3.amazonaws.com/kits-crashlytics-com/ios/com.twitter.crashlytics.ios/INSERT_SDK_VERSION/com.crashlytics.ios-manual.zip
 COMMIT ?= $(CIRCLE_SHA1)
 CURRENT_BRANCH ?= $(CIRCLE_BRANCH)
 
@@ -39,12 +38,9 @@ test: bootstrap
 clean:
 	$(XCODEBUILD) clean $(BUILD_FLAGS) $(XCPRETTY)
 
-dependencies: carthage-bootstrap configs secrets fabric
+dependencies: configs secrets
 
 bootstrap: hooks dependencies
-
-carthage-bootstrap:
-	set -o pipefail; bin/carthage.sh;
 
 configs = $(basename $(wildcard Kickstarter-iOS/Configs/*.example))
 $(configs):
@@ -75,9 +71,9 @@ deploy:
 		echo "RELEASE must be 'itunes'."; \
 		exit 1; \
 	fi
-	@if test "$(RELEASE)" = "itunes" && test "$(BRANCH)" != "master"; \
+	@if test "$(RELEASE)" = "itunes" && test "$(BRANCH)" != "main"; \
 	then \
-		echo "BRANCH must be 'master' for iTunes releases."; \
+		echo "BRANCH must be 'main' for iTunes releases."; \
 		exit 1; \
 	fi
 
@@ -124,8 +120,8 @@ sync:
 
 cleanup:
 	@echo "Adding remotes..."
-	@git remote add oss https://github.com/kickstarter/ios-oss
-	@git remote add private https://github.com/kickstarter/ios-private
+	@git remote add oss git@github.com:kickstarter/ios-oss
+	@git remote add private git@github.com:kickstarter/ios-private
 
 	@echo "Deleting temporary branch: $(CIRCLE_BRANCH)"
 
@@ -137,7 +133,7 @@ strings:
 
 secrets:
 	-@rm -rf Frameworks/native-secrets
-	-@git clone https://github.com/kickstarter/native-secrets Frameworks/native-secrets 2>/dev/null || echo '(Skipping secrets.)'
+	-@git clone git@github.com:kickstarter/native-secrets Frameworks/native-secrets 2>/dev/null || echo '(Skipping secrets.)'
 	if [ ! -d Frameworks/native-secrets ]; \
 	then \
 		mkdir -p Frameworks/native-secrets/ios \
@@ -145,7 +141,4 @@ secrets:
 		|| true; \
 	fi
 
-fabric:
-	bin/download_framework.sh Fabric $(FABRIC_SDK_VERSION) $(FABRIC_SDK_URL); \
-
-.PHONY: test-all test clean dependencies submodules deploy secrets strings fabric
+.PHONY: test-all test clean dependencies submodules deploy secrets strings

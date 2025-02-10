@@ -4,18 +4,6 @@ import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
-public enum ProfileProjectsType {
-  case backed
-  case saved
-
-  var trackingString: String {
-    switch self {
-    case .backed: return "backed"
-    case .saved: return "saved"
-    }
-  }
-}
-
 public protocol BackerDashboardProjectsViewModelInputs {
   /// Call to configure with the ProfileProjectsType to display and the default sort.
   func configureWith(projectsType: ProfileProjectsType, sort: DiscoveryParams.Sort)
@@ -29,14 +17,11 @@ public protocol BackerDashboardProjectsViewModelInputs {
   /// Call when pull-to-refresh is invoked.
   func refresh()
 
-  /// Call when the project navigator has transitioned to a new project with its index.
-  func transitionedToProject(at row: Int, outOf totalRows: Int)
-
   /// Call when the view loads.
   func viewDidLoad()
 
-  /// Call when the view will appear.
-  func viewWillAppear(_ animated: Bool)
+  /// Call when the view did appear.
+  func viewDidAppear(_ animated: Bool)
 
   /// Call when a new row is displayed.
   func willDisplayRow(_ row: Int, outOf totalRows: Int)
@@ -54,9 +39,6 @@ public protocol BackerDashboardProjectsViewModelOutputs {
 
   /// Emits a list of projects for the tableview datasource.
   var projects: Signal<[Project], Never> { get }
-
-  /// Emits when should scroll to the table view row while swiping projects in the navigator.
-  var scrollToProjectRow: Signal<Int, Never> { get }
 }
 
 public protocol BackerDashboardProjectsViewModelType {
@@ -71,7 +53,7 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
     let projectsType = projectsTypeAndSort.map(first)
 
     let userUpdatedProjectsCount = Signal.merge(
-      self.viewWillAppearProperty.signal.ignoreValues(),
+      self.viewDidAppearProperty.signal.ignoreValues(),
       self.currentUserUpdatedProperty.signal
     )
     .map { _ -> (Int, Int) in
@@ -82,46 +64,46 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
     }
     .skipRepeats { $0 == $1 }
 
-    let requestFirstPageWith = projectsTypeAndSort
-      .takeWhen(Signal.merge(
-        userUpdatedProjectsCount.ignoreValues(),
-        self.refreshProperty.signal
+    let requestFirstPageWith = projectsType
+      .takeWhen(
+        Signal.merge(
+          userUpdatedProjectsCount.ignoreValues(),
+          self.refreshProperty.signal
+        )
       )
-      )
-      .map { (pType, sort) -> DiscoveryParams in
-        switch pType {
-        case .backed:
-          return DiscoveryParams.defaults
-            |> DiscoveryParams.lens.backed .~ true
-            |> DiscoveryParams.lens.sort .~ sort
-            |> DiscoveryParams.lens.perPage .~ 20
-        case .saved:
-          return DiscoveryParams.defaults
-            |> DiscoveryParams.lens.starred .~ true
-            |> DiscoveryParams.lens.sort .~ sort
-            |> DiscoveryParams.lens.perPage .~ 20
-        }
-      }
 
-    let isCloseToBottom = Signal.merge(
-      self.willDisplayRowProperty.signal.skipNil(),
-      self.transitionedToProjectRowAndTotalProperty.signal.skipNil()
-    )
-    .map { row, total in total > 5 && row >= total - 3 }
-    .skipRepeats()
-    .filter(isTrue)
-    .ignoreValues()
+    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
+      .map { row, total in total > 5 && row >= total - 3 }
+      .skipRepeats()
+      .filter(isTrue)
+      .ignoreValues()
 
     let isLoading: Signal<Bool, Never>
-    (self.projects, isLoading, _) = paginate(
+    (self.projects, isLoading, _, _) = paginate(
       requestFirstPageWith: requestFirstPageWith,
       requestNextPageWhen: isCloseToBottom,
       clearOnNewRequest: false,
       skipRepeats: false,
-      valuesFromEnvelope: { $0.projects },
-      cursorFromEnvelope: { $0.urls.api.moreProjects },
-      requestFromParams: { AppEnvironment.current.apiService.fetchDiscovery(params: $0) },
-      requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) }
+      valuesFromEnvelope: { (envelope: FetchProjectsEnvelope) -> [Project] in
+        envelope.projects
+      },
+      cursorFromEnvelope: { (envelope: FetchProjectsEnvelope) -> (ProfileProjectsType, String?) in
+        (envelope.type, envelope.cursor)
+      },
+      requestFromParams: { projectType in
+        if projectType == .backed {
+          return AppEnvironment.current.apiService.fetchBackedProjects(cursor: nil, limit: 20)
+        } else {
+          return AppEnvironment.current.apiService.fetchSavedProjects(cursor: nil, limit: 20)
+        }
+      },
+      requestFromCursor: { projectType, cursor in
+        if projectType == .backed {
+          return AppEnvironment.current.apiService.fetchBackedProjects(cursor: cursor, limit: 20)
+        } else {
+          return AppEnvironment.current.apiService.fetchSavedProjects(cursor: cursor, limit: 20)
+        }
+      }
     )
 
     self.isRefreshing = isLoading
@@ -139,12 +121,20 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
         return (project, projects, ref)
       }
 
-    self.scrollToProjectRow = self.transitionedToProjectRowAndTotalProperty.signal.skipNil().map(first)
+    // Tracking
 
-    projectsType
-      .takeWhen(self.viewWillAppearProperty.signal.filter(isFalse))
-      .observeValues { pType in
-        AppEnvironment.current.koala.trackViewedProfileTab(projectsType: pType)
+    Signal.combineLatest(self.projectTappedProperty.signal, projectsType)
+      .observeValues { project, profilesProjectType in
+        guard let project = project else { return }
+        let sectionContext: KSRAnalytics.SectionContext = profilesProjectType == .backed ?
+          .backed : .watched
+
+        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+          page: .profile,
+          project: project,
+          location: .accountMenu,
+          section: sectionContext
+        )
       }
   }
 
@@ -169,14 +159,9 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
     self.refreshProperty.value = ()
   }
 
-  private let transitionedToProjectRowAndTotalProperty = MutableProperty<(row: Int, total: Int)?>(nil)
-  public func transitionedToProject(at row: Int, outOf totalRows: Int) {
-    self.transitionedToProjectRowAndTotalProperty.value = (row, totalRows)
-  }
-
-  private let viewWillAppearProperty = MutableProperty(false)
-  public func viewWillAppear(_ animated: Bool) {
-    self.viewWillAppearProperty.value = animated
+  private let viewDidAppearProperty = MutableProperty(false)
+  public func viewDidAppear(_ animated: Bool) {
+    self.viewDidAppearProperty.value = animated
   }
 
   private let willDisplayRowProperty = MutableProperty<(row: Int, total: Int)?>(nil)
@@ -193,7 +178,6 @@ public final class BackerDashboardProjectsViewModel: BackerDashboardProjectsView
   public let goToProject: Signal<(Project, [Project], RefTag), Never>
   public let isRefreshing: Signal<Bool, Never>
   public let projects: Signal<[Project], Never>
-  public let scrollToProjectRow: Signal<Int, Never>
 
   public var inputs: BackerDashboardProjectsViewModelInputs { return self }
   public var outputs: BackerDashboardProjectsViewModelOutputs { return self }

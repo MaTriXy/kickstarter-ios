@@ -41,12 +41,14 @@ final class LoginViewModelTests: TestCase {
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.viewDidLoad()
 
+    XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
+
     self.emailTextFieldBecomeFirstResponder
       .assertValueCount(1, "Email field is first responder when view loads.")
 
     self.isFormValid.assertValues([false], "Form is not valid")
 
-    self.vm.inputs.emailChanged("Gina@rules.com")
+    self.vm.inputs.emailChanged("puppies@rule.com")
     self.isFormValid.assertValues([false], "Form is not valid")
 
     self.vm.inputs.emailTextFieldDoneEditing()
@@ -60,10 +62,14 @@ final class LoginViewModelTests: TestCase {
 
     self.vm.inputs.passwordTextFieldDoneEditing()
 
-    XCTAssertEqual(["Log In Submit Button Clicked"], self.trackingClient.events)
+    XCTAssertEqual(["Page Viewed", "CTA Clicked"], self.segmentTrackingClient.events)
 
     self.dismissKeyboard.assertValueCount(1, "Keyboard is dismissed")
-    self.logIntoEnvironment.assertValueCount(1, "Log into environment.")
+    self.logIntoEnvironment
+      .assertValueCount(
+        1,
+        "Log into environment without showing email verification because feature flag is false (not set)."
+      )
 
     self.vm.inputs.environmentLoggedIn()
     XCTAssertEqual(
@@ -103,7 +109,7 @@ final class LoginViewModelTests: TestCase {
 
     withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
-      self.vm.inputs.emailChanged("nativesquad@kickstarter.com")
+      self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
 
@@ -124,7 +130,7 @@ final class LoginViewModelTests: TestCase {
 
     withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
-      self.vm.inputs.emailChanged("nativesquad@kickstarter.com")
+      self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
 
@@ -145,7 +151,7 @@ final class LoginViewModelTests: TestCase {
 
     withEnvironment(apiService: MockService(loginError: error)) {
       self.vm.inputs.viewWillAppear()
-      self.vm.inputs.emailChanged("nativesquad@kickstarter.com")
+      self.vm.inputs.emailChanged("user@example.com")
       self.vm.inputs.passwordChanged("helloooooo")
       self.vm.inputs.loginButtonPressed()
 
@@ -153,7 +159,7 @@ final class LoginViewModelTests: TestCase {
 
       self.showError.assertValueCount(0, "Login error did not happen")
       self.tfaChallenge.assertValues(
-        ["nativesquad@kickstarter.com"],
+        ["user@example.com"],
         "Two factor challenge emitted with email and password"
       )
       self.tfaChallengePasswordText.assertValues(["helloooooo"], "Two factor challenge emitted with password")

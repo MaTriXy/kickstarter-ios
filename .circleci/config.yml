@@ -1,311 +1,179 @@
-version: 2
+version: 2.1
 
-xcode_version: &xcode_version 11.6.0
-iphone_name: &iphone_name iPhone 8
-fabric_sdk_version: &fabric_sdk_version 3.10.5
-store_fabric_sdk_version: &store_fabric_sdk_version echo "$FABRIC_SDK_VERSION" > fabric_version.txt
-preload_simulator: &preload_simulator xcrun instruments -w "iPhone 8 (13.6) [" || true
+orbs:
+  macos: circleci/macos@2
+  aws-cli: circleci/aws-cli@3.1
+  git-shallow-clone: guitarrapc/git-shallow-clone@2.8.0
+
+aws_cli_setup: &aws_cli_setup
+  role-arn: $AWS_ROLE_ARN
+
+# Keep xcode version in sync with `.fastlane/Fastfile`
+# circle-ci xcode versions supported: https://circleci.com/docs/testing-ios/
+xcode_version: &xcode_version 16.0.0
+iphone_name: &iphone_name iPhone SE (3rd generation)
+
+# Works around an issue in xcodebuild where it requires GitHub to have been added to the known_hosts in order for it to clone dependencies.
+spm_ssh_workaround: &spm_ssh_workaround for ip in $(dig @1.1.1.1 github.com +short); do ssh-keyscan github.com,$ip; ssh-keyscan $ip; done 2>/dev/null >> ~/.ssh/known_hosts
+
+# Templates
+
+default_environment: &default_environment
+  CIRCLE_ARTIFACTS: /tmp
+  BUNDLE_PATH: vendor/bundle
+  FL_OUTPUT_DIR: output
+  LC_ALL: en_US.UTF-8
+  LANG: en_US.UTF-8
+  IPHONE_NAME: *iphone_name
+  XCODE_VERSION: *xcode_version
+  PLATFORM: iOS
 
 base_job: &base_job
   macos:
     xcode: *xcode_version
   working_directory: ~/kickstarter
-  environment:
-    CIRCLE_ARTIFACTS: /tmp
-    BUNDLE_PATH: vendor/bundle
-    FL_OUTPUT_DIR: output
-    LC_ALL: en_US.UTF-8
-    LANG: en_US.UTF-8
-    FABRIC_SDK_VERSION: *fabric_sdk_version
-    IPHONE_NAME: *iphone_name
-    XCODE_VERSION: *xcode_version
+  resource_class: macos.m1.medium.gen1
+
+test_job: &test_job
+  steps:
+    - macos/install-rosetta
+    - attach_workspace:
+        at: .
+    - macos/preboot-simulator:
+        # Keep simulator in sync with `Library/TestHelpers/TestCase.swift` and `Makefile`
+        # iOS 17.5 is minimum supported runtime by circle-ci -> 16.0 (16A242d)
+        # more info: https://circle-macos-docs.s3.amazonaws.com/image-manifest/v15048/manifest.txt
+        version: "17.5"
+        platform: "iOS"
+        device: "iPhone SE (3rd generation)"
+    - run:
+        name: Run tests
+        command: make test
+        no_output_timeout: "20m" # 20 minutes
+    - store_artifacts:
+        path: ./Failed_Snapshot_Tests
+
+distribute_job: &distribute_job
+  steps:
+    - macos/install-rosetta
+    - attach_workspace:
+        at: .
+    - aws-cli/setup:
+        <<: *aws_cli_setup
+    - run:
+        name: Increment build number
+        command: agvtool new-version -all $(($(date +%s)/1000))
+    - run:
+        name: Install lane dependency xcodes
+        command: brew install robotsandpencils/made/xcodes
+    - run:
+        name: Fastlane
+        command: bundle exec fastlane $LANE --verbose
+        no_output_timeout: "30m" # 30 minutes
+        environment:
+          FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: 180
+    - run:
+        name: Upload dSYMs
+        command: bin/upload-dysms-firebase.sh $FIREBASE_DIR $DSYMS_FILE
+    - run:
+        name: Cleanup Temp Branch
+        command: make cleanup
+    - store_artifacts:
+        path: output
+
+all_jobs: &all_jobs
+  - kickstarter-tests
+  - library-tests
+  - ksapi-tests
+
+# Jobs
 
 jobs:
   build-and-cache:
     <<: *base_job
+    environment:
+      - *default_environment
     steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
+      - macos/install-rosetta
+      - git-shallow-clone/checkout:
+          # This is for Danger, which requires a bit more git history
+          fetch_depth: 100 
       - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          name: Restore Fabric SDK
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
+          name: SPM SSH Workaround
+          command: *spm_ssh_workaround
       - run:
           name: Store Xcode Version
           command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
+      - run:
+          name: Bootstrap SPM
+          command: xcodebuild -resolvePackageDependencies -clonedSourcePackagesDirPath SourcePackages
       - run:
           name: Bootstrap
           command: make bootstrap
-
-      - save_cache:
-          name: Cache Carthage
-          key: carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-          paths:
-            - Carthage
-
-      - save_cache:
-          name: Cache git
-          key: source-v1-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - ".git"
-
-      - save_cache:
-          name: Cache Fabric SDK
-          key: fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-          paths:
-            - "Frameworks/Fabric"
-
-      - restore_cache:
-          name: Restore Bundler
-          keys:
-            - v1-gems-{{ checksum "Gemfile.lock" }}
-
       - run:
           name: Install Bundler
           command: bundle check || bundle install
           environment:
             BUNDLE_JOBS: 4
             BUNDLE_RETRY: 3
-
-      - save_cache:
-          name: Cache Bundler
-          key: v1-gems-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
-
+      - run:
+          name: Download GraphQL Schema
+          command: bin/apollo-schema-download.sh
       - run:
           name: Danger
           command: bin/danger.sh
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
 
   # Kickstarter tests
   kickstarter-tests:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - run:
-          name: Pre-load simulator
-          command: *preload_simulator
-
-      - run:
-          name: Kickstarter tests
-          command: PLATFORM=iOS make test
-          no_output_timeout: "20m" # 20 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
-      - store_artifacts:
-          path: /tmp/FailureDiffs
+    <<: *test_job
+    environment:
+      - *default_environment
+      - SCHEME=Kickstarter-Framework-iOS
 
   # Library tests
   library-tests:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - run:
-          name: Pre-load simulator
-          command: *preload_simulator
-
-      - run:
-          name: Library tests
-          command: PLATFORM=iOS TARGET=Library make test
-          no_output_timeout: "20m" # 20 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
-
-  # Kickstarter UI Tests
-  kickstarter-ui-tests:
-    <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - run:
-          name: Pre-load simulator
-          command: *preload_simulator
-
-      - run:
-          name: Kickstarter UI Tests
-          command: SCHEME=KickstarterUITests make test
-          no_output_timeout: "20m" # 20 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
+    <<: *test_job
+    environment:
+      - *default_environment
+      - TARGET=Library
+      - SCHEME=Library-iOS
 
   # KsApi tests
   ksapi-tests:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - run:
-          name: Pre-load simulator
-          command: *preload_simulator
-
-      - run:
-          name: KsApi tests
-          command: SCHEME=KsApi make test
-          no_output_timeout: "20m" # 20 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
+    <<: *test_job
+    environment:
+      - *default_environment
+      - SCHEME=KsApi
 
   deploy_alpha:
     <<: *base_job
+    environment:
+      - *default_environment
     steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-      - checkout
-      - save_cache:
-          key: source-v1-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - ".git"
+      - macos/install-rosetta
+      - git-shallow-clone/checkout
+      - aws-cli/setup:
+          <<: *aws_cli_setup
       - run:
           name: Deploy Alpha
           command: make alpha
 
   deploy_beta:
     <<: *base_job
+    environment:
+      - *default_environment
     steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-      - checkout
-      - save_cache:
-          key: source-v1-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - ".git"
+      - macos/install-rosetta
+      - git-shallow-clone/checkout
+      - aws-cli/setup:
+          <<: *aws_cli_setup
       - run:
           name: Deploy Beta
           command: make beta
@@ -313,176 +181,38 @@ jobs:
   # AppCenter and S3 bucket beta
   beta:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - restore_cache:
-          keys:
-            - v1-gems-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Bundle install
-          command: bundle check || bundle install
-          environment:
-            BUNDLE_JOBS: 4
-            BUNDLE_RETRY: 3
-      - save_cache:
-          key: v1-gems-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
-
-      - run:
-          name: Increment build number
-          command: agvtool new-version -all $(($(date +%s)/100))
-
-      - run:
-          name: Fastlane
-          command: bundle exec fastlane beta_match_gym_appcenter_s3 --verbose
-          no_output_timeout: "30m" # 30 minutes
-
-      - run:
-          name: Cleanup Temp Branch
-          command: make cleanup
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
-
-      - store_artifacts:
-          path: output
+    <<: *distribute_job
+    environment:
+      - *default_environment
+      - LANE=beta_match_gym_appcenter_s3
+      - FIREBASE_DIR=Firebase-Beta
+      - DSYMS_FILE=KickBeta.app.dSYM.zip
 
   # AppCenter Alpha
   alpha:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - restore_cache:
-          keys:
-            - v1-gems-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Bundle install
-          command: bundle check || bundle install
-          environment:
-            BUNDLE_JOBS: 4
-            BUNDLE_RETRY: 3
-      - save_cache:
-          key: v1-gems-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
-
-      - run:
-          name: Increment build number
-          command: agvtool new-version -all $(($(date +%s)/100))
-
-      - run:
-          name: Fastlane
-          command: bundle exec fastlane alpha_match_gym_appcenter --verbose
-          no_output_timeout: "30m" # 30 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
-
-      - store_artifacts:
-          path: output
+    <<: *distribute_job
+    environment:
+      - *default_environment
+      - LANE=alpha_match_gym_appcenter
+      - FIREBASE_DIR=Firebase-Alpha
+      - DSYMS_FILE=KickAlpha.app.dSYM.zip
 
   refresh_app_store_dsyms:
     <<: *base_job
+    environment:
+      - *default_environment
     steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
       - checkout
-
       - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - restore_cache:
-          keys:
-            - v1-gems-{{ checksum "Gemfile.lock" }}
+          name: Secrets
+          command: make secrets
       - run:
           name: Bundle install
           command: bundle check || bundle install
           environment:
             BUNDLE_JOBS: 4
             BUNDLE_RETRY: 3
-      - save_cache:
-          key: v1-gems-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
       - run:
           name: Download dSYMs and upload to Crashlytics
           command: bundle exec fastlane refresh_dsyms
@@ -490,141 +220,80 @@ jobs:
   # iTunes
   itunes:
     <<: *base_job
-    steps:
-      - restore_cache:
-          keys:
-            - source-v1-{{ .Branch }}-{{ .Revision }}
-            - source-v1-{{ .Branch }}-
-            - source-v1-
-
-      - checkout
-
-      - run:
-          name: Store Fabric SDK Version
-          command: *store_fabric_sdk_version
-
-      - restore_cache:
-          keys:
-            - fabric-sdk-cache-{{ checksum "fabric_version.txt" }}
-
-      - run:
-          name: Store Xcode Version
-          command: xcodebuild -version > xcode_version.txt
-
-      - restore_cache:
-          name: Restore Carthage Cache
-          keys:
-            - carthage-cache-v1-{{ checksum "Cartfile.resolved" }}-{{ checksum "xcode_version.txt" }}
-
-      - run:
-          name: Bootstrap
-          command: make bootstrap
-
-      - restore_cache:
-          keys:
-            - v1-gems-{{ checksum "Gemfile.lock" }}
-      - run:
-          name: Bundle install
-          command: bundle check || bundle install
-          environment:
-            BUNDLE_JOBS: 4
-            BUNDLE_RETRY: 3
-      - save_cache:
-          key: v1-gems-{{ checksum "Gemfile.lock" }}
-          paths:
-            - vendor/bundle
-
-      - run:
-          name: Increment build number
-          command: agvtool new-version -all $(($(date +%s)/100))
-
-      - run:
-          name: Fastlane
-          command: bundle exec fastlane itunes_match_gym_deliver --verbose
-          no_output_timeout: "30m" # 30 minutes
-
-      - store_artifacts:
-          path: /tmp/xcode_raw.log
-
-      - store_artifacts:
-          path: output
+    <<: *distribute_job
+    environment:
+      - *default_environment
+      - LANE=itunes_match_gym_deliver
+      - FIREBASE_DIR=Firebase-Production
+      - DSYMS_FILE=Kickstarter.app.dSYM.zip
 
 # Workflows
 workflows:
   version: 2
   build:
+    # Matches all_jobs
     jobs:
       - build-and-cache
-      - kickstarter-tests
-      - kickstarter-ui-tests
-      - library-tests
-      - ksapi-tests
-      - refresh_app_store_dsyms:
-          filters:
-            branches:
-              # matches all branches that begin with 'beta-dist'
-              only: /beta-dist-.*/
+      - kickstarter-tests:
+          requires:
+           - build-and-cache
+      - library-tests:
+          requires:
+           - build-and-cache
+      - ksapi-tests:
+          requires:
+           - build-and-cache
+
+      # ** Refreshing dSYMs disabled until a suitable workaround is found for App Store Connect 2FA authentication
+      # or Fastlane implements API key support in this Fastlane action. Uncomment below to re-enable.
+      # See: https://docs.fastlane.tools/app-store-connect-api/
+      # https://docs.fastlane.tools/best-practices/continuous-integration/
+      # - refresh_app_store_dsyms:
+      #     filters:
+      #       branches:
+      #         # matches all branches that begin with 'beta-dist'
+      #         only: /beta-dist-.*/
       - deploy_alpha:
+          context: aws
           filters:
             branches:
               # matches all branches that contain 'feature' but do not contain 'alpha-dist'
               only: /^((?!alpha\-dist).*feature.*)*$/
-          requires:
-            - build-and-cache
-            - kickstarter-tests
-            - kickstarter-ui-tests
-            - library-tests
-            - ksapi-tests
+          requires: *all_jobs
       - deploy_beta:
+          context: aws
           filters:
             branches:
-              only: master
-          requires:
-            - build-and-cache
-            - kickstarter-tests
-            - kickstarter-ui-tests
-            - library-tests
-            - ksapi-tests
+              only: main
+          requires: *all_jobs
       - beta:
+          context: aws
           filters:
             branches:
               # matches all branches that begin with 'beta-dist'
               only: /beta-dist-.*/
-          requires:
-            - build-and-cache
-            - kickstarter-tests
-            - kickstarter-ui-tests
-            - library-tests
-            - ksapi-tests
+          requires: *all_jobs
       - alpha:
+          context: aws
           filters:
             branches:
               # matches all branches that begin with 'alpha-dist'
               only: /alpha-dist.*/
-          requires:
-            - build-and-cache
-            - kickstarter-tests
-            - kickstarter-ui-tests
-            - library-tests
-            - ksapi-tests
+          requires: *all_jobs
       - itunes:
+          context: aws
           filters:
             branches:
               # matches branch named exactly `itunes-dist`
               only: itunes-dist
-          requires:
-            - build-and-cache
-            - kickstarter-tests
-            - kickstarter-ui-tests
-            - library-tests
-            - ksapi-tests
+          requires: *all_jobs
 
 experimental:
   notify:
     branches:
       only:
-        # matches branch named exactly `master`
-        - master
+        # matches branch named exactly `main`
+        - main
         # matches all branches that begin with 'alpha-dist'
         - /alpha-dist.*/
         # matches all branches that begin with 'beta-dist'

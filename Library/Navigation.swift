@@ -1,25 +1,22 @@
-import Argo
-import Curry
 import Foundation
 import KsApi
-import Runes
 
-public enum Navigation {
+public enum Navigation: Equatable {
   case checkout(Int, Navigation.Checkout)
-  case creatorMessages(Param, messageThreadId: Int)
-  case projectActivity(Param)
   case emailClick
   case messages(messageThreadId: Int)
+  case profile(Profile)
   case signup
   case tab(Tab)
-  case project(Param, Navigation.Project, refTag: RefTag?)
+  case project(Param, Navigation.Project, refInfo: RefInfo?)
   case projectPreview(Param, Navigation.Project, refTag: RefTag?, token: String)
+  case settings(Navigation.Settings)
   case user(Param, Navigation.User)
 
-  public enum Checkout {
+  public enum Checkout: Equatable {
     case payments(Navigation.Checkout.Payment)
 
-    public enum Payment {
+    public enum Payment: Equatable {
       case applePay(payload: String)
       case new
       case root
@@ -27,33 +24,36 @@ public enum Navigation {
     }
   }
 
-  public enum Tab {
+  public enum Tab: Equatable {
     case discovery([String: String]?)
     case search
     case activity
-    case dashboard(project: Param?)
     case login
     case me
   }
 
-  public enum Project {
+  public enum Profile: Equatable {
+    case verifyEmail
+  }
+
+  public enum Project: Equatable {
     case checkout(Int, Navigation.Project.Checkout)
     case root
     case comments
+    case commentThread(String?, String?)
     case creatorBio
-    case faqs
     case friends
     case messageCreator
     case pledge(Navigation.Project.Pledge)
     case updates
     case update(Int, Navigation.Project.Update)
-    case survey(Int)
+    case surveyWebview(String)
 
-    public enum Checkout {
+    public enum Checkout: Equatable {
       case thanks(racing: Bool?)
     }
 
-    public enum Pledge {
+    public enum Pledge: Equatable {
       case bigPrint
       case changeMethod
       case destroy
@@ -63,110 +63,19 @@ public enum Navigation {
       case root
     }
 
-    public enum Update {
+    public enum Update: Equatable {
       case root
       case comments
+      case commentThread(String?, String?)
     }
   }
 
-  public enum User {
+  public enum Settings: Equatable {
+    case notifications(String, Bool)
+  }
+
+  public enum User: Equatable {
     case survey(Int)
-  }
-}
-
-extension Navigation: Equatable {}
-public func == (lhs: Navigation, rhs: Navigation) -> Bool {
-  switch (lhs, rhs) {
-  case let (.checkout(lhsId, lhsCheckout), .checkout(rhsId, rhsCheckout)):
-    return lhsId == rhsId && lhsCheckout == rhsCheckout
-  case (.emailClick, .emailClick):
-    return true
-  case let (.messages(lhs), .messages(rhs)):
-    return lhs == rhs
-  case (.signup, .signup):
-    return true
-  case let (.tab(lhs), .tab(rhs)):
-    return lhs == rhs
-  case let (.project(lhsParam, lhsProject, lhsRefTag), .project(rhsParam, rhsProject, rhsRefTag)):
-    return lhsParam == rhsParam && lhsProject == rhsProject && lhsRefTag == rhsRefTag
-  case let (
-    .projectPreview(lhsParam, lhsProject, lhsRefTag, lhsToken),
-    .projectPreview(rhsParam, rhsProject, rhsRefTag, rhsToken)
-  ):
-    return lhsParam == rhsParam && lhsProject == rhsProject && lhsRefTag == rhsRefTag && lhsToken == rhsToken
-  case let (.user(lhsParam, lhsUser), .user(rhsParam, rhsUser)):
-    return lhsParam == rhsParam && lhsUser == rhsUser
-  default:
-    return false
-  }
-}
-
-extension Navigation.Checkout: Equatable {}
-public func == (lhs: Navigation.Checkout, rhs: Navigation.Checkout) -> Bool {
-  switch (lhs, rhs) {
-  case let (.payments(lhsPayment), .payments(rhsPayment)):
-    return lhsPayment == rhsPayment
-  }
-}
-
-extension Navigation.Checkout.Payment: Equatable {}
-public func == (lhs: Navigation.Checkout.Payment, rhs: Navigation.Checkout.Payment) -> Bool {
-  switch (lhs, rhs) {
-  case (.new, .new), (.root, .root), (.useStoredCard, .useStoredCard):
-    return true
-  case let (.applePay(lhs), .applePay(rhs)):
-    return lhs == rhs
-  default:
-    return false
-  }
-}
-
-extension Navigation.Project: Equatable {}
-public func == (lhs: Navigation.Project, rhs: Navigation.Project) -> Bool {
-  switch (lhs, rhs) {
-  case let (.checkout(lhsId, lhsCheckout), .checkout(rhsId, rhsCheckout)):
-    return lhsId == rhsId && lhsCheckout == rhsCheckout
-  case (.root, .root):
-    return true
-  case (.comments, .comments):
-    return true
-  case (.creatorBio, .creatorBio):
-    return true
-  case (.faqs, .faqs):
-    return true
-  case (.friends, .friends):
-    return true
-  case (.messageCreator, .messageCreator):
-    return true
-  case let (.pledge(lhsPledge), .pledge(rhsPledge)):
-    return lhsPledge == rhsPledge
-  case (.updates, .updates):
-    return true
-  case let (.update(lhsId, lhsUpdate), .update(rhsId, rhsUpdate)):
-    return lhsId == rhsId && lhsUpdate == rhsUpdate
-  case let (.survey(lhsId), .survey(rhsId)):
-    return lhsId == rhsId
-  default:
-    return false
-  }
-}
-
-extension Navigation.Project.Checkout: Equatable {}
-public func == (lhs: Navigation.Project.Checkout, rhs: Navigation.Project.Checkout) -> Bool {
-  switch (lhs, rhs) {
-  case let (.thanks(lhsRacing), .thanks(rhsRacing)):
-    return lhsRacing == rhsRacing
-  }
-}
-
-extension Navigation.Project.Pledge: Equatable {}
-public func == (lhs: Navigation.Project.Pledge, rhs: Navigation.Project.Pledge) -> Bool {
-  switch (lhs, rhs) {
-  case (.bigPrint, .bigPrint), (.changeMethod, .changeMethod), (.destroy, .destroy), (.edit, .edit),
-       (.manage, .manage), (.new, .new), (.root, .root):
-    return true
-  default:
-    return false
   }
 }
 
@@ -177,38 +86,10 @@ public func == (lhs: Navigation.Project.Update, rhs: Navigation.Project.Update) 
     return true
   case (.comments, .comments):
     return true
+  case let (.commentThread(commentId, replyId), .commentThread(otherCommentId, otherReplyId)):
+    return commentId == otherCommentId && replyId == otherReplyId
   default:
     return false
-  }
-}
-
-extension Navigation.Tab: Equatable {}
-public func == (lhs: Navigation.Tab, rhs: Navigation.Tab) -> Bool {
-  switch (lhs, rhs) {
-  case (.search, .search):
-    return true
-  case (.activity, .activity):
-    return true
-  case let (.dashboard(lhsParam), .dashboard(rhsParam)):
-    return lhsParam == rhsParam
-  case let (.discovery(lhsParams?), .discovery(rhsParams?)):
-    return lhsParams == rhsParams
-  case (.discovery(nil), .discovery(nil)):
-    return true
-  case (.login, .login):
-    return true
-  case (.me, .me):
-    return true
-  default:
-    return false
-  }
-}
-
-extension Navigation.User: Equatable {}
-public func == (lhs: Navigation.User, rhs: Navigation.User) -> Bool {
-  switch (lhs, rhs) {
-  case let (.survey(lhsId), .survey(rhsId)):
-    return lhsId == rhsId
   }
 }
 
@@ -216,14 +97,14 @@ extension Navigation {
   public static func match(_ url: URL) -> Navigation? {
     return allRoutes.reduce(nil) { accum, templateAndRoute in
       let (template, route) = templateAndRoute
-      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)?.value
+      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)
     }
   }
 
   public static func deepLinkMatch(_ url: URL) -> Navigation? {
     return deepLinkRoutes.reduce(nil) { accum, templateAndRoute in
       let (template, route) = templateAndRoute
-      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)?.value
+      return accum ?? parsedParams(url: url, fromTemplate: template).flatMap(route)
     }
   }
 
@@ -232,8 +113,8 @@ extension Navigation {
   }
 }
 
-private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
-  "/": emailClick,
+private let allRoutes: [String: (RouteParamsDecoded) -> Navigation?] = [
+  "/": emailClick, // Email clicks require a redirect in order to find the actual path.
   "/activity": activity,
   "/authorize": authorize,
   "/checkouts/:checkout_param/payments": paymentsRoot,
@@ -246,15 +127,16 @@ private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
   "/discover/categories/:parent_category_id/:category_id": discovery,
   "/messages/:message_thread_id": messages,
   "/profile/:user_param": me,
+  "/profile/verify_email": verifyEmail,
   "/search": search,
   "/signup": signup,
   "/projects/:creator_param/:project_param": project,
+  "/projects/:creator_param/:project_param/backing/:backing_tab": projectSurvey,
   "/projects/:creator_param/:project_param/checkouts/:checkout_param/thanks": thanks,
   "/projects/:creator_param/:project_param/comments": projectComments,
   "/projects/:creator_param/:project_param/creator_bio": creatorBio,
-  "/projects/:creator_param/:project_param/dashboard": dashboard,
   "/projects/:creator_param/:project_param/description": project,
-  "/projects/:creator_param/:project_param/faqs": faqs,
+  "/projects/:creator_param/:project_param/faqs": project,
   "/projects/:creator_param/:project_param/friends": friends,
   "/projects/:creator_param/:project_param/messages/new": messageCreator,
   "/projects/:creator_param/:project_param/pledge": pledgeRoot,
@@ -268,10 +150,13 @@ private let allRoutes: [String: (RouteParams) -> Decoded<Navigation>] = [
   "/projects/:creator_param/:project_param/updates": updates,
   "/projects/:creator_param/:project_param/posts/:update_param/comments": updateComments,
   "/projects/:creator_param/:project_param/surveys/:survey_param": projectSurvey,
+  "/projects/:creator_param/:project_param/surveys/:survey_param/edit": projectSurvey,
+  "/projects/:creator_param/:project_param/surveys/:survey_param/edit_address": projectSurvey,
+  "/settings/:notification_param/:enabled_param": settingsNotifications,
   "/users/:user_param/surveys/:survey_response_id": userSurvey
 ]
 
-private let deepLinkRoutes: [String: (RouteParams) -> Decoded<Navigation>] = allRoutes.restrict(
+private let deepLinkRoutes: [String: (RouteParamsDecoded) -> Navigation?] = allRoutes.restrict(
   keys: [
     "/",
     "/activity",
@@ -280,23 +165,29 @@ private let deepLinkRoutes: [String: (RouteParams) -> Decoded<Navigation>] = all
     "/discover/categories/:category_id",
     "/discover/categories/:parent_category_id/:category_id",
     "/messages/:message_thread_id",
+    "/profile/verify_email",
     "/projects/:creator_param/:project_param",
+    "/projects/:creator_param/:project_param/backing/:backing_tab",
     "/projects/:creator_param/:project_param/comments",
-    "/projects/:creator_param/:project_param/dashboard",
+    "/projects/:creator_param/:project_param/description",
+    "/projects/:creator_param/:project_param/faqs",
     "/projects/:creator_param/:project_param/posts",
     "/projects/:creator_param/:project_param/posts/:update_param",
     "/projects/:creator_param/:project_param/posts/:update_param/comments",
     "/projects/:creator_param/:project_param/surveys/:survey_param",
+    "/projects/:creator_param/:project_param/surveys/:survey_param/edit",
+    "/projects/:creator_param/:project_param/surveys/:survey_param/edit_address",
     "/projects/:creator_param/:project_param/pledge",
+    "/settings/:notification_param/:enabled_param",
     "/users/:user_param/surveys/:survey_response_id"
   ]
 )
 
 extension Navigation.Project {
   public static func withRequest(_ request: URLRequest) -> (Param, RefTag?)? {
-    guard let nav = Navigation.match(request), case let .project(project, .root, refTag) = nav
+    guard let nav = Navigation.match(request), case let .project(project, .root, refInfo) = nav
     else { return nil }
-    return (project, refTag)
+    return (project, refInfo?.refTag)
   }
 
   public static func updateWithRequest(_ request: URLRequest) -> (Param, Int)? {
@@ -314,266 +205,302 @@ extension Navigation.Project {
 
 // MARK: - Router
 
-// Argo calls their nebulous data blob `JSON`, but we will interpret it as route params.
-public typealias RouteParams = JSON
+public typealias RouteParamsDecoded = [String: String]
 
-private func emailClick(_: RouteParams) -> Decoded<Navigation> {
-  return .success(Navigation.emailClick)
+private func emailClick(_: RouteParamsDecoded) -> Navigation {
+  return Navigation.emailClick
 }
 
-private func activity(_: RouteParams) -> Decoded<Navigation> {
-  return .success(.tab(.activity))
+private func activity(_: RouteParamsDecoded) -> Navigation {
+  return .tab(.activity)
 }
 
-private func authorize(_: RouteParams) -> Decoded<Navigation> {
-  return .success(.tab(.login))
+private func authorize(_: RouteParamsDecoded) -> Navigation {
+  return .tab(.login)
 }
 
-private func messages(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.messages)
-    <^> (params <| "message_thread_id" >>- stringToInt)
+private func messages(_ params: RouteParamsDecoded) -> Navigation? {
+  guard let messageId = params.messageThreadId() else {
+    return nil
+  }
+  return Navigation.messages(messageThreadId: messageId)
 }
 
-private func paymentsNew(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.checkout)
-    <^> (params <| "checkout_param" >>- stringToInt)
-    <*> .success(.payments(.new))
+private func messagesDecoded(_ params: RouteParamsDecoded) -> Navigation? {
+  guard let messageId = params.messageThreadId() else {
+    return nil
+  }
+  return Navigation.messages(messageThreadId: messageId)
 }
 
-private func paymentsApplePay(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.checkout)
-    <^> (params <| "checkout_param" >>- stringToInt)
-    <*> (curry(Navigation.Checkout.payments)
-      <^> (curry(Navigation.Checkout.Payment.applePay)
-        <^> params <| "payload"))
+private func paymentsNew(_ params: RouteParamsDecoded) -> Navigation? {
+  if let checkoutParam = params.checkoutParam() {
+    return Navigation.checkout(checkoutParam, .payments(.new))
+  }
+  return nil
 }
 
-private func paymentsRoot(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.checkout)
-    <^> (params <| "checkout_param" >>- stringToInt)
-    <*> .success(.payments(.root))
+private func paymentsApplePay(_ params: RouteParamsDecoded) -> Navigation? {
+  if let checkoutParam = params.checkoutParam(),
+     let payload = params.payload() {
+    return Navigation.checkout(checkoutParam, Navigation.Checkout.payments(.applePay(payload: payload)))
+  }
+  return nil
 }
 
-private func paymentsUseStoredCard(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.checkout)
-    <^> (params <| "checkout_param" >>- stringToInt)
-    <*> .success(.payments(.useStoredCard))
+private func paymentsRoot(_ params: RouteParamsDecoded) -> Navigation? {
+  if let checkoutParam = params.checkoutParam() {
+    return Navigation.checkout(checkoutParam, .payments(.root))
+  }
+  return nil
 }
 
-private func discovery(_ params: RouteParams) -> Decoded<Navigation> {
-  guard case let .object(object) = params
-  else { return .failure(.custom("Failed to extact discovery params")) }
+private func paymentsUseStoredCard(_ params: RouteParamsDecoded) -> Navigation? {
+  if let checkoutParam = params.checkoutParam() {
+    return Navigation.checkout(checkoutParam, .payments(.useStoredCard))
+  }
+  return nil
+}
 
-  var discoveryParams: [String: String] = [:]
-  for (key, value) in object {
-    guard case let .string(stringValue) = value
-    else { return .failure(.custom("Failed to extact discovery params")) }
-    discoveryParams[key] = stringValue
+private func discovery(_ params: RouteParamsDecoded) -> Navigation {
+  guard !params.isEmpty else {
+    return .tab(.discovery(nil))
   }
 
-  guard discoveryParams != [:] else {
-    return .success(.tab(.discovery(nil)))
+  return .tab(.discovery(params))
+}
+
+private func me(_ params: RouteParamsDecoded) -> Navigation {
+  // Avoid ambiguity with :user_param
+  if case let .slug(slug) = params.userParam(), slug == "verify_email" {
+    return verifyEmail(params)
   }
 
-  return .success(.tab(.discovery(discoveryParams)))
+  return .tab(.me)
 }
 
-private func me(_: RouteParams) -> Decoded<Navigation> {
-  return .success(.tab(.me))
+private func verifyEmail(_: RouteParamsDecoded) -> Navigation {
+  return .profile(.verifyEmail)
 }
 
-private func search(_: RouteParams) -> Decoded<Navigation> {
-  return .success(.tab(.search))
+private func search(_: RouteParamsDecoded) -> Navigation {
+  return .tab(.search)
 }
 
-private func signup(_: RouteParams) -> Decoded<Navigation> {
-  return .success(.signup)
+private func signup(_: RouteParamsDecoded) -> Navigation {
+  return .signup
 }
 
-private func project(_ params: RouteParams) -> Decoded<Navigation> {
-  let projectPreview = curry(Navigation.projectPreview)
-    <^> params <| "project_param"
-    <*> .success(.root)
-    <*> params <|? "ref"
-    <*> params <| "token"
-
-  // If we're certain this is not a project preview link, try to decode it as a normal project link.
-  if case .failure = projectPreview {
-    return curry(Navigation.project)
-      <^> params <| "project_param"
-      <*> .success(.root)
-      <*> params <|? "ref"
+private func project(_ params: RouteParamsDecoded) -> Navigation? {
+  if params.token() != nil {
+    return nil
+  } else if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .root, refInfo: refInfo)
   }
 
-  // Fail here as we don't currently support project preview links.
-  return .failure(.custom("Project preview links are unsupported"))
+  return nil
 }
 
-private func thanks(_ params: RouteParams) -> Decoded<Navigation> {
-  let thanks = curry(Navigation.Project.Checkout.thanks)
-    <^> (params <|? "racing" >>- oneToBool)
+private func thanks(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam(),
+     let checkoutParam = params.checkoutParam() {
+    let refInfo = refInfoFromParams(params)
+    let thanks = Navigation.Project.Checkout.thanks(racing: params.racing())
+    let checkout = Navigation.Project.checkout(checkoutParam, thanks)
+    return Navigation.project(projectParam, checkout, refInfo: refInfo)
+  }
 
-  let checkout = curry(Navigation.Project.checkout)
-    <^> (params <| "checkout_param" >>- stringToInt)
-    <*> thanks
-
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> checkout
-    <*> params <|? "ref"
+  return nil
 }
 
-private func projectComments(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.comments)
-    <*> params <|? "ref"
+private func projectComments(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+
+    guard let commentId = params.comment() else {
+      return .project(projectParam, .comments, refInfo: refInfo)
+    }
+
+    return .project(projectParam, .commentThread(commentId, params.reply()), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func creatorBio(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.creatorBio)
-    <*> params <|? "ref"
+private func creatorBio(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .creatorBio, refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func dashboard(_ params: RouteParams) -> Decoded<Navigation> {
-  guard let dashboard = (Navigation.Tab.dashboard <^> params <|? "project_param").value
-  else { return .failure(.custom("Failed to extract project param")) }
+private func friends(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .friends, refInfo: refInfo)
+  }
 
-  return .success(.tab(dashboard))
+  return nil
 }
 
-private func faqs(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.faqs)
-    <*> params <|? "ref"
+private func messageCreator(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .messageCreator, refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func friends(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.friends)
-    <*> params <|? "ref"
+private func pledgeBigPrint(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .pledge(.bigPrint), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func messageCreator(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.messageCreator)
-    <*> params <|? "ref"
+private func pledgeChangeMethod(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .pledge(.changeMethod), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeBigPrint(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.bigPrint))
-    <*> params <|? "ref"
+private func pledgeDestroy(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .pledge(.destroy), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeChangeMethod(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.changeMethod))
-    <*> params <|? "ref"
+private func pledgeEdit(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .pledge(.edit), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeDestroy(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.destroy))
-    <*> params <|? "ref"
+private func pledgeNew(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, .pledge(.new), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeEdit(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.edit))
-    <*> params <|? "ref"
+private func pledgeRoot(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    let parseRoot = Navigation.project(projectParam, .pledge(.root), refInfo: refInfo)
+    guard refInfo?.refTag == .emailBackerFailedTransaction else {
+      return parseRoot
+    }
+    return Navigation.project(projectParam, .pledge(.manage), refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeNew(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.new))
-    <*> params <|? "ref"
+private func posts(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, Navigation.Project.updates, refInfo: refInfo)
+  }
+
+  return nil
 }
 
-private func pledgeRoot(_ params: RouteParams) -> Decoded<Navigation> {
-  let parseRoot = curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.root))
-    <*> params <|? "ref"
+private func projectSurvey(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam(),
+     let path = params.path() {
+    let url = AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString + path
+    let refInfo = refInfoFromParams(params)
+    let survey = Navigation.Project.surveyWebview(url)
+    return Navigation.project(projectParam, survey, refInfo: refInfo)
+  }
 
+  return nil
+}
+
+private func update(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam(),
+     let updateParam = params.updateParam() {
+    let refInfo = refInfoFromParams(params)
+    let update = Navigation.Project.update(updateParam, .root)
+    return Navigation.project(projectParam, update, refInfo: refInfo)
+  }
+
+  return nil
+}
+
+private func updateComments(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam(),
+     let updateParam = params.updateParam() {
+    let refInfo = refInfoFromParams(params)
+
+    guard let commentId = params.comment() else {
+      return .project(
+        projectParam,
+        .update(updateParam, .comments),
+        refInfo: refInfo
+      )
+    }
+
+    return .project(
+      projectParam,
+      .update(updateParam, .commentThread(commentId, params.reply())),
+      refInfo: refInfo
+    )
+  }
+
+  return nil
+}
+
+private func updates(_ params: RouteParamsDecoded) -> Navigation? {
+  if let projectParam = params.projectParam() {
+    let refInfo = refInfoFromParams(params)
+    return Navigation.project(projectParam, Navigation.Project.updates, refInfo: refInfo)
+  }
+
+  return nil
+}
+
+private func userSurvey(_ params: RouteParamsDecoded) -> Navigation? {
+  if let userParam = params.userParam(),
+     let surveyResponseId = params.surveyResponseId() {
+    return Navigation.user(userParam, Navigation.User.survey(surveyResponseId))
+  }
+
+  return nil
+}
+
+private func settingsNotifications(_ params: RouteParamsDecoded) -> Navigation? {
   guard
-    let value = parseRoot.value,
-    // inspect 'ref' to determine if this is an errored pledge.
-    case Navigation.project(_, _, .emailBackerFailedTransaction) = value else {
-    return parseRoot
-  }
+    let notificationsParam = params.notificationParam(),
+    let enabled = params.enabledParam()
+  else { return nil }
 
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(.pledge(.manage))
-    <*> params <|? "ref"
-}
-
-private func posts(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(Navigation.Project.updates)
-    <*> params <|? "ref"
-}
-
-private func projectSurvey(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> (Navigation.Project.survey <^> (params <| "survey_param" >>- stringToInt))
-    <*> params <|? "ref"
-}
-
-private func update(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> (curry(Navigation.Project.update)
-      <^> (params <| "update_param" >>- stringToInt)
-      <*> .success(.root))
-    <*> params <|? "ref"
-}
-
-private func updateComments(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> (curry(Navigation.Project.update)
-      <^> (params <| "update_param" >>- stringToInt)
-      <*> .success(.comments))
-    <*> params <|? "ref"
-}
-
-private func updates(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.project)
-    <^> params <| "project_param"
-    <*> .success(Navigation.Project.updates)
-    <*> params <|? "ref"
-}
-
-private func userSurvey(_ params: RouteParams) -> Decoded<Navigation> {
-  return curry(Navigation.user)
-    <^> params <| "user_param"
-    <*> (Navigation.User.survey <^> (params <| "survey_response_id" >>- stringToInt))
+  return Navigation.settings(.notifications(notificationsParam, enabled))
 }
 
 // MARK: - Helpers
 
-private func parsedParams(url: URL, fromTemplate template: String) -> RouteParams? {
+private func parsedParams(url: URL, fromTemplate template: String) -> RouteParamsDecoded? {
   let recognizedEmailHosts = [
-    "click.e.kickstarter.com",
-    "click.em.kickstarter.com",
-    "emails.kickstarter.com",
-    "email.kickstarter.com",
-    "e2.kickstarter.com",
-    "e3.kickstarter.com"
+    "clicks.kickstarter.com",
+    "emails.kickstarter.com"
   ]
 
   let hostRecognizer = { accum, host in
@@ -584,7 +511,9 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
 
   let recognizedHosts = [
     AppEnvironment.current.apiService.serverConfig.apiBaseUrl.host,
-    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host
+    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host,
+    AppEnvironment.current.apiService.serverConfig.webBaseUrl.host?
+      .replacingOccurrences(of: "www.", with: "")
   ].compact()
 
   let isRecognizedHost = recognizedHosts.reduce(false, hostRecognizer)
@@ -602,7 +531,7 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
   // if we're parsing against the '/' emailClick template and this is a recognized email host
   // return the expected params for that route to be resolved
   if templateComponents.isEmpty, isRecognizedEmailHost {
-    return .object([:])
+    return [:]
   }
 
   guard templateComponents.count == urlComponents.count else { return nil }
@@ -625,20 +554,32 @@ private func parsedParams(url: URL, fromTemplate template: String) -> RouteParam
       params[item.name] = item.value
     }
 
-  var object: [String: RouteParams] = [:]
+  var object: RouteParamsDecoded = [:]
   params.forEach { key, value in
-    object[key] = .string(value)
+    object[key] = value
   }
 
-  return .object(object)
+  // If the deeplink opens the project page, track the url.
+  if urlComponents.first == "projects" {
+    object[RouteParamsDecoded.CodingKeys.deeplinkUrl.rawValue] = url.absoluteString
+    object[RouteParamsDecoded.CodingKeys.path.rawValue] = url.path
+  }
+
+  return object
 }
 
-private func oneToBool(_ string: String?) -> Decoded<Bool?> {
-  return string.flatMap { Int($0) }.map { $0 == 1 }.map(Decoded.success) ?? .success(nil)
+private func stringToInt(_ string: String) -> Int? {
+  return Int(string)
 }
 
-private func stringToInt(_ string: String) -> Decoded<Int> {
-  return Int(string).map(Decoded.success) ?? .failure(.custom("Could not parse string into int."))
+// Return refInfo object if it contains any information. Otherwise, just return nil.
+private func refInfoFromParams(_ params: RouteParamsDecoded) -> RefInfo? {
+  let refTag = params.refTag()
+  let url = params.deeplinkUrl()
+  if refTag != nil || url != nil {
+    return RefInfo(refTag, deeplinkUrl: url)
+  }
+  return nil
 }
 
 extension Dictionary {
@@ -650,5 +591,112 @@ extension Dictionary {
       }
     }
     return result
+  }
+}
+
+extension RouteParamsDecoded {
+  fileprivate enum CodingKeys: String, CodingKey {
+    case comment
+    case deeplinkUrl = "deeplink_url"
+    case messageThreadId = "message_thread_id"
+    case notificationParam = "notification_param"
+    case checkoutParam = "checkout_param"
+    case enabledParam = "enabled_param"
+    case path
+    case payload
+    case projectParam = "project_param"
+    case ref
+    case token
+    case racing
+    case reply
+    case updateParam = "update_param"
+    case surveyParam = "survey_param"
+    case userParam = "user_param"
+    case surveyResponseId = "survey_response_id"
+  }
+
+  public func comment() -> String? {
+    let key = CodingKeys.comment.rawValue
+    return self[key].flatMap { String($0) }
+  }
+
+  public func deeplinkUrl() -> String? {
+    let key = CodingKeys.deeplinkUrl.rawValue
+    return self[key]
+  }
+
+  public func enabledParam() -> Bool? {
+    let key = CodingKeys.enabledParam.rawValue
+    return self[key].flatMap(Bool.init)
+  }
+
+  public func path() -> String? {
+    let key = CodingKeys.path.rawValue
+    return self[key]
+  }
+
+  public func refTag() -> RefTag? {
+    let key = CodingKeys.ref.rawValue
+    return self[key].flatMap { RefTag.init(code: $0) }
+  }
+
+  public func reply() -> String? {
+    let key = CodingKeys.reply.rawValue
+    return self[key].flatMap { String($0) }
+  }
+
+  public func token() -> String? {
+    let key = CodingKeys.token.rawValue
+    return self[key]
+  }
+
+  public func projectParam() -> Param? {
+    let key = CodingKeys.projectParam.rawValue
+    return self[key].flatMap { .slug($0) }
+  }
+
+  public func userParam() -> Param? {
+    let key = CodingKeys.userParam.rawValue
+    return self[key].flatMap { .slug($0) }
+  }
+
+  public func surveyParam() -> Int? {
+    let key = CodingKeys.surveyParam.rawValue
+    return self[key].flatMap { Int($0) }
+  }
+
+  public func updateParam() -> Int? {
+    let key = CodingKeys.updateParam.rawValue
+    return self[key].flatMap { Int($0) }
+  }
+
+  public func messageThreadId() -> Int? {
+    let key = CodingKeys.messageThreadId.rawValue
+    return self[key].flatMap { Int($0) }
+  }
+
+  public func notificationParam() -> String? {
+    let key = CodingKeys.notificationParam.rawValue
+    return self[key]
+  }
+
+  public func checkoutParam() -> Int? {
+    let key = CodingKeys.checkoutParam.rawValue
+    return self[key].flatMap { Int($0) }
+  }
+
+  public func payload() -> String? {
+    let key = CodingKeys.payload.rawValue
+    return self[key]
+  }
+
+  public func racing() -> Bool? {
+    let key = CodingKeys.racing.rawValue
+    return self[key].flatMap { Int($0) }.map { $0 == 1 }
+  }
+
+  public func surveyResponseId() -> Int? {
+    let key = CodingKeys.surveyResponseId.rawValue
+    return self[key].flatMap { Int($0) }
   }
 }

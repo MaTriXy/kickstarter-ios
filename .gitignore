@@ -7,6 +7,7 @@
 ## Build generated
 build/
 DerivedData
+Failed_Snapshot_Tests/
 
 ## Various settings
 *.pbxuser
@@ -24,6 +25,8 @@ xcuserdata
 *.moved-aside
 *.xcuserstate
 *.xcscmblueprint
+vendor/bundle
+.bundle/config
 
 ## Obj-C/Swift specific
 *.hmap

@@ -1,6 +1,4 @@
-import Argo
-import Curry
-import Runes
+
 
 public struct Item {
   public let description: String?
@@ -9,12 +7,11 @@ public struct Item {
   public let projectId: Int
 }
 
-extension Item: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Item> {
-    return curry(Item.init)
-      <^> json <|? "description"
-      <*> json <| "id"
-      <*> json <| "name"
-      <*> json <| "project_id"
+extension Item: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case description
+    case id
+    case name
+    case projectId = "project_id"
   }
 }

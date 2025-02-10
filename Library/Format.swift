@@ -147,14 +147,16 @@ public enum Format {
     omitCurrencyCode: Bool = true,
     defaultAttributes: String.Attributes = [:],
     superscriptAttributes: String.Attributes = [:],
+    maximumFractionDigits: Int = 2,
+    minimumFractionDigits: Int = 2,
     env: Environment = AppEnvironment.current
   ) -> NSAttributedString? {
     let symbol = currencySymbol(forCountry: country, omitCurrencyCode: omitCurrencyCode, env: env)
     let config = NumberFormatterConfig.defaultCurrencyConfig
       |> NumberFormatterConfig.lens.locale .~ env.locale
       |> NumberFormatterConfig.lens.currencySymbol .~ symbol
-      |> NumberFormatterConfig.lens.minimumFractionDigits .~ 2
-      |> NumberFormatterConfig.lens.maximumFractionDigits .~ 2
+      |> NumberFormatterConfig.lens.minimumFractionDigits .~ maximumFractionDigits
+      |> NumberFormatterConfig.lens.maximumFractionDigits .~ minimumFractionDigits
 
     guard let formatter = NumberFormatterConfig.cachedFormatter(forConfig: config)
       as? AttributedNumberFormatter else { return nil }
@@ -397,11 +399,35 @@ public enum Format {
       return Strings.dates_right_now()
     }
   }
+
+  /**
+   Formats a GraphAPI.MoneyFragment into a formatted currency string.
+
+   - parameter money: The GraphAPI.MoneyFragment containing amount and currency symbol
+   - parameter env: (optional) An environment to use for locality
+
+   - returns: A formatted string with the appropriate currency symbol and amount, or nil if the fragment is incomplete
+   */
+  public static func currency(
+    _ money: GraphAPI.MoneyFragment,
+    env: Environment = AppEnvironment.current
+  ) -> String? {
+    guard
+      let currencyCode = money.currency?.rawValue,
+      let amountString = money.amount,
+      let decimal = try? Decimal(amountString, format: .number)
+    else { return nil }
+
+    return decimal.formatted(
+      .currency(code: currencyCode)
+        .locale(env.locale)
+    )
+  }
 }
 
 public let defaultThresholdInDays = 30 // days
 
-internal struct DateFormatterConfig {
+internal struct DateFormatterConfig: Hashable {
   let dateFormat: String?
   fileprivate let dateStyle: DateFormatter.Style?
   fileprivate let locale: Locale
@@ -435,25 +461,6 @@ internal struct DateFormatterConfig {
     self.formatters[config] = formatter
     return formatter
   }
-}
-
-extension DateFormatterConfig: Hashable {
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(self.template)
-    hasher.combine(self.dateStyle)
-    hasher.combine(self.locale)
-    hasher.combine(self.timeStyle)
-    hasher.combine(self.timeZone)
-  }
-}
-
-func == (lhs: DateFormatterConfig, rhs: DateFormatterConfig) -> Bool {
-  return
-    lhs.template == rhs.template
-      && lhs.dateStyle == rhs.dateStyle
-      && lhs.locale == rhs.locale
-      && lhs.timeStyle == rhs.timeStyle
-      && lhs.timeZone == rhs.timeZone
 }
 
 private struct NumberFormatterConfig {
@@ -532,6 +539,7 @@ extension NumberFormatterConfig: Hashable {
     hasher.combine(self.numberStyle)
     hasher.combine(self.roundingMode)
     hasher.combine(self.maximumFractionDigits)
+    hasher.combine(self.minimumFractionDigits)
     hasher.combine(self.generatesDecimalNumbers)
     hasher.combine(self.locale)
     hasher.combine(self.currencySymbol)
@@ -543,6 +551,7 @@ private func == (lhs: NumberFormatterConfig, rhs: NumberFormatterConfig) -> Bool
     lhs.numberStyle == rhs.numberStyle
       && lhs.roundingMode == rhs.roundingMode
       && lhs.maximumFractionDigits == rhs.maximumFractionDigits
+      && lhs.minimumFractionDigits == rhs.minimumFractionDigits
       && lhs.generatesDecimalNumbers == rhs.generatesDecimalNumbers
       && lhs.locale == rhs.locale
       && lhs.currencySymbol == rhs.currencySymbol

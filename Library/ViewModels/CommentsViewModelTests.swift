@@ -7,368 +7,1160 @@ import ReactiveSwift
 import XCTest
 
 internal final class CommentsViewModelTests: TestCase {
-  internal let vm: CommentsViewModelType = CommentsViewModel()
+  private let vm: CommentsViewModelType = CommentsViewModel()
 
-  internal let emptyStateVisible = TestObserver<Bool, Never>()
-  internal let hasComments = TestObserver<Bool, Never>()
-  internal let commentBarButtonVisible = TestObserver<Bool, Never>()
-  internal let presentPostCommentDialog = TestObserver<(Project, Update?), Never>()
-  internal let loginToutIsOpen = TestObserver<Bool, Never>()
-  internal let commentsAreLoading = TestObserver<Bool, Never>()
+  private let beginOrEndRefreshing = TestObserver<Bool, Never>()
+  private let cellSeparatorHidden = TestObserver<Bool, Never>()
+  private let commentComposerViewHidden = TestObserver<Bool, Never>()
+  private let configureCommentComposerViewURL = TestObserver<URL?, Never>()
+  private let configureCommentComposerViewCanPostComment = TestObserver<Bool, Never>()
+  private let configureFooterViewWithState = TestObserver<CommentTableViewFooterViewState, Never>()
+  private let didBlockUser = TestObserver<(), Never>()
+  private let didBlockUserError = TestObserver<(), Never>()
+  private let goToCommentRepliesComment = TestObserver<Comment, Never>()
+  private let goToCommentRepliesProject = TestObserver<Project, Never>()
+  private let goToCommentRepliesUpdate = TestObserver<Update?, Never>()
+  private let goToCommentRepliesShowKeyboard = TestObserver<Bool, Never>()
+  private let loadCommentsAndProjectIntoDataSourceComments = TestObserver<[Comment], Never>()
+  private let loadCommentsAndProjectIntoDataSourceShouldShowErrorState = TestObserver<Bool, Never>()
+  private let loadCommentsAndProjectIntoDataSourceProject = TestObserver<Project, Never>()
+  private let showHelpWebViewController = TestObserver<HelpType, Never>()
 
   override func setUp() {
     super.setUp()
 
-    self.vm.outputs.dataSource.map { _, _, _, _, visible in visible }.observe(self.emptyStateVisible.observer)
-    self.vm.outputs.dataSource.map { comments, _, _, _, _ in !comments.isEmpty }
-      .observe(self.hasComments.observer)
-    self.vm.outputs.commentBarButtonVisible.observe(self.commentBarButtonVisible.observer)
-    self.vm.outputs.commentsAreLoading.observe(self.commentsAreLoading.observer)
-    self.vm.outputs.presentPostCommentDialog.observe(self.presentPostCommentDialog.observer)
-
-    Signal.merge(
-      self.vm.outputs.openLoginTout.mapConst(true),
-      self.vm.outputs.closeLoginTout.mapConst(false)
-    ).observe(self.loginToutIsOpen.observer)
+    self.vm.outputs.beginOrEndRefreshing.observe(self.beginOrEndRefreshing.observer)
+    self.vm.outputs.cellSeparatorHidden.observe(self.cellSeparatorHidden.observer)
+    self.vm.outputs.configureCommentComposerViewWithData.map(\.hidden)
+      .observe(self.commentComposerViewHidden.observer)
+    self.vm.outputs.configureCommentComposerViewWithData.map(\.avatarURL)
+      .observe(self.configureCommentComposerViewURL.observer)
+    self.vm.outputs.configureCommentComposerViewWithData.map(\.canPostComment)
+      .observe(self.configureCommentComposerViewCanPostComment.observer)
+    self.vm.outputs.didBlockUser.observe(self.didBlockUser.observer)
+    self.vm.outputs.didBlockUserError.observe(self.didBlockUserError.observer)
+    self.vm.outputs.configureFooterViewWithState.observe(self.configureFooterViewWithState.observer)
+    self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.0 }
+      .observe(self.goToCommentRepliesComment.observer)
+    self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.1 }
+      .observe(self.goToCommentRepliesProject.observer)
+    self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.2 }
+      .observe(self.goToCommentRepliesUpdate.observer)
+    self.vm.outputs.goToRepliesWithCommentProjectUpdateAndBecomeFirstResponder.map { $0.3 }
+      .observe(self.goToCommentRepliesShowKeyboard.observer)
+    self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(first)
+      .observe(self.loadCommentsAndProjectIntoDataSourceComments.observer)
+    self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(second)
+      .observe(self.loadCommentsAndProjectIntoDataSourceProject.observer)
+    self.vm.outputs.loadCommentsAndProjectIntoDataSource.map(third)
+      .observe(self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.observer)
+    self.vm.outputs.showHelpWebViewController.observe(self.showHelpWebViewController.observer)
   }
 
-  func testLoggedOutUser_ViewingEmptyState() {
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [])) {
-      self.hasComments.assertDidNotEmitValue()
-      self.emptyStateVisible.assertDidNotEmitValue()
-      self.commentBarButtonVisible.assertDidNotEmitValue()
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedOut() {
+    self.configureCommentComposerViewURL.assertDidNotEmitValue()
+    self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-      self.vm.inputs.configureWith(project: Project.template, update: nil)
+    withEnvironment(currentUser: nil) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
 
-      self.hasComments.assertValues([false], "Empty set of comments emitted.")
-      self.emptyStateVisible.assertValues([true], "Empty state emitted.")
-      self.commentBarButtonVisible.assertValues([false], "Comment button is not visible.")
-
-      XCTAssertEqual(["Project Comment View", "Viewed Comments"], self.trackingClient.events)
-      XCTAssertEqual("project", self.trackingClient.properties.last!["context"] as? String)
-      XCTAssertEqual(
-        [true, nil],
-        self.trackingClient.properties(forKey: Koala.DeprecatedKey, as: Bool.self)
-      )
+      self.configureCommentComposerViewURL
+        .assertValues([nil], "nil is emitted because the user is not logged in.")
+      self.configureCommentComposerViewCanPostComment
+        .assertValues([false], "false is emitted because the project is not backed.")
     }
   }
 
-  func testLoggedOutUser_ViewingComments() {
-    self.hasComments.assertDidNotEmitValue()
-    self.emptyStateVisible.assertDidNotEmitValue()
-    self.commentBarButtonVisible.assertDidNotEmitValue()
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_False() {
+    let user = User.template |> \.id .~ 12_345
 
-    self.vm.inputs.configureWith(project: Project.template, update: nil)
-    self.vm.inputs.viewDidLoad()
-    self.scheduler.advance()
+    self.configureCommentComposerViewURL.assertDidNotEmitValue()
+    self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-    self.hasComments.assertValues([true], "A set of comments is emitted.")
-    self.emptyStateVisible.assertValues([false], "Empty state is hidden.")
-    self.commentBarButtonVisible.assertValues([false], "Comment button is not visible.")
-  }
-
-  func testLoggedInNonBacker_ViewingEmptyState() {
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [])) {
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-
-      self.hasComments.assertDidNotEmitValue()
-      self.emptyStateVisible.assertDidNotEmitValue()
-      self.commentBarButtonVisible.assertDidNotEmitValue()
-
-      self.vm.inputs.configureWith(
-        project: .template |> Project.lens.personalization.isBacking .~ false,
-        update: nil
-      )
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
       self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
 
-      self.hasComments.assertValues([false], "Empty set of comments is emitted.")
-      self.emptyStateVisible.assertValues([true], "Empty state emitted.")
-      self.commentBarButtonVisible.assertValues([false], "Comment button is not visible.")
+      self.configureCommentComposerViewURL
+        .assertValues(
+          [URL(string: "http://www.kickstarter.com/medium.jpg")],
+          "An URL is emitted because the user is logged in."
+        )
+      self.configureCommentComposerViewCanPostComment
+        .assertValues([false], "false is emitted because the project is not backed.")
     }
   }
 
-  func testLoggedInBacker_ViewingEmptyState() {
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [])) {
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsBacking_True() {
+    let project = Project.template
+      |> \.personalization.isBacking .~ true
 
-      self.hasComments.assertDidNotEmitValue()
-      self.emptyStateVisible.assertDidNotEmitValue()
-      self.commentBarButtonVisible.assertDidNotEmitValue()
+    let user = User.template |> \.id .~ 12_345
 
-      self.vm.inputs.configureWith(
-        project: .template |> Project.lens.personalization.isBacking .~ true,
-        update: nil
-      )
-      self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
+    self.configureCommentComposerViewURL.assertDidNotEmitValue()
+    self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
 
-      self.hasComments.assertValues([false], "Empty set of comments is emitted.")
-      self.emptyStateVisible.assertValueCount(1, "Empty state emitted.")
-      self.commentBarButtonVisible.assertValues([false], "Comment button is visible.")
-    }
-  }
-
-  func testRefreshing() {
-    let comment = Comment.template
-
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [comment])) {
-      self.vm.inputs.configureWith(project: Project.template, update: nil)
-      self.vm.inputs.viewDidLoad()
-      self.scheduler.advance()
-
-      self.hasComments.assertValues([true], "A set of comments is emitted.")
-
-      withEnvironment(apiService: MockService(fetchCommentsResponse: [comment, comment])) {
-        self.vm.inputs.refresh()
-
-        self.hasComments.assertValues([true], "No new comments are emitted.")
-
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true], "Another set of comments are emitted.")
-      }
-    }
-  }
-
-  func testPaginationAndRefresh_Project() {
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [Comment.template])) {
-      self.vm.inputs.configureWith(project: Project.template, update: nil)
-      self.vm.inputs.viewDidLoad()
-
-      self.commentsAreLoading.assertValues([true])
-      XCTAssertEqual(["Project Comment View", "Viewed Comments"], self.trackingClient.events)
-      XCTAssertEqual("project", self.trackingClient.properties.last!["context"] as? String)
-      XCTAssertEqual(
-        [true, nil],
-        self.trackingClient.properties(forKey: Koala.DeprecatedKey, as: Bool.self)
-      )
-
-      self.scheduler.advance()
-
-      self.hasComments.assertValues([true], "A set of comments is emitted.")
-      self.commentsAreLoading.assertValues([true, false])
-
-      let otherComment = Comment.template |> Comment.lens.id .~ 2
-      withEnvironment(apiService: MockService(fetchCommentsResponse: [otherComment])) {
-        self.vm.inputs.willDisplayRow(3, outOf: 4)
-
-        self.hasComments.assertValues([true], "No new comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true])
-
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true], "Another set of comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true, false])
-        XCTAssertEqual(
-          ["Project Comment View", "Viewed Comments", "Project Comment Load Older", "Loaded Older Comments"],
-          self.trackingClient.events
-        )
-        XCTAssertEqual(
-          [true, nil, true, nil],
-          self.trackingClient.properties(forKey: Koala.DeprecatedKey, as: Bool.self)
-        )
-        XCTAssertEqual("project", self.trackingClient.properties.last!["context"] as? String)
-
-        self.vm.inputs.refresh()
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true, true], "Another set of comments are emitted.")
-        XCTAssertEqual(
-          [
-            "Project Comment View", "Viewed Comments", "Project Comment Load Older", "Loaded Older Comments",
-            "Project Comment Load New", "Loaded Newer Comments"
-          ],
-          self.trackingClient.events
-        )
-        XCTAssertEqual("project", self.trackingClient.properties.last!["context"] as? String)
-        XCTAssertEqual(
-          [true, nil, true, nil, true, nil],
-          self.trackingClient.properties(forKey: Koala.DeprecatedKey, as: Bool.self)
-        )
-      }
-    }
-  }
-
-  func testPaginationAndRefresh_Update() {
-    let update = Update.template
-
-    withEnvironment(apiService: MockService(fetchUpdateCommentsResponse: Result.success(.template))) {
-      self.vm.inputs.configureWith(project: nil, update: update)
-      self.vm.inputs.viewDidLoad()
-
-      self.commentsAreLoading.assertValues([true])
-      XCTAssertEqual(["Update Comment View", "Viewed Comments"], self.trackingClient.events)
-      XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-
-      self.scheduler.advance()
-
-      self.hasComments.assertValues([true], "A set of comments is emitted.")
-      self.commentsAreLoading.assertValues([true, false])
-
-      withEnvironment(apiService: MockService(fetchUpdateCommentsResponse: Result.success(.template))) {
-        self.vm.inputs.willDisplayRow(3, outOf: 4)
-
-        self.hasComments.assertValues([true], "No new comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true])
-
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true], "Another set of comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true, false])
-        XCTAssertEqual(
-          ["Update Comment View", "Viewed Comments", "Update Comment Load Older", "Loaded Older Comments"],
-          self.trackingClient.events
-        )
-        XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-
-        self.vm.inputs.refresh()
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true, true], "Another set of comments are emitted.")
-        XCTAssertEqual(
-          [
-            "Update Comment View", "Viewed Comments", "Update Comment Load Older", "Loaded Older Comments",
-            "Update Comment Load New", "Loaded Newer Comments"
-          ],
-          self.trackingClient.events
-        )
-        XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-      }
-    }
-  }
-
-  func testUpdateComments_NoProjectProvided() {
-    let update = Update.template
-
-    withEnvironment(apiService: MockService(fetchUpdateCommentsResponse: Result.success(.template))) {
-      self.vm.inputs.configureWith(project: nil, update: update)
-      self.vm.inputs.viewDidLoad()
-
-      self.commentsAreLoading.assertValues([true])
-      XCTAssertEqual(["Update Comment View", "Viewed Comments"], self.trackingClient.events)
-      XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-
-      self.scheduler.advance()
-
-      self.hasComments.assertValues([true], "A set of comments is emitted.")
-      self.commentsAreLoading.assertValues([true, false])
-
-      withEnvironment(apiService: MockService(fetchUpdateCommentsResponse: Result.success(.template))) {
-        self.vm.inputs.willDisplayRow(3, outOf: 4)
-
-        self.hasComments.assertValues([true], "No new comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true])
-
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true], "Another set of comments are emitted.")
-        self.commentsAreLoading.assertValues([true, false, true, false])
-        XCTAssertEqual(
-          ["Update Comment View", "Viewed Comments", "Update Comment Load Older", "Loaded Older Comments"],
-          self.trackingClient.events
-        )
-        XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-
-        self.vm.inputs.refresh()
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([true, true, true], "Another set of comments are emitted.")
-        XCTAssertEqual(
-          [
-            "Update Comment View", "Viewed Comments", "Update Comment Load Older", "Loaded Older Comments",
-            "Update Comment Load New", "Loaded Newer Comments"
-          ],
-          self.trackingClient.events
-        )
-        XCTAssertEqual("update", self.trackingClient.properties.last!["context"] as? String)
-      }
-    }
-  }
-
-  // Tests the flow:
-  //   * Backer views empty state of comments
-  //   * Taps comment button
-  //   * Posts a comment
-  //   * Empty state goes away and comment shows
-  func testLoggedInBacker_Commenting() {
-    let project = Project.template |> Project.lens.personalization.isBacking .~ true
-
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [])) {
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-
-      self.hasComments.assertDidNotEmitValue()
-      self.commentBarButtonVisible.assertDidNotEmitValue()
-      self.emptyStateVisible.assertDidNotEmitValue()
-
+    withEnvironment(currentUser: user) {
       self.vm.inputs.configureWith(project: project, update: nil)
       self.vm.inputs.viewDidLoad()
+
+      self.configureCommentComposerViewURL
+        .assertValues(
+          [URL(string: "http://www.kickstarter.com/medium.jpg")],
+          "An URL is emitted because the user is logged in."
+        )
+      self.configureCommentComposerViewCanPostComment
+        .assertValues([true], "true is emitted because the project is backed.")
+    }
+  }
+
+  func testOutput_ConfigureCommentComposerViewWithData_IsLoggedIn_IsCreatorOrCollaborator_True() {
+    let project = Project.template
+      |> \.personalization.isBacking .~ false
+      |> Project.lens.memberData.permissions .~ [.post, .viewPledges, .comment]
+
+    self.configureCommentComposerViewURL.assertDidNotEmitValue()
+    self.configureCommentComposerViewCanPostComment.assertDidNotEmitValue()
+
+    withEnvironment(currentUser: .template) {
+      self.vm.inputs.configureWith(project: project, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.configureCommentComposerViewURL
+        .assertValues(
+          [URL(string: "http://www.kickstarter.com/medium.jpg")],
+          "An URL is emitted because the user is logged in."
+        )
+      self.configureCommentComposerViewCanPostComment
+        .assertValues([true], "true is emitted because current user is creator or collaborator.")
+    }
+  }
+
+  func testCommentComposerHidden_WhenUserIsLoggedIn() {
+    withEnvironment(currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.commentComposerViewHidden.assertValue(false)
+    }
+  }
+
+  func testDidBlockUser_EmitsOnSuccess() {
+    let envelope = EmptyResponseEnvelope()
+
+    withEnvironment(apiService: MockService(blockUserResult: .success(envelope)), currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+
+      self.vm.inputs.viewDidLoad()
+
+      self.didBlockUser.assertValueCount(0)
+      self.didBlockUserError.assertValueCount(0)
+
+      self.vm.inputs.blockUser(id: "\(User.template.id)")
+
       self.scheduler.advance()
 
-      self.hasComments.assertValues([false], "Empty set of comments is emitted.")
-      self.emptyStateVisible.assertValues([true])
-      self.commentBarButtonVisible.assertValues(
-        [false], "Comment button is not visible since there's a button in the empty state."
+      self.didBlockUser.assertValueCount(1)
+      self.didBlockUserError.assertValueCount(0)
+    }
+  }
+
+  func testDidBlockUserError_EmitsOnFailure() {
+    let error = ErrorEnvelope(
+      errorMessages: ["block user request error"],
+      ksrCode: .GraphQLError,
+      httpCode: 401,
+      exception: nil
+    )
+
+    withEnvironment(apiService: MockService(blockUserResult: .failure(error)), currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+
+      self.vm.inputs.viewDidLoad()
+
+      self.didBlockUser.assertValueCount(0)
+      self.didBlockUserError.assertValueCount(0)
+
+      self.vm.inputs.blockUser(id: "\(User.template.id)")
+
+      self.scheduler.advance()
+
+      self.didBlockUser.assertValueCount(0)
+      self.didBlockUserError.assertValueCount(1)
+    }
+  }
+
+  func testTrackUserBlockedFromComment_EventsEmitted() {
+    let segmentClient = MockTrackingClient()
+    let ksrAnalytics = KSRAnalytics(
+      config: .template,
+      loggedInUser: User.template,
+      segmentClient: segmentClient,
+      appTrackingTransparency: MockAppTrackingTransparency()
+    )
+
+    withEnvironment(
+      apiService: MockService(blockUserResult: .success(EmptyResponseEnvelope())),
+      currentUser: .template,
+      ksrAnalytics: ksrAnalytics
+    ) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+
+      self.vm.inputs.viewDidLoad()
+
+      self.vm.inputs.blockUser(id: "111")
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(segmentClient.events, ["CTA Clicked", "CTA Clicked"])
+
+      XCTAssertEqual(
+        segmentClient.properties(forKey: "session_user_is_logged_in", as: Bool.self),
+        [true, true]
+      )
+      XCTAssertEqual(segmentClient.properties(forKey: "user_uid", as: String.self), ["1", "1"])
+      XCTAssertEqual(segmentClient.properties(forKey: "context_cta"), ["block_user", "block_user"])
+      XCTAssertEqual(segmentClient.properties(forKey: "context_page"), ["project", "project"])
+      XCTAssertEqual(segmentClient.properties(forKey: "context_section"), ["comments", "comments"])
+      XCTAssertEqual(segmentClient.properties(forKey: "context_type"), ["initiate", "confirm"])
+      XCTAssertEqual(segmentClient.properties(forKey: "interaction_target_uid"), ["111", "111"])
+    }
+  }
+
+  func testCommentComposerHidden_WhenUserIsNotLoggedIn() {
+    withEnvironment(currentUser: nil) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.commentComposerViewHidden.assertValue(true)
+    }
+  }
+
+  func testOutput_ShowHelpWebViewController() {
+    var url = AppEnvironment.current.apiService.serverConfig.webBaseUrl
+    url.appendPathComponent("help/community")
+
+    self.showHelpWebViewController.assertDidNotEmitValue()
+
+    withEnvironment {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.scheduler.advance()
+
+      self.showHelpWebViewController.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.vm.inputs.commentRemovedCellDidTapURL(url)
+
+      self.showHelpWebViewController
+        .assertValue(.community, ".community is emitted after commentRemovedCellDidTapURL is called.")
+    }
+  }
+
+  func testGoToCommentReplies_ReplyComment_HasShownKeyboard() {
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    let project = Project.template
+
+    let comment = Comment.template
+      |> \.replyCount .~ 1
+      |> \.status .~ .success
+
+    self.vm.inputs.configureWith(project: project, update: nil)
+    self.vm.inputs.viewDidLoad()
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    self.vm.inputs.commentCellDidTapReply(comment: comment)
+
+    self.goToCommentRepliesComment.assertValues([comment])
+    self.goToCommentRepliesProject.assertValues([project])
+    self.goToCommentRepliesUpdate.assertValues([nil])
+    self.goToCommentRepliesShowKeyboard.assertValues([true])
+  }
+
+  func testGoToCommentReplies_CommentHasReplies_GoToEmits_HasNotShownKeyboard() {
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    let project = Project.template
+    let comment = Comment.template
+      |> \.replyCount .~ 1
+      |> \.status .~ .success
+
+    self.vm.inputs.configureWith(project: project, update: .template)
+    self.vm.inputs.viewDidLoad()
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    self.vm.inputs.commentCellDidTapViewReplies(comment)
+
+    self.goToCommentRepliesComment.assertValues([comment])
+    self.goToCommentRepliesProject.assertValues([project])
+    self.goToCommentRepliesUpdate.assertValues([.template])
+    self.goToCommentRepliesShowKeyboard.assertValues([false])
+    self.goToCommentRepliesComment
+      .assertValues([comment])
+  }
+
+  func testGoToCommentReplies_CommentHasReplies_IsDeleted_GoToDoesNotEmit_HasNotShownKeyboard() {
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    let project = Project.template
+    let comment = Comment.template
+      |> \.replyCount .~ 1
+      |> \.isDeleted .~ true
+
+    self.vm.inputs.configureWith(project: project, update: nil)
+    self.vm.inputs.viewDidLoad()
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    self.vm.inputs.didSelectComment(comment)
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+  }
+
+  func testGoToCommentReplies_CommentHasReplies_IsErrored_GoToDoesNotEmit() {
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    let project = Project.template
+    let comment = Comment.template
+      |> \.replyCount .~ 1
+      |> \.status .~ .failed
+
+    self.vm.inputs.configureWith(project: project, update: nil)
+    self.vm.inputs.viewDidLoad()
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    self.vm.inputs.didSelectComment(comment)
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+  }
+
+  func testGoToCommentReplies_CommentHasNoReplies_GoToDoesNotEmit_HasNotShownKeyboard() {
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    let project = Project.template
+    let comment = Comment.template
+      |> \.replyCount .~ 0
+
+    self.vm.inputs.configureWith(project: project, update: nil)
+    self.vm.inputs.viewDidLoad()
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+
+    self.vm.inputs.didSelectComment(comment)
+
+    self.goToCommentRepliesComment.assertDidNotEmitValue()
+    self.goToCommentRepliesProject.assertDidNotEmitValue()
+    self.goToCommentRepliesUpdate.assertDidNotEmitValue()
+    self.goToCommentRepliesShowKeyboard.assertDidNotEmitValue()
+  }
+
+  func testLoggedOut_ViewingComments_CommentsAreLoadedIntoDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ false
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(
+        project: project,
+        update: nil
       )
 
-      self.vm.inputs.commentButtonPressed()
-
-      self.presentPostCommentDialog
-        .assertValueCount(1, "Comment dialog presents after pressing comment button.")
-
-      withEnvironment(apiService: MockService(fetchCommentsResponse: [Comment.template])) {
-        self.vm.inputs.commentPosted(Comment.template)
-        self.scheduler.advance()
-
-        self.hasComments.assertValues([false, false, true], "Newly posted comment emits after posting.")
-        self.emptyStateVisible.assertValues([true, false, false], "Empty state not visible again.")
-      }
-    }
-  }
-
-  // Tests the flow:
-  //   * Logged out user views empty state
-  //   * Taps login button and logs in
-  //   * Empty state changes and comment dialog opens
-  func testLoginFlow_Backer() {
-    let notBackingProject = Project.template
-    let backingProject = notBackingProject |> Project.lens.personalization.isBacking .~ true
-
-    withEnvironment(apiService: MockService(fetchCommentsResponse: [])) {
-      self.vm.inputs.configureWith(project: notBackingProject, update: nil)
       self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
       self.scheduler.advance()
 
-      self.hasComments.assertValues([false], "No comments are emitted.")
-      self.emptyStateVisible.assertValues([true], "Empty state emitted.")
-      self.commentBarButtonVisible.assertValues([false], "Comment button is not visible.")
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project])
+    }
+  }
 
-      self.vm.inputs.loginButtonPressed()
+  func testLoggedInNonBacker_ViewingComments_CommentsAreLoadedIntoDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
 
-      self.loginToutIsOpen.assertValues([true], "Login prompt is opened.")
+    let user = User.template
+    let accessToken = AccessTokenEnvelope(accessToken: "deadbeef", user: user)
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ false
 
-      withEnvironment(apiService: MockService(fetchProjectResponse: backingProject)) {
-        AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: User.template))
-        self.vm.inputs.userSessionStarted()
+    withEnvironment(
+      apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(.singleCommentTemplate))
+    ) {
+      AppEnvironment.login(accessToken)
 
-        self.loginToutIsOpen.assertValues([true, false], "Login prompt is closed.")
-        self.hasComments.assertValues([false, false, false], "Still no comments are emitted.")
-        self.emptyStateVisible.assertValues([true, true, true], "Empty state for backer shown.")
-        self.commentBarButtonVisible.assertValues(
-          [false], "Comment button is not visible since there's a button in the empty state."
-        )
-        self.presentPostCommentDialog.assertValueCount(1, "Immediately open the post comment dialog.")
+      self.vm.inputs.configureWith(
+        project: project,
+        update: nil
+      )
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project])
+    }
+  }
+
+  func testLoggedInBacker_ViewingComments_CommentsAreLoadedIntoDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let user = User.template
+    let accessToken = AccessTokenEnvelope(accessToken: "deadbeef", user: user)
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ true
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      AppEnvironment.login(accessToken)
+
+      self.vm.inputs.configureWith(
+        project: project,
+        update: nil
+      )
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments
+        .assertValues([envelope.comments], "New comments are emitted")
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project], "New project is emitted")
+    }
+  }
+
+  func testRefreshing_WhenNewCommentAdded_CommentsAreUpdatedInDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let project = Project.template
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(project: project, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments
+        .assertValues([envelope.comments], "New comments are emitted")
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([project], "New project is emitted")
+
+      let updatedEnvelope = CommentsEnvelope.multipleCommentTemplate
+
+      withEnvironment(apiService: MockService(
+        fetchProjectCommentsEnvelopeResult: .success(updatedEnvelope)
+      )) {
+        self.vm.inputs.refresh()
+
+        self.loadCommentsAndProjectIntoDataSourceComments
+          .assertValues([envelope.comments], "No new comments are emitted")
+        self.loadCommentsAndProjectIntoDataSourceProject
+          .assertValues([project], "No new projects are emitted")
+
+        self.scheduler.advance()
+
+        self.loadCommentsAndProjectIntoDataSourceComments
+          .assertValues([envelope.comments, updatedEnvelope.comments], "New comments are emitted")
+        self.loadCommentsAndProjectIntoDataSourceProject
+          .assertValues([project, project], "Same project is emitted again")
       }
     }
   }
 
-  func testNoProjectOrUpdate() {
-    self.vm.inputs.configureWith(project: nil, update: nil)
+  func testProjectPagination_WhenLimitReached_CommentsAreUpdatedInDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+    self.beginOrEndRefreshing.assertDidNotEmitValue()
+    self.configureFooterViewWithState.assertDidNotEmitValue()
 
-    self.hasComments.assertDidNotEmitValue("Nothing emits when no project or update is provided.")
-    self.commentBarButtonVisible.assertDidNotEmitValue("Nothing emits when no project or update is provided.")
-    self.emptyStateVisible.assertDidNotEmitValue("Nothing emits when no project or update is provided.")
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(project: project, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+      self.beginOrEndRefreshing.assertValues([true])
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+        [envelope.comments],
+        "A set of comments is emitted."
+      )
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template])
+      self.beginOrEndRefreshing.assertValues([true, false])
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      let updatedEnvelope = CommentsEnvelope.multipleCommentTemplate
+
+      withEnvironment(apiService: MockService(
+        fetchProjectCommentsEnvelopeResult: .success(updatedEnvelope)
+      )) {
+        self.vm.inputs.willDisplayRow(3, outOf: 4)
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+          [envelope.comments],
+          "No new comments are emitted."
+        )
+        self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template])
+        self.beginOrEndRefreshing.assertValues([true, false, true])
+        self.configureFooterViewWithState.assertValues([.hidden, .activity])
+
+        self.scheduler.advance()
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValueCount(2)
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+          [envelope.comments, envelope.comments + updatedEnvelope.comments],
+          "New comments are emitted."
+        )
+        self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template, .template])
+        self.beginOrEndRefreshing.assertValues([true, false, true, false])
+        self.configureFooterViewWithState.assertValues([.hidden, .activity, .hidden])
+      }
+    }
+  }
+
+  func testUpdatePagination_WhenLimitReached_CommentsAreLoadedIntoDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+    self.beginOrEndRefreshing.assertDidNotEmitValue()
+    self.configureFooterViewWithState.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+      |> \.slug .~ nil
+      |> \.updateID .~ "1"
+    let update = Update.template
+
+    withEnvironment(apiService: MockService(
+      fetchUpdateCommentsEnvelopeResult: .success(envelope),
+      fetchProjectResult: .success(.template)
+    )) {
+      self.vm.inputs.configureWith(project: nil, update: update)
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+      self.beginOrEndRefreshing.assertValues([true])
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+        [envelope.comments],
+        "A set of comments is emitted."
+      )
+      self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template])
+      self.beginOrEndRefreshing.assertValues([true, false])
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      let updatedEnvelope = CommentsEnvelope.multipleCommentTemplate
+        |> \.slug .~ nil
+        |> \.updateID .~ "1"
+
+      withEnvironment(apiService: MockService(fetchUpdateCommentsEnvelopeResult: .success(updatedEnvelope))) {
+        self.vm.inputs.willDisplayRow(3, outOf: 4)
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+          [envelope.comments],
+          "No new comments are emitted."
+        )
+        self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template])
+        self.beginOrEndRefreshing.assertValues([true, false, true])
+        self.configureFooterViewWithState.assertValues([.hidden, .activity])
+
+        self.scheduler.advance()
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValueCount(2)
+
+        self.loadCommentsAndProjectIntoDataSourceComments.assertValues(
+          [envelope.comments, envelope.comments + updatedEnvelope.comments],
+          "New comments are emitted."
+        )
+        self.loadCommentsAndProjectIntoDataSourceProject.assertValues([.template, .template])
+        self.beginOrEndRefreshing.assertValues([true, false, true, false])
+        self.configureFooterViewWithState.assertValues([.hidden, .activity, .hidden])
+      }
+    }
+  }
+
+  func testComments_WhenOnlyUpdate_CommentsAreUpdatedInDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let update = Update.template
+
+    withEnvironment(apiService: MockService(
+      fetchUpdateCommentsEnvelopeResult: .success(envelope),
+      fetchProjectResult: .success(.template)
+    )) {
+      self.vm.inputs.configureWith(
+        project: nil,
+        update: update
+      )
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+      self.beginOrEndRefreshing.assertValues([true], "loading begins")
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments
+        .assertValues([envelope.comments], "New comments are emitted")
+      self.loadCommentsAndProjectIntoDataSourceProject
+        .assertValues([.template], "Same project is emitted again")
+      self.beginOrEndRefreshing.assertValues([true, false], "loading ends")
+    }
+  }
+
+  func testComments_WhenNoProjectOrUpdate_CommentsAreNotUpdatedInDataSource() {
+    self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(
+        project: nil,
+        update: nil
+      )
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+      self.beginOrEndRefreshing.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+      self.beginOrEndRefreshing.assertDidNotEmitValue()
+    }
+  }
+
+  func testPostNewCommentFlow_Success() {
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let expectedSuccessfulPostResponse = Comment.template
+
+    let mockService = MockService(
+      fetchProjectCommentsEnvelopeResult: .success(envelope),
+      postCommentResult: .success(expectedSuccessfulPostResponse)
+    )
+
+    withEnvironment(apiService: mockService, currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+
+      let bodyText = "I just posted a comment."
+
+      self.vm.inputs.commentComposerDidSubmitText(bodyText)
+
+      let expectedFailableComment = Comment.failableComment(
+        withId: self.uuidType.init().uuidString,
+        date: MockDate().date,
+        project: .template,
+        parentId: nil,
+        user: .template,
+        body: bodyText
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailableComment,
+        "Failable temporary comment is emitted first."
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.count,
+        2,
+        "The amount of comments in the data source doesn't change."
+      )
+
+      self.scheduler.advance(by: .seconds(1))
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedSuccessfulPostResponse,
+        "After the request the actual comment is inserted, replacing the failable one."
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.count,
+        2,
+        "The amount of comments in the data source doesn't change."
+      )
+    }
+  }
+
+  func testPostNewCommentFlow_Error() {
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    let mockService = MockService(
+      fetchProjectCommentsEnvelopeResult: .success(envelope),
+      postCommentResult: .failure(.couldNotParseJSON)
+    )
+
+    withEnvironment(apiService: mockService, currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+
+      let bodyText = "I just posted a comment."
+
+      self.vm.inputs.commentComposerDidSubmitText(bodyText)
+
+      let expectedFailableComment = Comment.failableComment(
+        withId: self.uuidType.init().uuidString,
+        date: MockDate().date,
+        project: .template,
+        parentId: nil,
+        user: .template,
+        body: bodyText
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailableComment,
+        "Failable temporary comment is emitted first."
+      )
+
+      self.scheduler.advance(by: .seconds(1))
+
+      let expectedFailedComment = expectedFailableComment
+        |> \.status .~ .failed
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailedComment,
+        "If the request fails the failable comment is placed back in the data source with a failed status."
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.count,
+        2,
+        "The amount of comments in the data source doesn't change."
+      )
+    }
+  }
+
+  func testRetryCommentFlow_Success() {
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    let mockService1 = MockService(
+      fetchProjectCommentsEnvelopeResult: .success(envelope),
+      postCommentResult: .failure(.couldNotParseJSON)
+    )
+
+    withEnvironment(apiService: mockService1, currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.scheduler.advance(by: .seconds(1))
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+
+      let bodyText = "I just posted a comment."
+
+      self.vm.inputs.commentComposerDidSubmitText(bodyText)
+
+      let expectedFailableComment = Comment.failableComment(
+        withId: self.uuidType.init().uuidString,
+        date: MockDate().date,
+        project: .template,
+        parentId: nil,
+        user: .template,
+        body: bodyText
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailableComment,
+        "Failable temporary comment is emitted first."
+      )
+
+      self.scheduler.advance(by: .seconds(1))
+
+      let expectedFailedComment = expectedFailableComment
+        |> \.status .~ .failed
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailedComment,
+        "If the request fails the failable comment is placed back in the data source with a failed status."
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.count,
+        2,
+        "The amount of comments in the data source doesn't change."
+      )
+
+      let expectedSuccessfulPostedComment = expectedFailableComment
+        |> \.status .~ .success
+
+      let mockService2 = MockService(
+        fetchProjectCommentsEnvelopeResult: .success(envelope),
+        postCommentResult: .success(expectedSuccessfulPostedComment)
+      )
+
+      withEnvironment(apiService: mockService2) {
+        // Tap on the failed comment to retry
+        self.vm.inputs.didSelectComment(expectedFailedComment)
+
+        // Tapping repeatedly is ignored (in the case where retries may be in flight).
+        self.vm.inputs.didSelectComment(expectedFailedComment)
+        self.vm.inputs.didSelectComment(expectedFailedComment)
+        self.vm.inputs.didSelectComment(expectedFailedComment)
+
+        let expectedRetryingComment = expectedFailedComment
+          |> \.status .~ .retrying
+
+        XCTAssertEqual(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+          expectedRetryingComment,
+          "Comment is replaced with one with a retrying status."
+        )
+
+        self.scheduler.advance(by: .seconds(1))
+
+        let expectedRetryingSuccessComment = expectedFailedComment
+          |> \.body .~ bodyText
+          |> \.status .~ .retrySuccess
+
+        XCTAssertEqual(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+          expectedRetryingSuccessComment,
+          "Comment is replaced with one with a retrySuccess status after elapsed time."
+        )
+
+        self.scheduler.advance(by: .seconds(3))
+
+        XCTAssertEqual(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+          expectedSuccessfulPostedComment,
+          "Comment is replaced with one with a success status after elapsed time."
+        )
+      }
+    }
+  }
+
+  func testRetryCommentFlow_Error() {
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    let mockService1 = MockService(
+      fetchProjectCommentsEnvelopeResult: .success(envelope),
+      postCommentResult: .failure(.couldNotParseJSON)
+    )
+
+    withEnvironment(apiService: mockService1, currentUser: .template) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.scheduler.advance(by: .seconds(1))
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+
+      let bodyText = "I just posted a comment."
+
+      self.vm.inputs.commentComposerDidSubmitText(bodyText)
+
+      let expectedFailableComment = Comment.failableComment(
+        withId: self.uuidType.init().uuidString,
+        date: MockDate().date,
+        project: .template,
+        parentId: nil,
+        user: .template,
+        body: bodyText
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailableComment,
+        "Failable temporary comment is emitted first."
+      )
+
+      self.scheduler.advance(by: .seconds(1))
+
+      let expectedFailedComment = expectedFailableComment
+        |> \.status .~ .failed
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+        expectedFailedComment,
+        "If the request fails the failable comment is placed back in the data source with a failed status."
+      )
+
+      XCTAssertEqual(
+        self.loadCommentsAndProjectIntoDataSourceComments.values.last?.count,
+        2,
+        "The amount of comments in the data source doesn't change."
+      )
+
+      let mockService2 = MockService(
+        fetchProjectCommentsEnvelopeResult: .success(envelope),
+        postCommentResult: .failure(.couldNotParseJSON)
+      )
+
+      withEnvironment(apiService: mockService2) {
+        // Tap on the failed comment to retry
+        self.vm.inputs.didSelectComment(expectedFailedComment)
+
+        let expectedRetryingComment = expectedFailedComment
+          |> \.status .~ .retrying
+
+        XCTAssertEqual(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+          expectedRetryingComment,
+          "Comment is replaced with one with a retrying status."
+        )
+
+        self.scheduler.advance(by: .seconds(1))
+
+        XCTAssertEqual(
+          self.loadCommentsAndProjectIntoDataSourceComments.values.last?.first,
+          expectedFailedComment,
+          "Comment is replaced with original failed comment."
+        )
+      }
+    }
+  }
+
+  func testViewingComments_WithNoComments_ShouldHaveCellSeparator() {
+    self.cellSeparatorHidden.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.emptyCommentsTemplate
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ false
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(
+        project: project,
+        update: nil
+      )
+
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.cellSeparatorHidden.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+      self.cellSeparatorHidden.assertValue(true)
+    }
+  }
+
+  func testViewingComments_WithComments_ShouldHaveCellSeparator() {
+    self.cellSeparatorHidden.assertDidNotEmitValue()
+    self.loadCommentsAndProjectIntoDataSourceProject.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+      |> Project.lens.personalization.isBacking .~ false
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(
+        project: project,
+        update: nil
+      )
+
+      self.vm.inputs.viewDidLoad()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertDidNotEmitValue()
+      self.cellSeparatorHidden.assertDidNotEmitValue()
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceComments.assertValues([envelope.comments])
+      self.cellSeparatorHidden.assertValue(false)
+    }
+  }
+
+  func testConfigureFooterViewWithState_HiddenOnViewDidLoad() {
+    self.configureFooterViewWithState.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(project: project, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.configureFooterViewWithState.assertValues([.hidden])
+    }
+  }
+
+  func testDataSourceState_ErrorOnFirstPage() {
+    self.configureFooterViewWithState.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+    let project = Project.template
+
+    withEnvironment(
+      apiService: MockService(fetchProjectCommentsEnvelopeResult: .failure(.couldNotParseJSON))
+    ) {
+      self.vm.inputs.configureWith(project: project, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      self.scheduler.advance()
+
+      self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.assertValues([true])
+
+      withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+        self.vm.inputs.commentTableViewFooterViewDidTapRetry()
+
+        self.scheduler.advance()
+
+        self.loadCommentsAndProjectIntoDataSourceShouldShowErrorState.assertLastValue(false)
+      }
+    }
+  }
+
+  func testConfigureFooterViewWithState_ErrorOnNextPage() {
+    self.configureFooterViewWithState.assertDidNotEmitValue()
+
+    let envelope = CommentsEnvelope.singleCommentTemplate
+
+    withEnvironment(apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(envelope))) {
+      self.vm.inputs.configureWith(project: .template, update: nil)
+      self.vm.inputs.viewDidLoad()
+
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      self.scheduler.advance()
+
+      self.configureFooterViewWithState.assertValues([.hidden])
+
+      let updatedEnvelope = CommentsEnvelope.multipleCommentTemplate
+
+      withEnvironment(apiService: MockService(
+        fetchProjectCommentsEnvelopeResult: .success(updatedEnvelope)
+      )) {
+        self.vm.inputs.willDisplayRow(3, outOf: 4)
+
+        self.configureFooterViewWithState.assertValues(
+          [.hidden, .activity], "Activity is shown during paging."
+        )
+
+        self.scheduler.advance()
+
+        self.configureFooterViewWithState.assertValues(
+          [.hidden, .activity, .hidden], "Returns to hidden."
+        )
+
+        // "Scrolling"
+        self.vm.inputs.willDisplayRow(5, outOf: 10)
+
+        withEnvironment(
+          apiService: MockService(fetchProjectCommentsEnvelopeResult: .failure(.couldNotParseJSON))
+        ) {
+          self.vm.inputs.willDisplayRow(9, outOf: 10)
+
+          self.configureFooterViewWithState.assertValues(
+            [.hidden, .activity, .hidden, .activity], "Activity is shown during paging."
+          )
+
+          self.scheduler.advance()
+
+          self.configureFooterViewWithState.assertValues(
+            [.hidden, .activity, .hidden, .activity, .error], "Emits error state."
+          )
+
+          withEnvironment(
+            apiService: MockService(fetchProjectCommentsEnvelopeResult: .success(.singleCommentTemplate))
+          ) {
+            // Retry
+            self.vm.inputs.commentTableViewFooterViewDidTapRetry()
+
+            self.configureFooterViewWithState.assertValues(
+              [.hidden, .activity, .hidden, .activity, .error, .activity],
+              "Activity is shown during paging."
+            )
+
+            self.scheduler.advance()
+
+            self.configureFooterViewWithState.assertValues(
+              [.hidden, .activity, .hidden, .activity, .error, .activity, .hidden],
+              "Returns to hidden."
+            )
+          }
+        }
+      }
+    }
   }
 }

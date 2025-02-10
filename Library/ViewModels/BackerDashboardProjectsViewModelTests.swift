@@ -14,7 +14,6 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   private let goToProject = TestObserver<Project, Never>()
   private let goToProjectRefTag = TestObserver<RefTag, Never>()
   private let projects = TestObserver<[Project], Never>()
-  private let scrollToProjectRow = TestObserver<Int, Never>()
 
   override func setUp() {
     super.setUp()
@@ -25,27 +24,37 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
     self.vm.outputs.goToProject.map(first).observe(self.goToProject.observer)
     self.vm.outputs.goToProject.map(third).observe(self.goToProjectRefTag.observer)
     self.vm.outputs.projects.observe(self.projects.observer)
-    self.vm.outputs.scrollToProjectRow.observe(self.scrollToProjectRow.observer)
   }
 
   func testProjects() {
     let projects = (1...3).map { .template |> Project.lens.id .~ $0 }
     let projectsWithNewProject = (1...4).map { .template |> Project.lens.id .~ $0 }
     let projectsWithNewestProject = (1...5).map { .template |> Project.lens.id .~ $0 }
-    let env = .template |> DiscoveryEnvelope.lens.projects .~ projects
-    let env2 = .template |> DiscoveryEnvelope.lens.projects .~ projectsWithNewProject
-    let env3 = .template |> DiscoveryEnvelope.lens.projects .~ projectsWithNewestProject
+    let env = FetchProjectsEnvelope(type: .backed, projects: projects, hasNextPage: true, totalCount: 5)
+    let env2 = FetchProjectsEnvelope(
+      type: .backed,
+      projects: projectsWithNewProject,
+      hasNextPage: true,
+      totalCount: 5
+    )
+    let env3 = FetchProjectsEnvelope(
+      type: .backed,
+      projects: projectsWithNewestProject,
+      hasNextPage: false,
+      totalCount: 5
+    )
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: env), currentUser: .template) {
+    withEnvironment(apiService: MockService(fetchBackerBackedProjectsResponse: env), currentUser: .template) {
       self.vm.inputs.configureWith(projectsType: .backed, sort: .endingSoon)
-      self.vm.inputs.viewWillAppear(false)
+      self.vm.inputs.viewDidAppear(false)
       self.vm.inputs.currentUserUpdated()
 
       self.projects.assertValueCount(0)
       self.emptyStateIsVisible.assertValueCount(0)
       self.isRefreshing.assertValues([true])
-      XCTAssertEqual(["Viewed Profile Tab"], self.trackingClient.events)
-      XCTAssertEqual(["backed"], self.trackingClient.properties(forKey: "type", as: String.self))
+
+      XCTAssertEqual([], self.segmentTrackingClient.events)
+      XCTAssertEqual([], self.segmentTrackingClient.properties(forKey: "type", as: String.self))
 
       self.scheduler.advance()
 
@@ -54,7 +63,7 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.emptyStateProjectsType.assertValues([.backed])
       self.isRefreshing.assertValues([true, false])
 
-      self.vm.inputs.viewWillAppear(true)
+      self.vm.inputs.viewDidAppear(true)
       self.isRefreshing.assertValues([true, false], "Projects don't refresh.")
 
       self.scheduler.advance()
@@ -66,9 +75,12 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       let updatedUser = User.template |> \.stats.backedProjectsCount .~ 1
 
       // Come back after backing a project.
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: env2), currentUser: updatedUser) {
+      withEnvironment(
+        apiService: MockService(fetchBackerBackedProjectsResponse: env2),
+        currentUser: updatedUser
+      ) {
         self.vm.inputs.currentUserUpdated()
-        self.vm.inputs.viewWillAppear(false)
+        self.vm.inputs.viewDidAppear(false)
 
         self.isRefreshing.assertValues([true, false, true])
 
@@ -80,7 +92,10 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       }
 
       // Refresh.
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: env3), currentUser: updatedUser) {
+      withEnvironment(
+        apiService: MockService(fetchBackerBackedProjectsResponse: env3),
+        currentUser: updatedUser
+      ) {
         self.vm.inputs.refresh()
 
         self.isRefreshing.assertValues([true, false, true, false, true])
@@ -95,17 +110,15 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   }
 
   func testNoProjects() {
-    let env = .template |> DiscoveryEnvelope.lens.projects .~ []
+    let env = FetchProjectsEnvelope(type: .saved, projects: [], hasNextPage: false, totalCount: 0)
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: env), currentUser: .template) {
+    withEnvironment(apiService: MockService(fetchBackerSavedProjectsResponse: env), currentUser: .template) {
       self.vm.inputs.configureWith(projectsType: .saved, sort: .endingSoon)
-      self.vm.inputs.viewWillAppear(false)
+      self.vm.inputs.viewDidAppear(false)
 
       self.projects.assertValueCount(0)
       self.emptyStateIsVisible.assertValueCount(0)
       self.isRefreshing.assertValues([true])
-      XCTAssertEqual(["Viewed Profile Tab"], self.trackingClient.events)
-      XCTAssertEqual(["saved"], self.trackingClient.properties(forKey: "type", as: String.self))
 
       self.scheduler.advance()
 
@@ -114,7 +127,10 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
       self.emptyStateProjectsType.assertValues([.saved])
       self.isRefreshing.assertValues([true, false])
 
-      self.vm.inputs.viewWillAppear(true)
+      XCTAssertEqual([], self.segmentTrackingClient.events)
+      XCTAssertEqual([], self.segmentTrackingClient.properties(forKey: "type", as: String.self))
+
+      self.vm.inputs.viewDidAppear(true)
 
       self.scheduler.advance()
 
@@ -126,11 +142,11 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
   func testProjectCellTapped() {
     let project = Project.template
     let projects = (1...3).map { .template |> Project.lens.id .~ $0 }
-    let env = .template |> DiscoveryEnvelope.lens.projects .~ projects
+    let env = FetchProjectsEnvelope(type: .backed, projects: projects, hasNextPage: false, totalCount: 3)
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: env), currentUser: .template) {
+    withEnvironment(apiService: MockService(fetchBackerBackedProjectsResponse: env), currentUser: .template) {
       self.vm.inputs.configureWith(projectsType: .backed, sort: .endingSoon)
-      self.vm.inputs.viewWillAppear(false)
+      self.vm.inputs.viewDidAppear(false)
 
       self.scheduler.advance()
 
@@ -138,51 +154,21 @@ internal final class BackerDashboardProjectsViewModelTests: TestCase {
 
       self.goToProject.assertValues([project], "Project emmitted.")
       self.goToProjectRefTag.assertValues([.profileBacked], "RefTag = profile_backed emitted.")
-    }
-  }
 
-  func testScrollAndUpdateProjects_ViaProjectNavigator() {
-    let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
-    let projectEnv = .template
-      |> DiscoveryEnvelope.lens.projects .~ playlist
+      XCTAssertEqual(self.segmentTrackingClient.events, ["CTA Clicked"])
 
-    let playlist2 = (0...20).map { idx in .template |> Project.lens.id .~ (idx + 72) }
-    let projectEnv2 = .template
-      |> DiscoveryEnvelope.lens.projects .~ playlist2
-
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv), currentUser: .template) {
-      self.vm.inputs.configureWith(projectsType: .backed, sort: .endingSoon)
-      self.vm.inputs.viewWillAppear(false)
-
-      self.scheduler.advance()
-
-      self.projects.assertValues([playlist], "Projects are loaded.")
-
-      self.vm.inputs.projectTapped(playlist[4])
-      self.vm.inputs.transitionedToProject(at: 5, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5])
-
-      self.vm.inputs.transitionedToProject(at: 6, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5, 6])
-
-      self.vm.inputs.transitionedToProject(at: 7, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5, 6, 7])
-
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv2)) {
-        self.vm.inputs.transitionedToProject(at: 8, outOf: playlist.count)
-
-        self.scheduler.advance()
-
-        self.scrollToProjectRow.assertValues([5, 6, 7, 8])
-        self.projects.assertValues([playlist, playlist + playlist2], "More projects are loaded.")
-
-        self.vm.inputs.transitionedToProject(at: 7, outOf: playlist2.count)
-
-        self.scrollToProjectRow.assertValues([5, 6, 7, 8, 7])
-      }
+      XCTAssertEqual(
+        ["profile"],
+        self.segmentTrackingClient.properties(forKey: "context_page", as: String.self)
+      )
+      XCTAssertEqual(
+        ["backed"],
+        self.segmentTrackingClient.properties(forKey: "context_section", as: String.self)
+      )
+      XCTAssertEqual(
+        ["account_menu"],
+        self.segmentTrackingClient.properties(forKey: "context_location", as: String.self)
+      )
     }
   }
 }

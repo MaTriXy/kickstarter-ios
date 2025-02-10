@@ -1,9 +1,7 @@
-import Argo
-import Curry
+import Combine
 import Foundation
 import Prelude
 import ReactiveSwift
-import Runes
 
 private func parseJSONData(_ data: Data) -> Any? {
   return (try? JSONSerialization.jsonObject(with: data, options: []))
@@ -12,61 +10,10 @@ private func parseJSONData(_ data: Data) -> Any? {
 private let scheduler = QueueScheduler(qos: .background, name: "com.kickstarter.ksapi", targeting: nil)
 
 internal extension URLSession {
-  // Wrap an URLSession producer with Graph error envelope logic.
-  func rac_graphDataResponse(_ request: URLRequest)
-    -> SignalProducer<Data, GraphError> {
-    let producer = self.reactive.data(with: request)
-
-    return producer
-      .start(on: scheduler)
-      .flatMapError { error -> SignalProducer<(Data, URLResponse), GraphError> in
-        print("🔴 [KsApi] Request Error \(error.localizedDescription)")
-
-        return .init(error: GraphError.requestError(error, nil))
-      }
-      .flatMap(.concat) { data, response -> SignalProducer<Data, GraphError> in
-        guard let response = response as? HTTPURLResponse else { fatalError() }
-
-        guard self.isValidResponse(response: response) else {
-          print("🔴 [KsApi] HTTP Failure \(self.sanitized(request))")
-
-          return self.decodeGraphErrors(from: data)
-            .flatMap { data in
-              SignalProducer<Data, GraphError>(
-                error: .jsonDecodingError(
-                  responseString: String(data: data, encoding: .utf8),
-                  error: nil
-                )
-              )
-            }
-        }
-
-        print("🔵 [KsApi] HTTP Success \(self.sanitized(request))")
-
-        return self.decodeGraphErrors(from: data)
-          .flatMap { data in
-            SignalProducer<Data, GraphError>(value: data)
-          }
-      }
-  }
-
-  private func decodeGraphErrors(from data: Data) -> SignalProducer<Data, GraphError> {
-    // Decode errors if any
-    let decodedErrorEnvelope = try? JSONDecoder().decode(GraphResponseErrorEnvelope.self, from: data)
-
-    guard let error = decodedErrorEnvelope?.errors?.first else {
-      return .init(value: data)
-    }
-
-    print("🔴 [KsApi] Graph Error \(error.message)")
-
-    return .init(error: GraphError.decodeError(error))
-  }
-
   private func isValidResponse(response: HTTPURLResponse) -> Bool {
     guard (200..<300).contains(response.statusCode),
-      let headers = response.allHeaderFields as? [String: String],
-      let contentType = headers["Content-Type"], contentType.hasPrefix("application/json") else {
+          let headers = response.allHeaderFields as? [String: String],
+          let contentType = headers["Content-Type"], contentType.hasPrefix("application/json") else {
       return false
     }
 
@@ -76,7 +23,7 @@ internal extension URLSession {
   // Wrap an URLSession producer with error envelope logic.
   func rac_dataResponse(_ request: URLRequest, uploading file: (url: URL, name: String)? = nil)
     -> SignalProducer<Data, ErrorEnvelope> {
-    let producer = file.map { self.rac_dataWithRequest(request, uploading: $0, named: $1) }
+    let producer = file.map { self.rac_requestWithFileUpload(request, uploading: $0, named: $1) }
       ?? self.reactive.data(with: request)
 
     print("⚪️ [KsApi] Starting request \(self.sanitized(request))")
@@ -88,15 +35,13 @@ internal extension URLSession {
         guard let response = response as? HTTPURLResponse else { fatalError() }
 
         guard self.isValidResponse(response: response) else {
-          if let json = parseJSONData(data) {
-            switch decode(json) as Decoded<ErrorEnvelope> {
-            case let .success(envelope):
-              // Got the error envelope
+          if let json = parseJSONData(data) as? [String: Any] {
+            do {
+              let envelope: ErrorEnvelope = try ErrorEnvelope.decodeJSONDictionary(json)
               print("🔴 [KsApi] Failure \(self.sanitized(request)) \n Error - \(envelope)")
-
               return SignalProducer(error: envelope)
-            case let .failure(error):
-              print("🔴 [KsApi] Failure \(self.sanitized(request)) \n Argo decoding error - \(error)")
+            } catch {
+              print("🔴 [KsApi] Failure \(self.sanitized(request)) \n Decoding error - \(error)")
               return SignalProducer(error: .couldNotDecodeJSON(error))
             }
 
@@ -106,24 +51,46 @@ internal extension URLSession {
             return SignalProducer(error: .couldNotParseErrorEnvelopeJSON)
           }
         }
-
         print("🔵 [KsApi] Success \(self.sanitized(request))")
+
         return SignalProducer(value: data)
       }
   }
 
-  // Converts an URLSessionTask into a signal producer of raw JSON data. If the JSON does not parse
-  // successfully, an `ErrorEnvelope.errorJSONCouldNotParse()` error is emitted.
-  func rac_JSONResponse(_ request: URLRequest, uploading file: (url: URL, name: String)? = nil)
-    -> SignalProducer<Any, ErrorEnvelope> {
-    return self.rac_dataResponse(request, uploading: file)
-      .map(parseJSONData)
-      .flatMap { json -> SignalProducer<Any, ErrorEnvelope> in
-        guard let json = json else {
-          return .init(error: .couldNotParseJSON)
+  func combine_dataResponse(
+    _ request: URLRequest,
+    uploading file: (url: URL, name: String)? = nil
+  ) -> AnyPublisher<
+    Data,
+    ErrorEnvelope
+  > {
+    let producer = file != nil ? self
+      .combine_requestWithFileUpload(request, uploading: file!.url, named: file!.name) :
+      DataTaskPublisher(request: request, session: self).eraseToAnyPublisher()
+
+    return producer
+      .mapError { _ in ErrorEnvelope.couldNotParseErrorEnvelopeJSON }
+      .flatMap { (data: Data, response: URLResponse) -> AnyPublisher<Data, ErrorEnvelope> in
+        guard let response = response as? HTTPURLResponse else {
+          fatalError()
         }
-        return .init(value: json)
-      }
+
+        guard self.isValidResponse(response: response) else {
+          if let json = parseJSONData(data) as? [String: Any] {
+            do {
+              let envelope: ErrorEnvelope = try ErrorEnvelope.decodeJSONDictionary(json)
+              return Fail<Data, ErrorEnvelope>(error: envelope).eraseToAnyPublisher()
+            } catch {
+              return Fail<Data, ErrorEnvelope>(error: .couldNotDecodeJSON(error)).eraseToAnyPublisher()
+            }
+
+          } else {
+            return Fail<Data, ErrorEnvelope>(error: .couldNotParseErrorEnvelopeJSON).eraseToAnyPublisher()
+          }
+        }
+        return Just(data).setFailureType(to: ErrorEnvelope.self).eraseToAnyPublisher()
+
+      }.eraseToAnyPublisher()
   }
 
   fileprivate static let sanitationRules = [
@@ -138,7 +105,7 @@ internal extension URLSession {
   ]
 
   // Strips sensitive materials from the request, e.g. oauth token, client id, fb token, password, etc...
-  fileprivate func sanitized(_ request: URLRequest) -> String {
+  private func sanitized(_ request: URLRequest) -> String {
     guard let urlString = request.url?.absoluteString else { return "" }
 
     return URLSession.sanitationRules.reduce(urlString) { accum, templateAndRule in
@@ -160,17 +127,21 @@ private let defaultSessionError =
 private let boundary = "k1ck574r73r154c0mp4ny"
 
 extension URLSession {
-  // Returns a producer that will execute the given upload once for each invocation of start().
-  fileprivate func rac_dataWithRequest(_ request: URLRequest, uploading file: URL, named name: String)
-    -> SignalProducer<(Data, URLResponse), Error> {
+  private func requestWithFileUpload(
+    _ request: URLRequest,
+    uploading file: URL,
+    named name: String
+  ) -> URLRequest {
     var mutableRequest = request
 
     guard
       let data = try? Data(contentsOf: file),
       let mime = file.imageMime ?? data.imageMime,
-      let multipartHead = ("--\(boundary)\r\n"
-        + "Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(file.lastPathComponent)\"\r\n"
-        + "Content-Type: \(mime)\r\n\r\n").data(using: .utf8),
+      let multipartHead = (
+        "--\(boundary)\r\n"
+          + "Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(file.lastPathComponent)\"\r\n"
+          + "Content-Type: \(mime)\r\n\r\n"
+      ).data(using: .utf8),
       let multipartTail = "--\(boundary)--\r\n".data(using: .utf8)
     else { fatalError() }
 
@@ -182,8 +153,16 @@ extension URLSession {
     mutableRequest.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
     mutableRequest.httpBody = body
 
+    return mutableRequest
+  }
+
+  // Returns a producer that will execute the given upload once for each invocation of start().
+  private func rac_requestWithFileUpload(_ request: URLRequest, uploading file: URL, named name: String)
+    -> SignalProducer<(Data, URLResponse), Error> {
+    let finalRequest = self.requestWithFileUpload(request, uploading: file, named: name)
+
     return SignalProducer { observer, disposable in
-      let task = self.dataTask(with: mutableRequest) { data, response, error in
+      let task = self.dataTask(with: finalRequest) { data, response, error in
         guard let data = data, let response = response else {
           observer.send(error: error ?? defaultSessionError)
           return
@@ -196,5 +175,20 @@ extension URLSession {
       }
       task.resume()
     }
+  }
+
+  private func combine_requestWithFileUpload(
+    _ request: URLRequest,
+    uploading file: URL,
+    named name: String
+  ) -> AnyPublisher<
+    (data: Data, response: URLResponse),
+    URLError
+  > {
+    let finalRequest = self.requestWithFileUpload(request, uploading: file, named: name)
+
+    let subject = PassthroughSubject<(Data, URLResponse), Error>()
+
+    return DataTaskPublisher(request: finalRequest, session: self).eraseToAnyPublisher()
   }
 }

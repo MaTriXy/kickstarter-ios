@@ -43,60 +43,25 @@ internal final class DiscoveryViewModelTests: TestCase {
     self.configureDataSource.assertValueCount(1, "Data source configures after view loads.")
   }
 
-  func testConfigureDataSourceOptimizelyConfiguration() {
-    withEnvironment(optimizelyClient: nil) {
+  func testConfigureDataSourceRemoteConfigConfiguration() {
+    withEnvironment(remoteConfigClient: MockRemoteConfigClient()) {
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
-
-      self.configureDataSource.assertDidNotEmitValue("Waits for Optimizely configuration")
-
-      let mockOptimizelyClient = MockOptimizelyClient()
-
-      withEnvironment(optimizelyClient: mockOptimizelyClient) {
-        self.vm.inputs.optimizelyClientConfigured()
-
-        XCTAssertTrue(mockOptimizelyClient.activatePathCalled)
-
-        self.configureDataSource.assertValueCount(1)
-      }
-    }
-  }
-
-  func testConfigureDataSource_OptimizelyConfiguration_Failed() {
-    withEnvironment(optimizelyClient: nil) {
-      self.vm.inputs.viewDidLoad()
-      self.vm.inputs.viewWillAppear(animated: false)
-
-      self.configureDataSource.assertDidNotEmitValue("Waits for Optimizely configuration")
-
-      self.vm.inputs.optimizelyClientConfigurationFailed()
+      self.vm.inputs.remoteConfigClientConfigured()
 
       self.configureDataSource.assertValueCount(1)
     }
   }
 
-  func trackViewAppearedEvent() {
-    self.vm.inputs.viewDidLoad()
+  func testConfigureDataSource_RemoteConfigConfiguration_Failed() {
+    withEnvironment(remoteConfigClient: nil) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewWillAppear(animated: false)
 
-    XCTAssertEqual([], self.trackingClient.events)
+      self.vm.inputs.remoteConfigClientConfigurationFailed()
 
-    self.vm.inputs.viewWillAppear(animated: false)
-
-    XCTAssertEqual(["Viewed Discovery"], self.trackingClient.events)
-    XCTAssertEqual(["magic"], self.trackingClient.properties(forKey: "discover_sort"))
-    XCTAssertEqual([true], self.trackingClient.properties(forKey: "discover_staff_picks", as: Bool.self))
-
-    self.vm.inputs.filter(withParams: self.categoryParams)
-
-    XCTAssertEqual(["Viewed Discovery", "Viewed Discovery"], self.trackingClient.events)
-    XCTAssertEqual(["magic", "magic"], self.trackingClient.properties(forKey: "discover_sort"))
-    XCTAssertEqual([1], self.trackingClient.properties(forKey: "category_id", as: Int.self))
-
-    self.vm.inputs.viewWillAppear(animated: true)
-
-    XCTAssertEqual(["Viewed Discovery", "Viewed Discovery"], self.trackingClient.events, "Does not emit")
-    XCTAssertEqual(["magic", "magic"], self.trackingClient.properties(forKey: "discover_sort"))
-    XCTAssertEqual([1], self.trackingClient.properties(forKey: "category_id", as: Int.self))
+      self.configureDataSource.assertValueCount(1)
+    }
   }
 
   func testLoadFilterIntoDataSource() {
@@ -121,16 +86,16 @@ internal final class DiscoveryViewModelTests: TestCase {
     }
   }
 
-  func testLoadFilterIntoDataSource_OptimizelyConfiguration() {
-    withEnvironment(optimizelyClient: nil) {
+  func testLoadFilterIntoDataSource_RemoteConfigConfiguration() {
+    withEnvironment(remoteConfigClient: nil) {
       self.loadFilterIntoDataSource.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Optimizely configuration")
+      self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.optimizelyClientConfigured()
+      self.vm.inputs.remoteConfigClientConfigured()
 
       self.scheduler.advance()
 
@@ -145,16 +110,16 @@ internal final class DiscoveryViewModelTests: TestCase {
     }
   }
 
-  func testLoadFilterIntoDataSource_OptimizelyConfiguration_Failed() {
-    withEnvironment(optimizelyClient: nil) {
+  func testLoadFilterIntoDataSource_RemoteConfigConfiguration_Failed() {
+    withEnvironment(remoteConfigClient: nil) {
       self.loadFilterIntoDataSource.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Optimizely configuration")
+      self.loadFilterIntoDataSource.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.optimizelyClientConfigurationFailed()
+      self.vm.inputs.remoteConfigClientConfigurationFailed()
 
       self.scheduler.advance()
 
@@ -179,7 +144,7 @@ internal final class DiscoveryViewModelTests: TestCase {
 
       self.scheduler.advance()
 
-      self.configureNavigationHeader.assertValues([initialParams])
+      self.configureNavigationHeader.assertValues([self.initialParams])
     }
   }
 
@@ -228,7 +193,7 @@ internal final class DiscoveryViewModelTests: TestCase {
 
         self.scheduler.advance()
 
-        self.configureNavigationHeader.assertValues([recsInitialParams, initialParams])
+        self.configureNavigationHeader.assertValues([recsInitialParams, self.initialParams])
       }
     }
   }
@@ -244,16 +209,16 @@ internal final class DiscoveryViewModelTests: TestCase {
     self.configureNavigationHeader.assertValues([self.initialParams])
   }
 
-  func testConfigureNavigationHeader_OptimizelyConfiguration() {
-    withEnvironment(optimizelyClient: nil) {
+  func testConfigureNavigationHeader_RemoteConfigConfiguration() {
+    withEnvironment(remoteConfigClient: nil) {
       self.configureNavigationHeader.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.configureNavigationHeader.assertDidNotEmitValue("Waits for Optimizely configuration")
+      self.configureNavigationHeader.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.optimizelyClientConfigured()
+      self.vm.inputs.remoteConfigClientConfigured()
 
       self.scheduler.advance()
 
@@ -268,16 +233,16 @@ internal final class DiscoveryViewModelTests: TestCase {
     }
   }
 
-  func testConfigureNavigationHeader_OptimizelyConfiguration_Failed() {
-    withEnvironment(optimizelyClient: nil) {
+  func testConfigureNavigationHeader_RemoteConfigConfiguration_Failed() {
+    withEnvironment(remoteConfigClient: nil) {
       self.configureNavigationHeader.assertValueCount(0)
 
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewWillAppear(animated: false)
 
-      self.configureNavigationHeader.assertDidNotEmitValue("Waits for Optimizely configuration")
+      self.configureNavigationHeader.assertDidNotEmitValue("Waits for Remote Config configuration")
 
-      self.vm.inputs.optimizelyClientConfigurationFailed()
+      self.vm.inputs.remoteConfigClientConfigurationFailed()
 
       self.scheduler.advance()
 
@@ -380,54 +345,86 @@ internal final class DiscoveryViewModelTests: TestCase {
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewWillAppear(animated: true)
 
-    XCTAssertEqual([], self.trackingClient.events)
+    XCTAssertEqual([], self.segmentTrackingClient.events)
 
     self.vm.inputs.willTransition(toPage: 1)
 
-    XCTAssertEqual([], self.trackingClient.events, "No events tracked when starting a swipe transition.")
+    XCTAssertEqual(
+      [],
+      self.segmentTrackingClient.events,
+      "No events tracked when starting a swipe transition."
+    )
 
     self.vm.inputs.pageTransition(completed: false)
 
-    XCTAssertEqual([], self.trackingClient.events, "No events tracked when the transition did not complete.")
+    XCTAssertEqual(
+      [],
+      self.segmentTrackingClient.events,
+      "No events tracked when the transition did not complete."
+    )
 
     self.vm.inputs.willTransition(toPage: 1)
 
-    XCTAssertEqual([], self.trackingClient.events, "Still no events tracked when starting transition.")
+    XCTAssertEqual(
+      [],
+      self.segmentTrackingClient.events,
+      "Still no events tracked when starting transition."
+    )
 
     self.vm.inputs.pageTransition(completed: true)
 
     XCTAssertEqual(
-      ["Explore Sort Clicked"], self.trackingClient.events,
+      ["CTA Clicked"], self.segmentTrackingClient.events,
       "Swipe event tracked once the transition completes."
     )
+
     XCTAssertEqual(
-      ["popularity"], self.trackingClient.properties(forKey: "discover_sort"),
+      ["popular"], self.segmentTrackingClient.properties(forKey: "context_type"),
+      "Correct sort is tracked."
+    )
+
+    XCTAssertEqual(
+      ["magic"], self.segmentTrackingClient.properties(forKey: "discover_sort"),
       "Correct sort is tracked."
     )
 
     self.vm.inputs.sortPagerSelected(sort: .newest)
 
     XCTAssertEqual(
-      ["Explore Sort Clicked", "Explore Sort Clicked"],
-      self.trackingClient.events,
+      ["CTA Clicked", "CTA Clicked"],
+      self.segmentTrackingClient.events,
       "Event is tracked when a sort is chosen from the pager."
     )
+
     XCTAssertEqual(
-      ["popularity", "newest"],
-      self.trackingClient.properties(forKey: "discover_sort"),
+      ["magic", "popular"],
+      self.segmentTrackingClient.properties(forKey: "discover_sort"),
+      "Correct sort is tracked."
+    )
+
+    XCTAssertEqual(
+      ["popular", "newest"],
+      self.segmentTrackingClient.properties(forKey: "context_type"),
       "Correct sort is tracked."
     )
 
     self.vm.inputs.sortPagerSelected(sort: .newest)
 
     XCTAssertEqual(
-      ["Explore Sort Clicked", "Explore Sort Clicked"],
-      self.trackingClient.events,
+      ["CTA Clicked", "CTA Clicked"],
+      self.segmentTrackingClient.events,
       "Selecting the same sort again does not track another event."
     )
+
     XCTAssertEqual(
-      ["popularity", "newest"],
-      self.trackingClient.properties(forKey: "discover_sort")
+      ["magic", "popular"],
+      self.segmentTrackingClient.properties(forKey: "discover_sort")
+    )
+
+    XCTAssertEqual(
+      ["popular", "newest"],
+      self.segmentTrackingClient.properties(forKey: "context_type"),
+      "Correct sort is tracked."
     )
   }
 

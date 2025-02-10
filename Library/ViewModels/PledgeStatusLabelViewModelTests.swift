@@ -22,10 +22,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.canceled,
-      backingState: BackingState.pledged
+      projectState: Project.State.canceled,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -40,10 +42,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.failed,
-      backingState: BackingState.pledged
+      projectState: Project.State.failed,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -58,10 +62,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.live,
-      backingState: BackingState.canceled
+      projectState: Project.State.live,
+      backingState: Backing.Status.canceled,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -76,10 +82,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.collected
+      projectState: Project.State.successful,
+      backingState: Backing.Status.collected,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -94,10 +102,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.dropped
+      projectState: Project.State.successful,
+      backingState: Backing.Status.dropped,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -112,10 +122,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.errored
+      projectState: Project.State.successful,
+      backingState: Backing.Status.errored,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -125,15 +137,36 @@ final class PledgeStatusLabelViewModelTests: TestCase {
     ])
   }
 
+  func testBackingStatus_AuthenticationRequired_Backer() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 10,
+      projectCurrencyCountry: Project.Country.hk,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.successful,
+      backingState: Backing.Status.authenticationRequired,
+      paymentIncrements: nil,
+      project: nil
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    // TODO: for now we expected a nil `labelTextString`, this will be addressed when we get to the native implementation in this ticket [MBL-2012](https://kickstarter.atlassian.net/browse/MBL-2012)
+    self.labelTextString.assertValues([])
+  }
+
   func testBackingStatus_Preauth_Backer() {
     let data = PledgeStatusLabelViewData(
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.live,
-      backingState: BackingState.preauth
+      projectState: Project.State.live,
+      backingState: Backing.Status.preauth,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -148,10 +181,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.pledged
+      projectState: Project.State.successful,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -167,33 +202,40 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: false,
         needsConversion: true,
         pledgeAmount: 10,
-        projectCountry: Project.Country.hk,
+        projectCurrencyCountry: Project.Country.hk,
         projectDeadline: 1_476_657_315,
-        projectState: ProjectState.successful,
-        backingState: BackingState.pledged
+        projectState: Project.State.successful,
+        backingState: Backing.Status.pledged,
+        paymentIncrements: nil,
+        project: nil
       )
 
       self.vm.inputs.configure(with: data)
 
       self.labelTextString.assertValues([
-        "If the project reaches its funding goal, you will be charged HK$ 10 on October 16, 2016."
+        "If the project reaches its funding goal, you will be charged HK$ 10 on October 16, 2016. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
       ])
     }
   }
 
   func testBackingStatus_AllOtherStatuses_Backer() {
-    let statuses = BackingState.allCases
-      .filter { ![.canceled, .collected, .dropped, .errored, .pledged, .preauth].contains($0) }
+    let statuses = Backing.Status.allCases
+      .filter {
+        ![.canceled, .collected, .dropped, .errored, .authenticationRequired, .pledged, .preauth]
+          .contains($0)
+      }
 
     statuses.forEach { backingState in
       let data = PledgeStatusLabelViewData(
         currentUserIsCreatorOfProject: false,
         needsConversion: false,
         pledgeAmount: 10,
-        projectCountry: Project.Country.hk,
+        projectCurrencyCountry: Project.Country.hk,
         projectDeadline: 1_476_657_315,
-        projectState: ProjectState.successful,
-        backingState: backingState
+        projectState: Project.State.successful,
+        backingState: backingState,
+        paymentIncrements: nil,
+        project: nil
       )
 
       self.vm.inputs.configure(with: data)
@@ -207,10 +249,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.canceled,
-      backingState: BackingState.pledged
+      projectState: Project.State.canceled,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -225,10 +269,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.failed,
-      backingState: BackingState.pledged
+      projectState: Project.State.failed,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -243,10 +289,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.live,
-      backingState: BackingState.canceled
+      projectState: Project.State.live,
+      backingState: Backing.Status.canceled,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -261,10 +309,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.collected
+      projectState: Project.State.successful,
+      backingState: Backing.Status.collected,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -279,10 +329,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.dropped
+      projectState: Project.State.successful,
+      backingState: Backing.Status.dropped,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -297,10 +349,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.errored
+      projectState: Project.State.successful,
+      backingState: Backing.Status.errored,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -315,10 +369,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.live,
-      backingState: BackingState.pledged
+      projectState: Project.State.live,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -334,10 +390,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: true,
         needsConversion: true,
         pledgeAmount: 10,
-        projectCountry: Project.Country.hk,
+        projectCurrencyCountry: Project.Country.hk,
         projectDeadline: 1_476_657_315,
-        projectState: ProjectState.successful,
-        backingState: BackingState.pledged
+        projectState: Project.State.successful,
+        backingState: Backing.Status.pledged,
+        paymentIncrements: nil,
+        project: nil
       )
 
       self.vm.inputs.configure(with: data)
@@ -353,10 +411,12 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCountry: Project.Country.hk,
+      projectCurrencyCountry: Project.Country.hk,
       projectDeadline: 1_476_657_315,
-      projectState: ProjectState.successful,
-      backingState: BackingState.preauth
+      projectState: Project.State.successful,
+      backingState: Backing.Status.preauth,
+      paymentIncrements: nil,
+      project: nil
     )
 
     self.vm.inputs.configure(with: data)
@@ -367,23 +427,108 @@ final class PledgeStatusLabelViewModelTests: TestCase {
   }
 
   func testBackingStatus_AllOtherStatuses_Creator() {
-    let statuses = BackingState.allCases
-      .filter { ![.canceled, .collected, .dropped, .errored, .pledged, .preauth].contains($0) }
+    let statuses = Backing.Status.allCases
+      .filter {
+        ![.canceled, .collected, .dropped, .errored, .authenticationRequired, .pledged, .preauth]
+          .contains($0)
+      }
 
     statuses.forEach { backingState in
       let data = PledgeStatusLabelViewData(
         currentUserIsCreatorOfProject: true,
         needsConversion: false,
         pledgeAmount: 10,
-        projectCountry: Project.Country.hk,
+        projectCurrencyCountry: Project.Country.hk,
         projectDeadline: 1_476_657_315,
-        projectState: ProjectState.successful,
-        backingState: backingState
+        projectState: Project.State.successful,
+        backingState: backingState,
+        paymentIncrements: nil,
+        project: nil
       )
 
       self.vm.inputs.configure(with: data)
     }
 
     self.labelTextString.assertValues([])
+  }
+
+  func testBackingStatus_Pledged_Backer_PledgeOverTime_LiveProject() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 10,
+      projectCurrencyCountry: Project.Country.us,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.live,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: mockPaymentIncrements(),
+      project: Project.template
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    self.labelTextString.assertValues([
+      "You have selected Pledge Over Time. If the project reaches its funding goal, the first charge of $250.00 will be collected on March 28, 2019."
+    ])
+  }
+
+  func testBackingStatus_Pledged_Backer_PledgeOverTime_NotLiveProject() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 10,
+      projectCurrencyCountry: Project.Country.us,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.successful,
+      backingState: Backing.Status.pledged,
+      paymentIncrements: mockPaymentIncrements(),
+      project: Project.template
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    self.labelTextString.assertValues([
+      "We collected your pledge for this project."
+    ])
+  }
+
+  func testBackingStatus_Errored_Backer_PledgeOverTime() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 10,
+      projectCurrencyCountry: Project.Country.us,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.successful,
+      backingState: Backing.Status.errored,
+      paymentIncrements: mockPaymentIncrements(),
+      project: Project.template
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    self.labelTextString.assertValues([
+      "We can’t process your Pledge Over Time payment. Please view your pledge on a web browser and log in to fix your payment."
+    ])
+  }
+
+  func testBackingStatus_AuthenticationRequired_Backer_PledgeOverTime() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 10,
+      projectCurrencyCountry: Project.Country.us,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.successful,
+      backingState: Backing.Status.authenticationRequired,
+      paymentIncrements: mockPaymentIncrements(),
+      project: Project.template
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    self.labelTextString.assertValues([
+      "We can’t process your Pledge Over Time payment. Please view your pledge on a web browser and log in to fix your payment."
+    ])
   }
 }

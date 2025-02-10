@@ -1,0 +1,18 @@
+query FetchProjectRewardsById($projectId: Int!, $includeShippingRules: Boolean!, $includeLocalPickup: Boolean!) {
+  project(pid: $projectId) {
+    rewards {
+      nodes {
+        ...RewardFragment
+        simpleShippingRulesExpanded @include(if: $includeShippingRules) {
+            cost,
+            estimatedMin,
+            estimatedMax,
+            currency,
+            locationId,
+            locationName,
+            country
+        }
+      }
+    }
+  }
+}

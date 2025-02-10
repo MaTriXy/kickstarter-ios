@@ -63,15 +63,16 @@ final class ServiceTypeTests: XCTestCase {
     let url = URL(string: "http://api-dev.ksr.com/v1/test?key=value")!
     let request = URLRequest(url: url)
     XCTAssertFalse(self.anonAdHocService.isPrepared(request: request))
-    XCTAssertTrue(self.anonAdHocService.isPrepared(
-      request:
-      self.anonAdHocService.preparedRequest(forRequest: request)
-    )
+    XCTAssertTrue(
+      self.anonAdHocService.isPrepared(
+        request:
+        self.anonAdHocService.preparedRequest(forRequest: request)
+      )
     )
   }
 
   func testIsPreparedWithOauthToken() {
-    let url = URL(string: "http://api.ksr.com/v1/test?key=value&oauth_token=cafebeef")!
+    let url = URL(string: "http://api.ksr.com/v1/test?key=value")!
     let request = URLRequest(url: url)
     XCTAssertFalse(self.service.isPrepared(request: request))
     XCTAssertTrue(self.service.isPrepared(request: self.service.preparedRequest(forRequest: request)))
@@ -89,7 +90,7 @@ final class ServiceTypeTests: XCTestCase {
     let request = self.service.preparedRequest(forRequest: .init(url: url))
 
     XCTAssertEqual(
-      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value&oauth_token=cafebeef",
+      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value",
       request.url?.absoluteString
     )
     XCTAssertEqual(
@@ -100,7 +101,8 @@ final class ServiceTypeTests: XCTestCase {
         "Kickstarter-App-Id": "com.kickstarter.test",
         "X-KICKSTARTER-CLIENT": "deadbeef",
         "User-Agent": userAgent(),
-        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+        "X-Auth": "token cafebeef"
       ],
       request.allHTTPHeaderFields!
     )
@@ -111,7 +113,7 @@ final class ServiceTypeTests: XCTestCase {
     let request = self.service.preparedRequest(forURL: url, query: ["extra": "1"])
 
     XCTAssertEqual(
-      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&extra=1&key=value&oauth_token=cafebeef",
+      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&extra=1&key=value",
       request.url?.absoluteString
     )
     XCTAssertEqual(
@@ -122,7 +124,8 @@ final class ServiceTypeTests: XCTestCase {
         "Kickstarter-App-Id": "com.kickstarter.test",
         "X-KICKSTARTER-CLIENT": "deadbeef",
         "User-Agent": userAgent(),
-        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+        "X-Auth": "token cafebeef"
       ],
       request.allHTTPHeaderFields!
     )
@@ -134,7 +137,7 @@ final class ServiceTypeTests: XCTestCase {
     let request = self.service.preparedRequest(forURL: url, method: .DELETE, query: ["extra": "1"])
 
     XCTAssertEqual(
-      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&extra=1&key=value&oauth_token=cafebeef",
+      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&extra=1&key=value",
       request.url?.absoluteString
     )
     XCTAssertEqual(
@@ -145,7 +148,8 @@ final class ServiceTypeTests: XCTestCase {
         "Kickstarter-App-Id": "com.kickstarter.test",
         "X-KICKSTARTER-CLIENT": "deadbeef",
         "User-Agent": userAgent(),
-        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+        "X-Auth": "token cafebeef"
       ],
       request.allHTTPHeaderFields!
     )
@@ -157,7 +161,7 @@ final class ServiceTypeTests: XCTestCase {
     let request = self.service.preparedRequest(forURL: url, method: .POST, query: ["extra": "1"])
 
     XCTAssertEqual(
-      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value&oauth_token=cafebeef",
+      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value",
       request.url?.absoluteString
     )
     XCTAssertEqual(
@@ -169,7 +173,8 @@ final class ServiceTypeTests: XCTestCase {
         "Content-Type": "application/json; charset=utf-8",
         "X-KICKSTARTER-CLIENT": "deadbeef",
         "User-Agent": userAgent(),
-        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+        "X-Auth": "token cafebeef"
       ],
       request.allHTTPHeaderFields!
     )
@@ -189,7 +194,7 @@ final class ServiceTypeTests: XCTestCase {
     let request = self.service.preparedRequest(forRequest: baseRequest, query: ["extra": "1"])
 
     XCTAssertEqual(
-      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value&oauth_token=cafebeef",
+      "http://api.ksr.com/v1/test?client_id=deadbeef&currency=USD&key=value",
       request.url?.absoluteString
     )
     XCTAssertEqual(
@@ -200,7 +205,8 @@ final class ServiceTypeTests: XCTestCase {
         "Kickstarter-App-Id": "com.kickstarter.test",
         "X-KICKSTARTER-CLIENT": "deadbeef",
         "User-Agent": userAgent(),
-        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+        "Kickstarter-iOS-App-UUID": "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+        "X-Auth": "token cafebeef"
       ],
       request.allHTTPHeaderFields!
     )
@@ -317,7 +323,7 @@ final class ServiceTypeTests: XCTestCase {
 // swiftformat:disable wrap
 private func userAgent() -> String {
   return """
-  com.apple.dt.xctest.tool/\(testToolBuildNumber()) (\(UIDevice.current.model); iOS \(UIDevice.current.systemVersion) Scale/\(UIScreen.main.scale))
+  xctest/\(testToolBuildNumber()) (\(UIDevice.current.model); iOS \(UIDevice.current.systemVersion) Scale/\(UIScreen.main.scale))
   """
 }
 

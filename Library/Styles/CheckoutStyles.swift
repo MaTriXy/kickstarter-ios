@@ -63,7 +63,7 @@ public enum CheckoutConstants {
 public func checkoutCurrencyDefaultAttributes() -> String.Attributes {
   return [
     .font: UIFont.ksr_title1(),
-    .foregroundColor: UIColor.ksr_text_dark_grey_500
+    .foregroundColor: UIColor.ksr_support_400
   ]
 }
 
@@ -85,12 +85,12 @@ public enum Layout {
 
 public let checkoutBackgroundStyle: ViewStyle = { (view: UIView) in
   view
-    |> \.backgroundColor .~ UIColor.ksr_grey_300
+    |> \.backgroundColor .~ UIColor.ksr_support_100
 }
 
 public let checkoutLabelStyle: LabelStyle = { label in
   label
-    |> \.backgroundColor .~ UIColor.ksr_grey_300
+    |> \.backgroundColor .~ UIColor.ksr_support_100
 }
 
 public let checkoutRoundedCornersStyle: ViewStyle = { (view: UIView) in
@@ -106,8 +106,20 @@ public let checkoutStackViewStyle: StackViewStyle = { (stackView: UIStackView) i
 
 public let checkoutSwitchControlStyle: SwitchControlStyle = { switchControl in
   switchControl
-    |> \.onTintColor .~ UIColor.ksr_green_500
-    |> \.tintColor .~ UIColor.ksr_grey_500
+    |> \.onTintColor .~ UIColor.ksr_create_700
+    |> \.tintColor .~ UIColor.ksr_support_300
+}
+
+public let checkoutStepperStyle: (UIStepper) -> UIStepper = { stepper in
+  stepper
+    |> \.stepValue .~ 1.0
+    |> \.tintColor .~ UIColor.clear
+    <> UIStepper.lens.decrementImage(for: .normal) .~ image(named: "stepper-decrement-normal")
+    <> UIStepper.lens.decrementImage(for: .disabled) .~ image(named: "stepper-decrement-disabled")
+    <> UIStepper.lens.decrementImage(for: .highlighted) .~ image(named: "stepper-decrement-highlighted")
+    <> UIStepper.lens.incrementImage(for: .normal) .~ image(named: "stepper-increment-normal")
+    <> UIStepper.lens.incrementImage(for: .disabled) .~ image(named: "stepper-increment-disabled")
+    <> UIStepper.lens.incrementImage(for: .highlighted) .~ image(named: "stepper-increment-highlighted")
 }
 
 public let checkoutTitleLabelStyle: LabelStyle = { (label: UILabel) in
@@ -120,7 +132,7 @@ public let checkoutTitleLabelStyle: LabelStyle = { (label: UILabel) in
 
 public let checkoutWhiteBackgroundStyle: ViewStyle = { (view: UIView) in
   view
-    |> \.backgroundColor .~ UIColor.white
+    |> \.backgroundColor .~ UIColor.ksr_white
 }
 
 public let checkoutLayerCardRoundedStyle: LayerStyle = { layer in
@@ -139,7 +151,7 @@ public let tappableLinksViewStyle: TextViewStyle = { (textView: UITextView) -> U
     |> \.textContainerInset .~ UIEdgeInsets.zero
     |> \.textContainer.lineFragmentPadding .~ 0
     |> \.linkTextAttributes .~ [
-      .foregroundColor: UIColor.ksr_green_500
+      .foregroundColor: UIColor.ksr_create_700
     ]
 
   return textView
@@ -157,7 +169,7 @@ public func checkoutAttributedLink(with string: String) -> NSAttributedString? {
 
   let attributes: String.Attributes = [
     .font: UIFont.ksr_caption1(),
-    .foregroundColor: UIColor.ksr_text_dark_grey_500,
+    .foregroundColor: UIColor.ksr_support_400,
     .underlineStyle: 0
   ]
 
@@ -205,7 +217,7 @@ public let cardSelectButtonStyle: ButtonStyle = { button in
 
 public let pledgeCardViewStyle: ViewStyle = { view in
   view
-    |> \.backgroundColor .~ .white
+    |> \.backgroundColor .~ .ksr_white
     |> roundedStyle(cornerRadius: Styles.grid(1))
     |> \.layoutMargins .~ UIEdgeInsets(topBottom: Styles.grid(3), leftRight: Styles.grid(2))
 }

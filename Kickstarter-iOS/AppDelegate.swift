@@ -1,24 +1,22 @@
+import AppboyKit
 import AppCenter
-import AppCenterAnalytics
-import AppCenterCrashes
 import AppCenterDistribute
-import Crashlytics
-import Fabric
 import FBSDKCoreKit
+import Firebase
 import Foundation
 #if DEBUG
   @testable import KsApi
 #else
   import KsApi
 #endif
+import AppboySegment
 import Kickstarter_Framework
 import Library
-import Optimizely
 import Prelude
-import Qualtrics
 import ReactiveExtensions
 import ReactiveSwift
 import SafariServices
+import Segment
 import UIKit
 import UserNotifications
 
@@ -26,6 +24,7 @@ import UserNotifications
 internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   var window: UIWindow?
   fileprivate let viewModel: AppDelegateViewModelType = AppDelegateViewModel()
+  fileprivate var disposables: [any Disposable] = []
 
   internal var rootTabBarController: RootTabBarViewController? {
     return self.window?.rootViewController as? RootTabBarViewController
@@ -62,6 +61,7 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] user in
         AppEnvironment.updateCurrentUser(user)
+        AppEnvironment.current.ksrAnalytics.identify(newUser: user)
         self?.viewModel.inputs.currentUserUpdatedInEnvironment()
       }
 
@@ -99,16 +99,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] in self?.rootTabBarController?.switchToActivities() }
 
-    self.viewModel.outputs.goToDashboard
-      .observeForUI()
-      .observeValues { [weak self] in self?.rootTabBarController?.switchToDashboard(project: $0) }
-
-    self.viewModel.outputs.goToCreatorMessageThread
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.goToCreatorMessageThread($0, $1)
-      }
-
     self.viewModel.outputs.goToLoginWithIntent
       .observeForControllerAction()
       .observeValues { [weak self] intent in
@@ -123,12 +113,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] in self?.goToMessageThread($0) }
 
-    self.viewModel.outputs.goToProjectActivities
-      .observeForUI()
-      .observeValues { [weak self] in
-        self?.goToProjectActivities($0)
-      }
-
     self.viewModel.outputs.goToSearch
       .observeForUI()
       .observeValues { [weak self] in self?.rootTabBarController?.switchToSearch() }
@@ -136,16 +120,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     self.viewModel.outputs.goToMobileSafari
       .observeForUI()
       .observeValues { UIApplication.shared.open($0) }
-
-    self.viewModel.outputs.goToLandingPage
-      .observeForUI()
-      .observeValues { [weak self] in
-        let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad
-
-        let landingPage = LandingPageViewController()
-          |> \.modalPresentationStyle .~ (isIpad ? .formSheet : .fullScreen)
-        self?.rootTabBarController?.present(landingPage, animated: true)
-      }
 
     self.viewModel.outputs.applicationIconBadgeNumber
       .observeForUI()
@@ -163,6 +137,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         print("📲 [Push Registration] Push token successfully registered (\(token)) ✨")
       }
 
+    self.viewModel.outputs.registerPushTokenInSegment
+      .observeForUI()
+      .observeValues { token in
+        Analytics.shared().registeredForRemoteNotifications(withDeviceToken: token)
+      }
+
     self.viewModel.outputs.showAlert
       .observeForUI()
       .observeValues { [weak self] in
@@ -173,43 +153,39 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues(UIApplication.shared.unregisterForRemoteNotifications)
 
-    self.viewModel.outputs.configureOptimizely
-      .observeForUI()
-      .observeValues { [weak self] key, logLevel, dispatchInterval in
-        self?.configureOptimizely(with: key, logLevel: logLevel, dispatchInterval: dispatchInterval)
-      }
-
     self.viewModel.outputs.configureAppCenterWithData
       .observeForUI()
       .observeValues { data in
-        let customProperties = MSCustomProperties()
-        customProperties.setString(data.userName, forKey: "userName")
+        AppCenter.userId = data.userId
 
-        MSAppCenter.setUserId(data.userId)
-        MSAppCenter.setCustomProperties(customProperties)
-
-        MSCrashes.setDelegate(self)
-
-        MSAppCenter.start(
-          data.appSecret,
-          withServices: [
-            MSAnalytics.self,
-            MSCrashes.self,
-            MSDistribute.self
+        AppCenter.start(
+          withAppSecret: data.appSecret,
+          services: [
+            Distribute.self
           ]
         )
       }
 
     #if RELEASE || APPCENTER
-      self.viewModel.outputs.configureFabric
+      self.viewModel.outputs.configureFirebase
         .observeForUI()
-        .observeValues {
-          Fabric.with([Crashlytics.self])
-          AppEnvironment.current.koala.logEventCallback = { event, _ in
-            CLSLogv("%@", getVaList([event]))
+        .observeValues { [weak self] in
+          guard let strongSelf = self else { return }
+
+          FirebaseApp.configure()
+          AppEnvironment.current.ksrAnalytics.logEventCallback = { event, _ in
+            Crashlytics.crashlytics().log(format: "%@", arguments: getVaList([event]))
           }
+
+          strongSelf.configureRemoteConfig()
         }
     #endif
+
+    self.disposables.append(
+      self.viewModel.outputs.trackingAuthorizationStatus
+        .observeForUI()
+        .startWithValues(self.updateFirebaseConsent(status:))
+    )
 
     self.viewModel.outputs.synchronizeUbiquitousStore
       .observeForUI()
@@ -227,36 +203,12 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       .observeForUI()
       .observeValues { [weak self] in self?.findRedirectUrl($0) }
 
-    self.viewModel.outputs.configureQualtrics
-      .observeValues { [weak self] config in
-        self?.configureQualtrics(with: config)
-      }
-
-    self.viewModel.outputs.evaluateQualtricsTargetingLogic
-      .observeValues { [weak self] in
-        Qualtrics.shared.evaluateTargetingLogic { result in
-          self?.viewModel.inputs.didEvaluateQualtricsTargetingLogic(
-            with: result, properties: Qualtrics.shared.properties
-          )
-        }
-      }
-
-    self.viewModel.outputs.displayQualtricsSurvey
+    self.viewModel.outputs.emailVerificationCompleted
       .observeForUI()
-      .observeValues { [weak self] in
-        guard let vc = self?.rootTabBarController else { return }
-        _ = Qualtrics.shared.display(viewController: vc)
-      }
-
-    self.viewModel.outputs.goToCategoryPersonalizationOnboarding
-      .observeForControllerAction()
-      .observeValues { [weak self] in
-        let categorySelectionViewController = LandingViewController.instantiate()
-        let navController = NavigationController(rootViewController: categorySelectionViewController)
-        let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad
-        navController.modalPresentationStyle = isIpad ? .formSheet : .fullScreen
-
-        self?.rootTabBarController?.present(navController, animated: true)
+      .observeValues { [weak self] message, success in
+        self?.rootTabBarController?.dismiss(animated: false, completion: nil)
+        self?.rootTabBarController?
+          .messageBannerViewController?.showBanner(with: success ? .success : .error, message: message)
       }
 
     NotificationCenter.default
@@ -276,7 +228,41 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
         self?.viewModel.inputs.userSessionEnded()
       }
 
-    self.window?.tintColor = .ksr_green_700
+    self.viewModel.outputs.configureSegmentWithBraze
+      .observeValues { [weak self] writeKey in
+        guard let strongSelf = self else { return }
+
+        let configuration = Analytics.configuredClient(withWriteKey: writeKey)
+
+        if let appBoyInstance = SEGAppboyIntegrationFactory.instance() {
+          configuration.use(appBoyInstance)
+          appBoyInstance.saveLaunchOptions(launchOptions)
+          appBoyInstance.appboyOptions = [
+            ABKInAppMessageControllerDelegateKey: strongSelf,
+            ABKURLDelegateKey: strongSelf,
+            ABKMinimumTriggerTimeIntervalKey: 5
+          ]
+        }
+
+        Analytics.setup(with: configuration)
+        AppEnvironment.current.ksrAnalytics.configureSegmentClient(Analytics.shared())
+      }
+
+    self.viewModel.outputs.segmentIsEnabled
+      .observeValues { enabled in
+        enabled ? Analytics.shared().enable() : Analytics.shared().disable()
+      }
+
+    NotificationCenter.default
+      .addObserver(
+        forName: Notification.Name.ksr_configUpdated,
+        object: nil,
+        queue: nil
+      ) { [weak self] _ in
+        self?.viewModel.inputs.configUpdatedNotificationObserved()
+      }
+
+    self.window?.tintColor = .ksr_create_700
 
     self.viewModel.inputs.applicationDidFinishLaunching(
       application: application,
@@ -286,6 +272,14 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     UNUserNotificationCenter.current().delegate = self
 
     return self.viewModel.outputs.applicationDidFinishLaunchingReturnValue
+  }
+
+  func applicationDidBecomeActive(_: UIApplication) {
+    self.viewModel.inputs.applicationActive(state: true)
+  }
+
+  func applicationWillResignActive(_: UIApplication) {
+    self.viewModel.inputs.applicationActive(state: false)
   }
 
   func applicationWillEnterForeground(_: UIApplication) {
@@ -337,6 +331,14 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     print("🔴 Failed to register for remote notifications: \(error.localizedDescription)")
   }
 
+  func application(
+    _: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler _: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    SEGAppboyIntegrationFactory.instance()?.saveRemoteNotification(userInfo)
+  }
+
   internal func applicationDidReceiveMemoryWarning(_: UIApplication) {
     self.viewModel.inputs.applicationDidReceiveMemoryWarning()
   }
@@ -351,38 +353,6 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   // MARK: - Functions
-
-  private func configureOptimizely(
-    with key: String,
-    logLevel: OptimizelyLogLevelType,
-    dispatchInterval: TimeInterval
-  ) {
-    let eventDispatcher = DefaultEventDispatcher(timerInterval: dispatchInterval)
-    let optimizelyClient = OptimizelyClient(
-      sdkKey: key,
-      eventDispatcher: eventDispatcher,
-      defaultLogLevel: logLevel.logLevel
-    )
-
-    optimizelyClient.start { [weak self] result in
-      guard let self = self else { return }
-
-      let optimizelyConfigurationError = self.viewModel.inputs.optimizelyConfigured(with: result)
-
-      guard let optimizelyError = optimizelyConfigurationError else {
-        print("🔮 Optimizely SDK Successfully Configured")
-        AppEnvironment.updateOptimizelyClient(optimizelyClient)
-
-        self.viewModel.inputs.didUpdateOptimizelyClient(optimizelyClient)
-
-        return
-      }
-
-      print("🔴 Optimizely SDK Configuration Failed with Error: \(optimizelyError.localizedDescription)")
-
-      Crashlytics.sharedInstance().recordError(optimizelyError)
-    }
-  }
 
   fileprivate func presentContextualPermissionAlert(_ notification: Notification) {
     guard let context = notification.userInfo?.values.first as? PushNotificationDialog.Context else {
@@ -403,7 +373,11 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
       })
     )
 
-    DispatchQueue.main.async {
+    // Sometimes, the "sign up for push" popup doesn't appear when you sign in via web authentication session.
+    // My best guess is that this happens because the dismissal of the web login screen accidentally dismisses this popup, too.
+    // The delay isn't pretty, but it works.
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
       if let viewController = notification.userInfo?[UserInfoKeys.viewController] as? UIViewController {
         viewController.present(alert, animated: true, completion: nil)
       } else {
@@ -416,43 +390,72 @@ internal final class AppDelegate: UIResponder, UIApplicationDelegate {
     self.rootTabBarController?.switchToMessageThread(messageThread)
   }
 
-  private func goToCreatorMessageThread(_ projectId: Param, _ messageThread: MessageThread) {
-    self.rootTabBarController?
-      .switchToCreatorMessageThread(projectId: projectId, messageThread: messageThread)
-  }
-
-  private func goToProjectActivities(_ projectId: Param) {
-    self.rootTabBarController?.switchToProjectActivities(projectId: projectId)
-  }
-
   private func findRedirectUrl(_ url: URL) {
     let session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
     let task = session.dataTask(with: url)
     task.resume()
   }
 
-  // MARK: - Qualtrics Configuration
-
-  private func configureQualtrics(with config: QualtricsConfigData) {
-    config.stringProperties.forEach { key, value in
-      Qualtrics.shared.properties.setString(string: value, for: key)
+  private func updateFirebaseConsent(status: AppTrackingAuthorization) {
+    // https://developers.google.com/tag-platform/security/guides/app-consent?platform=ios&consentmode=advanced
+    let consentStatus: ConsentStatus = if case .authorized = status {
+      .granted
+    } else {
+      .denied
     }
-
-    Qualtrics.shared.initialize(
-      brandId: config.brandId,
-      zoneId: config.zoneId,
-      interceptId: config.interceptId
-    ) { result in
-      self.viewModel.inputs.qualtricsInitialized(with: result)
-    }
+    Analytics.setConsent([
+      .analyticsStorage: consentStatus,
+      .adStorage: consentStatus,
+      .adUserData: consentStatus,
+      .adPersonalization: consentStatus
+    ])
   }
-}
 
-// MARK: - MSCrashesDelegate
+  private func configureRemoteConfig() {
+    let remoteConfigClient = RemoteConfigClient(with: RemoteConfig.remoteConfig())
 
-extension AppDelegate: MSCrashesDelegate {
-  func crashes(_: MSCrashes!, didSucceedSending _: MSErrorReport!) {
-    self.viewModel.inputs.crashManagerDidFinishSendingCrashReport()
+    AppEnvironment.updateRemoteConfigClient(remoteConfigClient)
+
+    self.fetchAndActivateRemoteConfig()
+
+    _ = AppEnvironment.current.remoteConfigClient?
+      .addOnConfigUpdateListener { configUpdate, error in
+        guard let realtimeUpdateError = error else {
+          print("🔮 Remote Config Keys Update: \(String(describing: configUpdate?.updatedKeys))")
+
+          return
+        }
+
+        print(
+          "🔴 Remote Config SDK Config Update Listener Failure: \(realtimeUpdateError.localizedDescription)"
+        )
+      }
+  }
+
+  private func fetchAndActivateRemoteConfig() {
+    AppEnvironment.current.remoteConfigClient?.fetchAndActivate { _, error in
+      guard let remoteConfigActivationError = error else {
+        print("🔮 Remote Config SDK Successfully Activated")
+
+        self.viewModel.inputs.didUpdateRemoteConfigClient()
+        return
+      }
+
+      let errorAsNSError = remoteConfigActivationError as NSError
+
+      if errorAsNSError.domain == RemoteConfigErrorDomain,
+         errorAsNSError.code == RemoteConfigError.internalError.rawValue {
+        // This is (almost certainly) just a connection error; we won't log it.
+      } else {
+        Crashlytics.crashlytics().record(error: remoteConfigActivationError)
+      }
+
+      print(
+        "🔴 Remote Config SDK Activation Failed with Error: \(remoteConfigActivationError.localizedDescription)"
+      )
+
+      self.viewModel.inputs.remoteConfigClientConfigurationFailed()
+    }
   }
 }
 
@@ -480,23 +483,47 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
     self.rootTabBarController?.didReceiveBadgeValue(notification.request.content.badge as? Int)
-    completionHandler(.alert)
+    completionHandler([.banner, .list])
   }
 
-  public func userNotificationCenter(
-    _: UNUserNotificationCenter,
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
     didReceive response: UNNotificationResponse,
     withCompletionHandler completion: @escaping () -> Void
   ) {
+    // Track notification opened.
+    // Documentation: https://github.com/Appboy/appboy-segment-ios/blob/master/CHANGELOG.md#added-6.
+    let appBoyHelper = SEGAppboyIntegrationFactory.instance().appboyHelper
+    if Appboy.sharedInstance() == nil {
+      appBoyHelper?.save(center, notificationResponse: response)
+    }
+    appBoyHelper?.userNotificationCenter(center, receivedNotificationResponse: response)
+
     guard let rootTabBarController = self.rootTabBarController else {
       completion()
       return
     }
 
-    if !Qualtrics.shared.handleLocalNotification(response: response, displayOn: rootTabBarController) {
-      self.viewModel.inputs.didReceive(remoteNotification: response.notification.request.content.userInfo)
-      rootTabBarController.didReceiveBadgeValue(response.notification.request.content.badge as? Int)
-    }
+    self.viewModel.inputs.didReceive(remoteNotification: response.notification.request.content.userInfo)
+    rootTabBarController.didReceiveBadgeValue(response.notification.request.content.badge as? Int)
     completion()
+  }
+}
+
+// MARK: - ABKInAppMessageControllerDelegate
+
+extension AppDelegate: ABKInAppMessageControllerDelegate {
+  func before(inAppMessageDisplayed inAppMessage: ABKInAppMessage) -> ABKInAppMessageDisplayChoice {
+    return self.viewModel.inputs.brazeWillDisplayInAppMessage(inAppMessage)
+  }
+}
+
+// MARK: - ABKURLDelegate
+
+extension AppDelegate: ABKURLDelegate {
+  func handleAppboyURL(_ url: URL?, from _: ABKChannel, withExtras _: [AnyHashable: Any]?) -> Bool {
+    self.viewModel.inputs.urlFromBrazeInAppNotification(url)
+
+    return true
   }
 }

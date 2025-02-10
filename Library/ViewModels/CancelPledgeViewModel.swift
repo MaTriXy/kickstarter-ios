@@ -1,11 +1,10 @@
-import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public struct CancelPledgeViewData {
   public let project: Project // TODO: remove once tracking is updated.
-  public let projectCountry: Project.Country
   public let projectName: String
   public let omitUSCurrencyCode: Bool
   public let backingId: String
@@ -28,6 +27,7 @@ public protocol CancelPledgeViewModelOutputs {
   var cancelPledgeButtonEnabled: Signal<Bool, Never> { get }
   var cancelPledgeError: Signal<String, Never> { get }
   var dismissKeyboard: Signal<Void, Never> { get }
+  var isLoading: Signal<Bool, Never> { get }
   var notifyDelegateCancelPledgeSuccess: Signal<String, Never> { get }
   var popCancelPledgeViewController: Signal<Void, Never> { get }
 }
@@ -51,9 +51,12 @@ public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledg
       data.takeWhen(self.traitCollectionDidChangeProperty.signal)
     )
     .map { data in
+      let projectCurrencyCountry = projectCountry(forCurrency: data.project.stats.currency) ?? data.project
+        .country
+
       let formattedAmount = Format.currency(
         data.pledgeAmount,
-        country: data.projectCountry,
+        country: projectCurrencyCountry,
         omitCurrencyCode: data.omitUSCurrencyCode
       )
       return (formattedAmount, data.projectName)
@@ -86,6 +89,11 @@ public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledg
           .materialize()
       }
 
+    self.isLoading = Signal.merge(
+      self.cancelPledgeButtonTappedProperty.signal.mapConst(true),
+      cancelPledgeEvent.filter { $0.isTerminating }.mapConst(false)
+    )
+
     self.notifyDelegateCancelPledgeSuccess = cancelPledgeEvent.values()
       .map { _ in Strings.Youve_canceled_your_pledge() }
 
@@ -99,17 +107,6 @@ public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledg
       cancelPledgeEvent.map { $0.isTerminating }.mapConst(true)
     )
     .skipRepeats()
-
-    // Tracking
-    data
-      .takeWhen(self.cancelPledgeButtonTappedProperty.signal)
-      .map { ($0.project, $0.pledgeAmount) }
-      .observeValues { project, amount in
-        AppEnvironment.current.koala.trackCancelPledgeButtonClicked(
-          project: project,
-          backingAmount: amount
-        )
-      }
   }
 
   private let cancelPledgeButtonTappedProperty = MutableProperty(())
@@ -156,6 +153,7 @@ public final class CancelPledgeViewModel: CancelPledgeViewModelType, CancelPledg
   public let cancelPledgeButtonEnabled: Signal<Bool, Never>
   public let cancelPledgeError: Signal<String, Never>
   public let dismissKeyboard: Signal<Void, Never>
+  public let isLoading: Signal<Bool, Never>
   public let notifyDelegateCancelPledgeSuccess: Signal<String, Never>
   public let popCancelPledgeViewController: Signal<Void, Never>
 

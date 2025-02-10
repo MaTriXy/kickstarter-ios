@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
@@ -25,6 +26,7 @@ public protocol PledgeViewCTAContainerViewModelOutputs {
   var notifyDelegateOpenHelpType: Signal<HelpType, Never> { get }
   var notifyDelegateSubmitButtonTapped: Signal<Void, Never> { get }
   var notifyDelegateToGoToLoginSignup: Signal<Void, Never> { get }
+  var pledgeImmediatelyLabelIsHidden: Signal<Bool, Never> { get }
   var submitButtonIsEnabled: Signal<Bool, Never> { get }
   var submitButtonIsHidden: Signal<Bool, Never> { get }
   var submitButtonTitle: Signal<String, Never> { get }
@@ -41,17 +43,9 @@ public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewMo
     let context = self.configDataSignal.map { $0.context }
     let isLoggedIn = self.configDataSignal.map { $0.isLoggedIn }
 
-    self.notifyDelegateOpenHelpType = self.tappedUrlProperty.signal.skipNil().map { url -> HelpType? in
-      let helpType = HelpType.allCases.filter { helpType in
-        url.absoluteString == helpType.url(
-          withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl
-        )?.absoluteString
-      }
-      .first
-
-      return helpType
-    }
-    .skipNil()
+    self.notifyDelegateOpenHelpType = self.tappedUrlProperty.signal.skipNil()
+      .map(HelpType.helpType)
+      .skipNil()
 
     self.submitButtonIsEnabled = self.configDataSignal.map { $0.isEnabled }
     self.submitButtonTitle = self.configDataSignal.map { data in
@@ -63,13 +57,18 @@ public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewMo
     self.submitButtonIsHidden = isLoggedIn.map { $0 }.negate()
     self.applePayButtonIsHidden = Signal.combineLatest(context, isLoggedIn)
       .map { context, isLoggedIn in
-        context.isAny(of: .pledge, .fixPaymentMethod, .changePaymentMethod) == false || isLoggedIn == false
+        context.applePayButtonHidden || isLoggedIn == false
       }
     self.continueButtonIsHidden = isLoggedIn
 
     self.notifyDelegateApplePayButtonTapped = self.applePayButtonTappedProperty.signal
     self.notifyDelegateSubmitButtonTapped = self.submitButtonTappedProperty.signal
     self.notifyDelegateToGoToLoginSignup = self.continueButtonTappedProperty.signal
+
+    self.pledgeImmediatelyLabelIsHidden = context
+      .map { context in
+        context != .latePledge
+      }
   }
 
   private let applePayButtonTappedProperty = MutableProperty(())
@@ -92,7 +91,7 @@ public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewMo
     self.submitButtonTappedProperty.value = ()
   }
 
-  private let tappedUrlProperty = MutableProperty<(URL)?>(nil)
+  private let tappedUrlProperty = MutableProperty<URL?>(nil)
   public func tapped(_ url: URL) {
     self.tappedUrlProperty.value = url
   }
@@ -104,6 +103,7 @@ public final class PledgeViewCTAContainerViewModel: PledgeViewCTAContainerViewMo
   public let notifyDelegateOpenHelpType: Signal<HelpType, Never>
   public let notifyDelegateSubmitButtonTapped: Signal<Void, Never>
   public let notifyDelegateToGoToLoginSignup: Signal<Void, Never>
+  public let pledgeImmediatelyLabelIsHidden: Signal<Bool, Never>
   public let submitButtonIsEnabled: Signal<Bool, Never>
   public let submitButtonTitle: Signal<String, Never>
 

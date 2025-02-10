@@ -5,8 +5,8 @@ import ReactiveSwift
 public struct CommentDialogData {
   public let project: Project
   public let update: Update?
-  public let recipient: Author?
-  public let context: Koala.CommentDialogContext
+  public let recipientName: String?
+  public let context: KSRAnalytics.CommentDialogContext
 }
 
 public protocol CommentDialogViewModelInputs {
@@ -16,12 +16,12 @@ public protocol CommentDialogViewModelInputs {
   /// Call when the view disappears.
   func viewWillDisappear()
 
-  /// Call with the project, update (optional), recipient (optional) and context given to the view.
+  /// Call with the project, update (optional), recipient name (optional) and context given to the view.
   func configureWith(
     project: Project,
     update: Update?,
-    recipient: Author?,
-    context: Koala.CommentDialogContext
+    recipientName: String?,
+    context: KSRAnalytics.CommentDialogContext
   )
 
   /// Call when the comment body text changes.
@@ -69,7 +69,8 @@ public protocol CommentDialogViewModelType {
   var errors: CommentDialogViewModelErrors { get }
 }
 
-public final class CommentDialogViewModel: CommentDialogViewModelType, CommentDialogViewModelInputs,
+public final class CommentDialogViewModel: CommentDialogViewModelType,
+  CommentDialogViewModelInputs,
   CommentDialogViewModelOutputs, CommentDialogViewModelErrors {
   fileprivate let viewWillAppearProperty = MutableProperty(())
   public func viewWillAppear() {
@@ -83,12 +84,12 @@ public final class CommentDialogViewModel: CommentDialogViewModelType, CommentDi
 
   fileprivate let configurationDataProperty = MutableProperty<CommentDialogData?>(nil)
   public func configureWith(
-    project: Project, update: Update?, recipient: Author?,
-    context: Koala.CommentDialogContext
+    project: Project, update: Update?, recipientName: String?,
+    context: KSRAnalytics.CommentDialogContext
   ) {
     self.configurationDataProperty.value = CommentDialogData(
       project: project, update: update,
-      recipient: recipient, context: context
+      recipientName: recipientName, context: context
     )
   }
 
@@ -140,22 +141,45 @@ public final class CommentDialogViewModel: CommentDialogViewModelType, CommentDi
       self.commentBodyProperty.signal.map { !$0.isEmpty },
       isLoading.signal.map(isFalse)
     ])
-      .skipRepeats()
+    .skipRepeats()
 
-    let commentPostedEvent = Signal.combineLatest(self.commentBodyProperty.signal, updateOrProject)
-      .takeWhen(self.postButtonPressedProperty.signal)
-      .switchMap { body, updateOrProject in
-        postComment(body, toUpdateOrComment: updateOrProject)
-          .on(
-            starting: {
-              isLoading.value = true
-            },
-            terminated: {
-              isLoading.value = false
-            }
-          )
-          .materialize()
+    let currentUser = self.viewWillAppearProperty.signal
+      .map { _ in AppEnvironment.current.currentUser }
+
+    // get an id needed to post a comment to either a project or a project update
+    let commentableId = updateOrProject
+      .flatMap { updateOrProject in
+        updateOrProject.ifLeft { update in
+          SignalProducer.init(value: encodeToBase64("FreeformPost-\(update.id)"))
+        } ifRight: { project in
+          SignalProducer.init(value: project.graphID)
+        }
       }
+
+    let commentPostedEvent = Signal.combineLatest(
+      self.commentBodyProperty.signal,
+      currentUser.signal.skipNil(),
+      project.signal,
+      commentableId.signal
+    )
+    .takeWhen(self.postButtonPressedProperty.signal)
+    .switchMap { body, currentUser, project, commentableId in
+      postComment(
+        body,
+        project: project,
+        commentableId: commentableId,
+        from: currentUser
+      )
+      .on(
+        starting: {
+          isLoading.value = true
+        },
+        terminated: {
+          isLoading.value = false
+        }
+      )
+      .materialize()
+    }
 
     self.notifyPresenterCommentWasPostedSuccesfully = commentPostedEvent.values()
 
@@ -184,49 +208,45 @@ public final class CommentDialogViewModel: CommentDialogViewModelType, CommentDi
     )
 
     self.bodyTextViewText = configurationData
-      .map { data in data.recipient?.name }
+      .map { data in data.recipientName }
       .skipNil()
       .map { "@\($0): " }
-
-    configurationData
-      .takeWhen(self.viewWillAppearProperty.signal)
-      .observeValues { data in
-        AppEnvironment.current.koala.trackOpenedCommentEditor(
-          project: data.project, update: data.update, context: data.context
-        )
-      }
-
-    configurationData
-      .takeWhen(self.cancelButtonPressedProperty.signal)
-      .observeValues { data in
-        AppEnvironment.current.koala.trackCanceledCommentEditor(
-          project: data.project, update: data.update, context: data.context
-        )
-      }
-
-    configurationData
-      .takePairWhen(self.notifyPresenterCommentWasPostedSuccesfully)
-      .observeValues { data, comment in
-        if let update = data.update {
-          AppEnvironment.current.koala.trackCommentCreate(
-            comment: comment, update: update, project: data.project
-          )
-        } else {
-          AppEnvironment.current.koala.trackCommentCreate(comment: comment, project: data.project)
-        }
-        AppEnvironment.current.koala.trackPostedComment(
-          project: data.project, update: data.update, context: data.context
-        )
-      }
   }
 }
 
-private func postComment(_ body: String, toUpdateOrComment updateOrComment: Either<Update, Project>)
+/**
+ FIXME: Issues related to design that need to be discussed as a product change to the `ProjectActivitiesViewController` and removal of `CommentDialogViewController`.
+ - Errors are not displayed to the user as the function uses optimistic posting and the `CommentDialogViewController` is dismissed before the error has a chance to be shown.
+ - Replies are posted as comments on main thread with `@User` tagged.
+ */
+
+private func postComment(
+  _ body: String,
+  project: Project,
+  commentableId: String,
+  from user: User
+)
   -> SignalProducer<Comment, ErrorEnvelope> {
-  switch updateOrComment {
-  case let .left(update):
-    return AppEnvironment.current.apiService.postComment(body, toUpdate: update)
-  case let .right(project):
-    return AppEnvironment.current.apiService.postComment(body, toProject: project)
+  return CommentsViewModel.postCommentProducer(
+    project: project,
+    commentableId: commentableId,
+    parentId: nil,
+    user: user,
+    body: body
+  )
+  .promoteError(ErrorEnvelope.self)
+  .switchMap { comment, _ -> SignalProducer<Comment, ErrorEnvelope> in
+    guard comment.status == .failed else {
+      return SignalProducer<Comment, ErrorEnvelope>(value: comment)
+    }
+
+    let failureEnvelope = ErrorEnvelope(
+      errorMessages: [Strings.Something_went_wrong_please_try_again()],
+      ksrCode: nil,
+      httpCode: -1,
+      exception: nil
+    )
+
+    return SignalProducer<Comment, ErrorEnvelope>(error: failureEnvelope)
   }
 }

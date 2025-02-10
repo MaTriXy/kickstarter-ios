@@ -1,57 +1,88 @@
-import Argo
-import Curry
-import Runes
+import Foundation
 
 public struct Comment {
-  public let author: Author
-  public let body: String
+  public var author: Author
+  public var authorBadges: [AuthorBadge]
+  public var body: String
   public let createdAt: TimeInterval
-  public let deletedAt: TimeInterval?
-  public let id: Int
-}
-
-extension Comment: Swift.Decodable {
-  enum CodingKeys: String, CodingKey {
-    case author
-    case body
-    case createdAt = "created_at"
-    case deletedAt = "deleted_at"
-    case id
+  public var id: String
+  public var isDeleted: Bool
+  public var parentId: String?
+  public var replyCount: Int
+  /// return the first `authorBadges`, if nil  return `.backer`
+  public var authorBadge: AuthorBadge {
+    return self.authorBadges.first ?? .backer
   }
 
-  public init(from decoder: Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    self.author = try values.decode(Author.self, forKey: .author)
-    self.body = try values.decode(String.self, forKey: .body)
-    self.createdAt = try values.decode(TimeInterval.self, forKey: .createdAt)
-    self.deletedAt = try values.decode(TimeInterval?.self, forKey: .deletedAt)
-    self.id = try values.decode(Int.self, forKey: .id)
+  /// Use to determine if a comment is a reply to another comment
+  public var isReply: Bool {
+    return self.parentId != nil
+  }
+
+  /// Track and return the current status of the `Comment`
+  public var status: Status = .unknown
+
+  public struct Author: Decodable, Equatable {
+    public var id: String
+    public var imageUrl: String
+    public var isBlocked: Bool
+    public var isCreator: Bool
+    public var name: String
+  }
+
+  public enum AuthorBadge: String, Decodable {
+    case collaborator
+    case creator
+    case backer
+    case superbacker
+    case you
+  }
+
+  public enum Status: String, Decodable {
+    case failed
+    case retrying
+    case retrySuccess
+    case success
+    case unknown // Before a status is set
   }
 }
 
-extension Comment: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Comment> {
-    let tmp = curry(Comment.init)
-      <^> json <| "author"
-      <*> json <| "body"
-      <*> json <| "created_at"
-    return tmp
-      <*> (json <|? "deleted_at" >>- decodePositiveTimeInterval)
-      <*> json <| "id"
+extension Comment: Decodable {}
+
+extension Comment {
+  public static func failableComment(
+    withId id: String,
+    date: Date,
+    project: Project,
+    parentId: String?,
+    user: User,
+    body: String
+  ) -> Comment {
+    let author = Author(
+      id: "\(user.id)",
+      imageUrl: user.avatar.medium,
+      isBlocked: user.isBlocked ?? false,
+      isCreator: project.creator == user,
+      name: user.name
+    )
+    return Comment(
+      author: author,
+      authorBadges: [.you],
+      body: body,
+      createdAt: date.timeIntervalSince1970,
+      id: id,
+      isDeleted: false,
+      parentId: parentId,
+      replyCount: 0,
+      status: .success
+    )
+  }
+
+  public func updatingStatus(to status: Comment.Status) -> Comment {
+    var comment = self
+    comment.status = status
+    return comment
   }
 }
 
 extension Comment: Equatable {}
-
-public func == (lhs: Comment, rhs: Comment) -> Bool {
-  return lhs.id == rhs.id
-}
-
-// Decode a time interval so that non-positive values are coalesced to `nil`. We do this because the API
-// sends back `0` when the comment hasn't been deleted, and we'd rather handle that value as `nil`.
-private func decodePositiveTimeInterval(_ interval: TimeInterval?) -> Decoded<TimeInterval?> {
-  if let interval = interval, interval > 0.0 {
-    return .success(interval)
-  }
-  return .success(nil)
-}

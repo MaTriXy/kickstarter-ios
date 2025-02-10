@@ -1,8 +1,8 @@
 import Foundation
 import KsApi
 
-public func featureQualtricsIsEnabled() -> Bool {
-  return Feature.qualtrics.isEnabled()
+public func featureSegmentIsEnabled() -> Bool {
+  return Feature.segment.isEnabled()
 }
 
 extension Feature {

@@ -1,18 +1,21 @@
-import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
+import UIKit
 
 public enum BetaToolsRow: Int, CaseIterable {
-  case debugFeatureFlags
+  case debugConfigFeatureFlags
+  case debugRemoteConfigFeatureFlags
   case debugPushNotifications
+  case designSystem
+  case paginatedScrollView
   case changeEnvironment
   case changeLanguage
 
   public var cellStyle: UITableViewCell.CellStyle {
     switch self {
-    case .debugFeatureFlags, .debugPushNotifications: return .default
+    case .debugConfigFeatureFlags, .debugRemoteConfigFeatureFlags, .debugPushNotifications: return .default
     default: return .value1
     }
   }
@@ -26,8 +29,11 @@ public enum BetaToolsRow: Int, CaseIterable {
 
   public var titleText: String {
     switch self {
-    case .debugFeatureFlags: return "Feature Flags"
+    case .debugConfigFeatureFlags: return "Config Feature Flags"
+    case .debugRemoteConfigFeatureFlags: return "Remote Config Feature Flags"
     case .debugPushNotifications: return "Debug Push Notifications"
+    case .designSystem: return "Design System"
+    case .paginatedScrollView: return "Paginated Scroll View"
     case .changeEnvironment: return "Change Environment"
     case .changeLanguage: return "Change Language"
     }
@@ -35,7 +41,8 @@ public enum BetaToolsRow: Int, CaseIterable {
 
   public var rightIconImageName: String? {
     switch self {
-    case .debugFeatureFlags, .debugPushNotifications: return "chevron-right"
+    case .debugConfigFeatureFlags, .debugRemoteConfigFeatureFlags,
+         .debugPushNotifications, .paginatedScrollView, .designSystem: return "chevron-right"
     default: return nil
     }
   }
@@ -62,8 +69,11 @@ public typealias BetaToolsData = (currentLanguage: String, currentEnvironment: S
 
 public protocol BetaToolsViewModelOutputs {
   var goToBetaFeedback: Signal<(), Never> { get }
-  var goToFeatureFlagTools: Signal<(), Never> { get }
+  var goToConfigFeatureFlagTools: Signal<(), Never> { get }
+  var goToRemoteConfigFeatureFlagTools: Signal<(), Never> { get }
   var goToPushNotificationTools: Signal<(), Never> { get }
+  var goToPaginatedScrollView: Signal<(), Never> { get }
+  var goToDesignSystem: Signal<(), Never> { get }
   var logoutWithParams: Signal<DiscoveryParams, Never> { get }
   var reloadWithData: Signal<BetaToolsData, Never> { get }
   var showChangeEnvironmentSheetWithSourceViewIndex: Signal<Int, Never> { get }
@@ -134,9 +144,24 @@ public final class BetaToolsViewModel: BetaToolsViewModelType,
       .filter { $0 == BetaToolsRow.debugPushNotifications }
       .ignoreValues()
 
-    self.goToFeatureFlagTools = self.didSelectBetaToolsRowProperty.signal
+    self.goToConfigFeatureFlagTools = self.didSelectBetaToolsRowProperty.signal
       .skipNil()
-      .filter { $0 == BetaToolsRow.debugFeatureFlags }
+      .filter { $0 == BetaToolsRow.debugConfigFeatureFlags }
+      .ignoreValues()
+
+    self.goToRemoteConfigFeatureFlagTools = self.didSelectBetaToolsRowProperty.signal
+      .skipNil()
+      .filter { $0 == BetaToolsRow.debugRemoteConfigFeatureFlags }
+      .ignoreValues()
+
+    self.goToPaginatedScrollView = self.didSelectBetaToolsRowProperty.signal
+      .skipNil()
+      .filter { $0 == BetaToolsRow.paginatedScrollView }
+      .ignoreValues()
+
+    self.goToDesignSystem = self.didSelectBetaToolsRowProperty.signal
+      .skipNil()
+      .filter { $0 == BetaToolsRow.designSystem }
       .ignoreValues()
 
     self.showChangeEnvironmentSheetWithSourceViewIndex = self.didSelectBetaToolsRowProperty.signal
@@ -187,9 +212,12 @@ public final class BetaToolsViewModel: BetaToolsViewModelType,
     self.currentLanguageProperty.value = language
   }
 
-  public let goToPushNotificationTools: Signal<(), Never>
-  public let goToFeatureFlagTools: Signal<(), Never>
   public let goToBetaFeedback: Signal<(), Never>
+  public let goToConfigFeatureFlagTools: Signal<(), Never>
+  public let goToRemoteConfigFeatureFlagTools: Signal<(), Never>
+  public let goToPushNotificationTools: Signal<(), Never>
+  public let goToPaginatedScrollView: Signal<(), Never>
+  public let goToDesignSystem: Signal<(), Never>
   public let updateLanguage: Signal<Language, Never>
   public let updateEnvironment: Signal<EnvironmentType, Never>
   public let logoutWithParams: Signal<DiscoveryParams, Never>

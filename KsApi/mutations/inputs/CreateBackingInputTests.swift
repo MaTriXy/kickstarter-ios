@@ -12,11 +12,13 @@ final class CreateBackingInputTests: XCTestCase {
         transactionIdentifier: "tx-identifier",
         token: "token"
       ),
+      incremental: false,
       locationId: "NY",
       paymentSourceId: "paymentSourceId",
       projectId: "projectId",
       refParam: "activity",
-      rewardId: "rewardId"
+      rewardIds: ["rewardId"],
+      setupIntentClientSecret: "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ"
     )
 
     let input = createBackingInput.toInputDictionary()
@@ -27,22 +29,29 @@ final class CreateBackingInputTests: XCTestCase {
     XCTAssertEqual(applePayDictionary?["paymentNetwork"] as? String, "payment-network")
     XCTAssertEqual(applePayDictionary?["transactionIdentifier"] as? String, "tx-identifier")
     XCTAssertEqual(applePayDictionary?["token"] as? String, "token")
+    XCTAssertEqual(input["incremental"] as? Bool, false)
     XCTAssertEqual(input["locationId"] as? String, "NY")
     XCTAssertEqual(input["paymentSourceId"] as? String, "paymentSourceId")
     XCTAssertEqual(input["projectId"] as? String, "projectId")
-    XCTAssertEqual(input["rewardId"] as? String, "rewardId")
+    XCTAssertEqual(input["rewardIds"] as? [String], ["rewardId"])
     XCTAssertEqual(input["refParam"] as? String, "activity")
+    XCTAssertEqual(
+      input["setupIntentClientSecret"] as? String,
+      "seti_1LVlHO4VvJ2PtfhK43R6p7FI_secret_MEDiGbxfYVnHGsQy8v8TbZJTQhlNKLZ"
+    )
   }
 
   func testCreateBackingInputDictionary_NoApplePay() {
     let createBackingInput = CreateBackingInput(
       amount: "200.00",
       applePay: nil,
+      incremental: false,
       locationId: "NY",
       paymentSourceId: "paymentSourceId",
       projectId: "projectId",
       refParam: "activity",
-      rewardId: "rewardId"
+      rewardIds: ["rewardId"],
+      setupIntentClientSecret: nil
     )
 
     let input = createBackingInput.toInputDictionary()
@@ -50,11 +59,13 @@ final class CreateBackingInputTests: XCTestCase {
     XCTAssertFalse(input.keys.contains("applePay"))
 
     XCTAssertEqual(input["amount"] as? String, "200.00")
+    XCTAssertEqual(input["incremental"] as? Bool, false)
     XCTAssertEqual(input["locationId"] as? String, "NY")
     XCTAssertEqual(input["paymentSourceId"] as? String, "paymentSourceId")
     XCTAssertEqual(input["projectId"] as? String, "projectId")
-    XCTAssertEqual(input["rewardId"] as? String, "rewardId")
+    XCTAssertEqual(input["rewardIds"] as? [String], ["rewardId"])
     XCTAssertEqual(input["refParam"] as? String, "activity")
+    XCTAssertNil(input["setupIntentClientSecret"])
   }
 
   func testCreateBackingInputDictionary_Location_IsNil() {
@@ -66,20 +77,24 @@ final class CreateBackingInputTests: XCTestCase {
         transactionIdentifier: "tx-identifier",
         token: "token"
       ),
+      incremental: false,
       locationId: nil,
       paymentSourceId: "paymentSourceId",
       projectId: "projectId",
       refParam: nil,
-      rewardId: "rewardId"
+      rewardIds: ["rewardId"],
+      setupIntentClientSecret: nil
     )
 
     let input = createBackingInput.toInputDictionary()
 
     XCTAssertEqual(input["amount"] as? String, "200.00")
+    XCTAssertEqual(input["incremental"] as? Bool, false)
     XCTAssertNil(input["locationId"])
     XCTAssertEqual(input["paymentSourceId"] as? String, "paymentSourceId")
     XCTAssertEqual(input["projectId"] as? String, "projectId")
-    XCTAssertEqual(input["rewardId"] as? String, "rewardId")
+    XCTAssertEqual(input["rewardIds"] as? [String], ["rewardId"])
     XCTAssertNil(input["refParam"])
+    XCTAssertNil(input["setupIntentClientSecret"])
   }
 }

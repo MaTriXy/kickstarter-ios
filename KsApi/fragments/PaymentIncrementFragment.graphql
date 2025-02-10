@@ -1,0 +1,10 @@
+fragment PaymentIncrementFragment on PaymentIncrement {
+  amount {
+    amountAsFloat
+    amountFormattedInProjectNativeCurrency
+    currency
+  }
+  scheduledCollection
+  state
+  stateReason
+}

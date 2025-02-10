@@ -1,11 +1,12 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
 
 public protocol FindFriendsFriendFollowCellViewModelInputs {
-  /// Call to set friend and source from whence it comes
-  func configureWith(friend: User, source: FriendsSource)
+  /// Call to set friend from whence it comes
+  func configureWith(friend: User)
 
   /// Call when follow friend button is tapped
   func followButtonTapped()
@@ -126,10 +127,10 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
       }
 
     let updatedFriendToFollowed: Signal<User, Never> = followFriendEvent.values()
-      .on(value: { (friend: User) -> Void in cache(friend: friend, isFriend: true) })
+      .on(value: { (friend: User) in cache(friend: friend, isFriend: true) })
 
     let updatedFriendToUnfollowed: Signal<User, Never> = unfollowFriendEvent.values()
-      .on(value: { (friend: User) -> Void in cache(friend: friend, isFriend: false) })
+      .on(value: { (friend: User) in cache(friend: friend, isFriend: false) })
 
     let isFollowed: Signal<Bool, Never> = Signal.merge(
       friend, updatedFriendToFollowed, updatedFriendToUnfollowed
@@ -155,26 +156,14 @@ public final class FindFriendsFriendFollowCellViewModel: FindFriendsFriendFollow
     self.followButtonAccessibilityLabel = self.name.map(Strings.Follow_friend_name)
     self.unfollowButtonAccessibilityLabel = self.name.map(Strings.Unfollow_friend_name)
     self.cellAccessibilityValue = isFollowed.map { $0 ? Strings.Followed() : Strings.Not_followed() }
-
-    let source = self.configureWithSourceProperty.signal.skipNil().map { $0 }
-
-    source
-      .takeWhen(self.followButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackFriendFollow(source: $0) }
-
-    source
-      .takeWhen(self.unfollowButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackFriendUnfollow(source: $0) }
   }
 
   public var inputs: FindFriendsFriendFollowCellViewModelInputs { return self }
   public var outputs: FindFriendsFriendFollowCellViewModelOutputs { return self }
 
   fileprivate let configureWithFriendProperty = MutableProperty<User?>(nil)
-  fileprivate let configureWithSourceProperty = MutableProperty<FriendsSource?>(nil)
-  public func configureWith(friend: User, source: FriendsSource) {
+  public func configureWith(friend: User) {
     self.configureWithFriendProperty.value = friend
-    self.configureWithSourceProperty.value = source
   }
 
   fileprivate let followButtonTappedProperty = MutableProperty(())

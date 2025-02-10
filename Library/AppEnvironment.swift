@@ -1,10 +1,9 @@
-import Argo
 import FBSDKCoreKit
+import FirebaseCrashlytics
 import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
-import Runes
 
 /**
  A global stack that captures the current state of global objects that the app wants access to.
@@ -28,7 +27,7 @@ public struct AppEnvironment: AppEnvironmentType {
     self.replaceCurrentEnvironment(
       apiService: self.current.apiService.login(OauthToken(token: envelope.accessToken)),
       currentUser: envelope.user,
-      koala: self.current.koala |> Koala.lens.loggedInUser .~ envelope.user
+      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ envelope.user
     )
   }
 
@@ -41,7 +40,31 @@ public struct AppEnvironment: AppEnvironmentType {
   public static func updateCurrentUser(_ user: User) {
     self.replaceCurrentEnvironment(
       currentUser: user,
-      koala: self.current.koala |> Koala.lens.loggedInUser .~ user
+      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ user
+    )
+  }
+
+  /**
+   Invoke when we have acquired a fresh current user and you want to replace the current environment's
+   current user email with the fresh one.
+
+   - parameter email: A string.
+   */
+  public static func updateCurrentUserEmail(_ email: String) {
+    self.replaceCurrentEnvironment(
+      currentUserEmail: email
+    )
+  }
+
+  public static func updatecurrentUserServerFeatures(_ features: Set<ServerFeature>) {
+    self.replaceCurrentEnvironment(
+      currentUserServerFeatures: features
+    )
+  }
+
+  public static func updateAppTrackingTransparency(_ appTrackingTransparency: AppTrackingTransparencyType) {
+    self.replaceCurrentEnvironment(
+      appTrackingTransparency: appTrackingTransparency
     )
   }
 
@@ -51,16 +74,16 @@ public struct AppEnvironment: AppEnvironmentType {
     )
   }
 
-  public static func updateOptimizelyClient(_ optimizelyClient: OptimizelyClientType?) {
+  public static func updateRemoteConfigClient(_ remoteConfigClient: RemoteConfigClientType?) {
     self.replaceCurrentEnvironment(
-      optimizelyClient: optimizelyClient
+      remoteConfigClient: remoteConfigClient
     )
   }
 
   public static func updateServerConfig(_ config: ServerConfigType) {
     let service = Service(serverConfig: config)
 
-    replaceCurrentEnvironment(
+    self.replaceCurrentEnvironment(
       apiService: service
     )
   }
@@ -71,7 +94,7 @@ public struct AppEnvironment: AppEnvironmentType {
     self.replaceCurrentEnvironment(
       config: debugConfigOrConfig,
       countryCode: debugConfigOrConfig.countryCode,
-      koala: AppEnvironment.current.koala |> Koala.lens.config .~ debugConfigOrConfig
+      ksrAnalytics: AppEnvironment.current.ksrAnalytics |> KSRAnalytics.lens.config .~ debugConfigOrConfig
     )
   }
 
@@ -84,11 +107,16 @@ public struct AppEnvironment: AppEnvironmentType {
     let storage = AppEnvironment.current.cookieStorage
     storage.cookies?.forEach(storage.deleteCookie)
 
+    // Resetting the segment client
+    AppEnvironment.current.ksrAnalytics.identify(newUser: nil)
     self.replaceCurrentEnvironment(
       apiService: AppEnvironment.current.apiService.logout(),
       cache: type(of: AppEnvironment.current.cache).init(),
       currentUser: nil,
-      koala: self.current.koala |> Koala.lens.loggedInUser .~ nil
+      currentUserEmail: nil,
+      currentUserPPOSettings: nil,
+      currentUserServerFeatures: nil,
+      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ nil
     )
   }
 
@@ -115,7 +143,21 @@ public struct AppEnvironment: AppEnvironmentType {
       ubiquitousStore: next.ubiquitousStore,
       userDefaults: next.userDefaults
     )
+
+    // If there are no more items in the stack,
+    // then the next call to AppEvironment.current will fail.
+    assert(self.stack.count > 0)
+
     return last
+  }
+
+  internal static func resetStackForUnitTests() {
+    while self.stack.count > 1 {
+      _ = self.stack.popLast()
+    }
+
+    let next = Environment()
+    self.replaceCurrentEnvironment(next)
   }
 
   // Replace the current environment with a new environment.
@@ -130,6 +172,7 @@ public struct AppEnvironment: AppEnvironmentType {
     apiDelayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
     applePayCapabilities: ApplePayCapabilitiesType = AppEnvironment.current.applePayCapabilities,
     application: UIApplicationType = UIApplication.shared,
+    appTrackingTransparency: AppTrackingTransparencyType = AppEnvironment.current.appTrackingTransparency,
     assetImageGeneratorType: AssetImageGeneratorType.Type = AppEnvironment.current.assetImageGeneratorType,
     cache: KSCache = AppEnvironment.current.cache,
     calendar: Calendar = AppEnvironment.current.calendar,
@@ -143,17 +186,18 @@ public struct AppEnvironment: AppEnvironmentType {
     debugData: DebugData? = AppEnvironment.current.debugData,
     device: UIDeviceType = AppEnvironment.current.device,
     isVoiceOverRunning: @escaping (() -> Bool) = AppEnvironment.current.isVoiceOverRunning,
-    koala: Koala = AppEnvironment.current.koala,
+    ksrAnalytics: KSRAnalytics = AppEnvironment.current.ksrAnalytics,
     language: Language = AppEnvironment.current.language,
     launchedCountries: LaunchedCountries = AppEnvironment.current.launchedCountries,
     locale: Locale = AppEnvironment.current.locale,
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
-    optimizelyClient: OptimizelyClientType? = AppEnvironment.current.optimizelyClient,
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     reachability: SignalProducer<Reachability, Never> = AppEnvironment.current.reachability,
+    remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
     scheduler: DateScheduler = AppEnvironment.current.scheduler,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
-    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults
+    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
+    uuidType: UUIDType.Type = AppEnvironment.current.uuidType
   ) {
     self.pushEnvironment(
       Environment(
@@ -161,6 +205,7 @@ public struct AppEnvironment: AppEnvironmentType {
         apiDelayInterval: apiDelayInterval,
         applePayCapabilities: applePayCapabilities,
         application: application,
+        appTrackingTransparency: appTrackingTransparency,
         assetImageGeneratorType: assetImageGeneratorType,
         cache: cache,
         calendar: calendar,
@@ -174,17 +219,18 @@ public struct AppEnvironment: AppEnvironmentType {
         debugData: debugData,
         device: device,
         isVoiceOverRunning: isVoiceOverRunning,
-        koala: koala,
+        ksrAnalytics: ksrAnalytics,
         language: language,
         launchedCountries: launchedCountries,
         locale: locale,
         mainBundle: mainBundle,
-        optimizelyClient: optimizelyClient,
         pushRegistrationType: pushRegistrationType,
         reachability: reachability,
+        remoteConfigClient: remoteConfigClient,
         scheduler: scheduler,
         ubiquitousStore: ubiquitousStore,
-        userDefaults: userDefaults
+        userDefaults: userDefaults,
+        uuidType: uuidType
       )
     )
   }
@@ -196,6 +242,7 @@ public struct AppEnvironment: AppEnvironmentType {
     apiDelayInterval: DispatchTimeInterval = AppEnvironment.current.apiDelayInterval,
     applePayCapabilities: ApplePayCapabilitiesType = AppEnvironment.current.applePayCapabilities,
     application: UIApplicationType = UIApplication.shared,
+    appTrackingTransparency: AppTrackingTransparencyType = AppEnvironment.current.appTrackingTransparency,
     assetImageGeneratorType: AssetImageGeneratorType.Type = AppEnvironment.current.assetImageGeneratorType,
     cache: KSCache = AppEnvironment.current.cache,
     calendar: Calendar = AppEnvironment.current.calendar,
@@ -204,22 +251,26 @@ public struct AppEnvironment: AppEnvironmentType {
     coreTelephonyNetworkInfo: CoreTelephonyNetworkInfoType = AppEnvironment.current.coreTelephonyNetworkInfo,
     countryCode: String = AppEnvironment.current.countryCode,
     currentUser: User? = AppEnvironment.current.currentUser,
+    currentUserEmail: String? = AppEnvironment.current.currentUserEmail,
+    currentUserPPOSettings: PPOUserSettings? = AppEnvironment.current.currentUserPPOSettings,
+    currentUserServerFeatures: Set<ServerFeature>? = AppEnvironment.current.currentUserServerFeatures,
     dateType: DateProtocol.Type = AppEnvironment.current.dateType,
     debounceInterval: DispatchTimeInterval = AppEnvironment.current.debounceInterval,
     debugData: DebugData? = AppEnvironment.current.debugData,
     device: UIDeviceType = AppEnvironment.current.device,
     isVoiceOverRunning: @escaping (() -> Bool) = AppEnvironment.current.isVoiceOverRunning,
-    koala: Koala = AppEnvironment.current.koala,
+    ksrAnalytics: KSRAnalytics = AppEnvironment.current.ksrAnalytics,
     language: Language = AppEnvironment.current.language,
     launchedCountries: LaunchedCountries = AppEnvironment.current.launchedCountries,
     locale: Locale = AppEnvironment.current.locale,
     mainBundle: NSBundleType = AppEnvironment.current.mainBundle,
-    optimizelyClient: OptimizelyClientType? = AppEnvironment.current.optimizelyClient,
     pushRegistrationType: PushRegistrationType.Type = AppEnvironment.current.pushRegistrationType,
     reachability: SignalProducer<Reachability, Never> = AppEnvironment.current.reachability,
+    remoteConfigClient: RemoteConfigClientType? = AppEnvironment.current.remoteConfigClient,
     scheduler: DateScheduler = AppEnvironment.current.scheduler,
     ubiquitousStore: KeyValueStoreType = AppEnvironment.current.ubiquitousStore,
-    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults
+    userDefaults: KeyValueStoreType = AppEnvironment.current.userDefaults,
+    uuidType: UUIDType.Type = AppEnvironment.current.uuidType
   ) {
     self.replaceCurrentEnvironment(
       Environment(
@@ -227,6 +278,7 @@ public struct AppEnvironment: AppEnvironmentType {
         apiDelayInterval: apiDelayInterval,
         applePayCapabilities: applePayCapabilities,
         application: application,
+        appTrackingTransparency: appTrackingTransparency,
         assetImageGeneratorType: assetImageGeneratorType,
         cache: cache,
         calendar: calendar,
@@ -235,24 +287,74 @@ public struct AppEnvironment: AppEnvironmentType {
         coreTelephonyNetworkInfo: coreTelephonyNetworkInfo,
         countryCode: countryCode,
         currentUser: currentUser,
+        currentUserEmail: currentUserEmail,
+        currentUserPPOSettings: currentUserPPOSettings,
+        currentUserServerFeatures: currentUserServerFeatures,
         dateType: dateType,
         debounceInterval: debounceInterval,
         debugData: debugData,
         device: device,
         isVoiceOverRunning: isVoiceOverRunning,
-        koala: koala,
+        ksrAnalytics: ksrAnalytics,
         language: language,
         launchedCountries: launchedCountries,
         locale: locale,
         mainBundle: mainBundle,
-        optimizelyClient: optimizelyClient,
         pushRegistrationType: pushRegistrationType,
         reachability: reachability,
+        remoteConfigClient: remoteConfigClient,
         scheduler: scheduler,
         ubiquitousStore: ubiquitousStore,
-        userDefaults: userDefaults
+        userDefaults: userDefaults,
+        uuidType: uuidType
       )
     )
+  }
+
+  internal static let accountNameForKeychain = "kickstarter_currently_logged_in_user"
+
+  private static func storeOAuthTokenToKeychain(_ oauthToken: String) -> Bool {
+    guard featureUseKeychainForOAuthTokenEnabled()
+    else {
+      return false
+    }
+
+    do {
+      try Keychain.storePassword(oauthToken, forAccount: self.accountNameForKeychain)
+      return true
+    } catch {
+      Crashlytics.crashlytics().record(error: error)
+    }
+
+    return false
+  }
+
+  private static func fetchOAuthTokenFromKeychain() -> String? {
+    guard featureUseKeychainForOAuthTokenEnabled()
+    else {
+      return nil
+    }
+
+    do {
+      return try Keychain.fetchPassword(forAccount: self.accountNameForKeychain)
+    } catch {
+      Crashlytics.crashlytics().record(error: error)
+    }
+
+    return nil
+  }
+
+  private static func removeOAuthTokenFromKeychain() -> Bool {
+    guard featureUseKeychainForOAuthTokenEnabled() else { return false }
+
+    do {
+      try Keychain.deletePassword(forAccount: self.accountNameForKeychain)
+      return true
+    } catch {
+      Crashlytics.crashlytics().record(error: error)
+    }
+
+    return false
   }
 
   // Returns the last saved environment from user defaults.
@@ -263,17 +365,17 @@ public struct AppEnvironment: AppEnvironmentType {
     let data = userDefaults.dictionary(forKey: self.environmentStorageKey) ?? [:]
 
     var service = self.current.apiService
-    var currentUser: User?
-    let config: Config? = data["config"].flatMap(decode)
+    var currentUser: User? // Will only be set if an OAuth token is also set
+    var currentUserServerFeatures: [ServerFeature]? // Will only be set if an OAuth token is also set
+    let configDict: [String: Any]? = data["config"] as? [String: Any]
+    let config: Config? = configDict.flatMap(Config.decodeJSONDictionary)
 
-    if let oauthToken = data["apiService.oauthToken.token"] as? String {
-      // If there is an oauth token stored in the defaults, then we can authenticate our api service
+    // If there is an oauth token stored, then we can authenticate our api service
+
+    if let oauthToken = fetchOAuthTokenFromKeychain() {
       service = service.login(OauthToken(token: oauthToken))
-      removeLegacyOauthToken(fromUserDefaults: userDefaults)
-    } else if let oauthToken = legacyOauthToken(forUserDefaults: userDefaults) {
-      // Otherwise if there is a token in the legacy user defaults entry we can use that
+    } else if let oauthToken = data["apiService.oauthToken.token"] as? String {
       service = service.login(OauthToken(token: oauthToken))
-      removeLegacyOauthToken(fromUserDefaults: userDefaults)
     }
 
     // Try restoring the client id for the api service
@@ -294,9 +396,9 @@ public struct AppEnvironment: AppEnvironmentType {
 
     // Try restoring the base urls for the api service
     if let apiBaseUrlString = data["apiService.serverConfig.apiBaseUrl"] as? String,
-      let apiBaseUrl = URL(string: apiBaseUrlString),
-      let webBaseUrlString = data["apiService.serverConfig.webBaseUrl"] as? String,
-      let webBaseUrl = URL(string: webBaseUrlString) {
+       let apiBaseUrl = URL(string: apiBaseUrlString),
+       let webBaseUrlString = data["apiService.serverConfig.webBaseUrl"] as? String,
+       let webBaseUrl = URL(string: webBaseUrlString) {
       service = Service(
         serverConfig: ServerConfig(
           apiBaseUrl: apiBaseUrl,
@@ -313,7 +415,7 @@ public struct AppEnvironment: AppEnvironmentType {
 
     // Try restoring the basic auth data for the api service
     if let username = data["apiService.serverConfig.basicHTTPAuth.username"] as? String,
-      let password = data["apiService.serverConfig.basicHTTPAuth.password"] as? String {
+       let password = data["apiService.serverConfig.basicHTTPAuth.password"] as? String {
       service = Service(
         serverConfig: ServerConfig(
           apiBaseUrl: service.serverConfig.apiBaseUrl,
@@ -330,7 +432,7 @@ public struct AppEnvironment: AppEnvironmentType {
 
     // Try restoring the environment
     if let environment = data["apiService.serverConfig.environment"] as? String,
-      let environmentType = EnvironmentType(rawValue: environment) {
+       let environmentType = EnvironmentType(rawValue: environment) {
       let serverConfig = ServerConfig.config(for: environmentType)
 
       service = Service(
@@ -343,14 +445,22 @@ public struct AppEnvironment: AppEnvironmentType {
 
     // Try restore the current user
     if service.oauthToken != nil {
-      currentUser = data["currentUser"].flatMap(decode)
+      currentUser = data["currentUser"].flatMap(tryDecode)
+      currentUserServerFeatures = (data["currentUserServerFeatures"] as? [String])?
+        .compactMap { ServerFeature(rawValue: $0) }
     }
+
+    // Try restore the PPO settings
+    let currentUserPPOSettings: PPOUserSettings? = data["currentUserPPOSettings"].flatMap(tryDecode)
 
     return Environment(
       apiService: service,
       config: config,
       currentUser: currentUser,
-      koala: self.current.koala |> Koala.lens.loggedInUser .~ currentUser
+      currentUserPPOSettings: currentUserPPOSettings,
+      currentUserServerFeatures: currentUserServerFeatures.flatMap(Set.init),
+      ksrAnalytics: self.current.ksrAnalytics |> KSRAnalytics.lens.loggedInUser .~ currentUser |> KSRAnalytics
+        .lens.appTrackingTransparency .~ self.current.appTrackingTransparency
     )
   }
 
@@ -363,7 +473,16 @@ public struct AppEnvironment: AppEnvironmentType {
     var data: [String: Any] = [:]
 
     // swiftformat:disable wrap
-    data["apiService.oauthToken.token"] = env.apiService.oauthToken?.token
+
+    if let oauthToken = env.apiService.oauthToken?.token {
+      // Try to save to the keychain, but if that fails, save to user defaults
+      if !self.storeOAuthTokenToKeychain(oauthToken) {
+        data["apiService.oauthToken.token"] = oauthToken
+      }
+    } else {
+      _ = self.removeOAuthTokenFromKeychain()
+    }
+
     data["apiService.serverConfig.apiBaseUrl"] = env.apiService.serverConfig.apiBaseUrl.absoluteString
     data["apiService.serverConfig.apiClientAuth.clientId"] = env.apiService.serverConfig.apiClientAuth.clientId
     data["apiService.serverConfig.basicHTTPAuth.username"] = env.apiService.serverConfig.basicHTTPAuth?.username
@@ -374,16 +493,10 @@ public struct AppEnvironment: AppEnvironmentType {
     data["apiService.currency"] = env.apiService.currency
     data["config"] = env.config?.encode()
     data["currentUser"] = env.currentUser?.encode()
+    data["currentUserServerFeatures"] = env.currentUserServerFeatures?.map { $0.rawValue }
+    data["currentUserPPOSettings"] = env.currentUserPPOSettings?.encode()
     // swiftformat:enable wrap
 
     userDefaults.set(data, forKey: self.environmentStorageKey)
   }
-}
-
-private func legacyOauthToken(forUserDefaults userDefaults: KeyValueStoreType) -> String? {
-  return userDefaults.object(forKey: "com.kickstarter.access_token") as? String
-}
-
-private func removeLegacyOauthToken(fromUserDefaults userDefaults: KeyValueStoreType) {
-  userDefaults.removeObject(forKey: "com.kickstarter.access_token")
 }

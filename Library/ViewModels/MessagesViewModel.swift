@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
@@ -5,6 +6,9 @@ import ReactiveSwift
 public protocol MessagesViewModelInputs {
   /// Call when the backing button is pressed.
   func backingInfoPressed()
+
+  /// Call when block user is tapped
+  func blockUser(id: String)
 
   /// Configures the view model with either a message thread or a project and a backing.
   func configureWith(data: Either<MessageThread, (project: Project, backing: Backing)>)
@@ -20,6 +24,9 @@ public protocol MessagesViewModelInputs {
 
   /// Call when the view loads.
   func viewDidLoad()
+
+  /// Call when the view will appear.
+  func viewWillAppear()
 }
 
 public protocol MessagesViewModelOutputs {
@@ -41,8 +48,11 @@ public protocol MessagesViewModelOutputs {
   /// Emits a list of messages to be displayed.
   var messages: Signal<[Message], Never> { get }
 
+  /// Emits a bool whether the message participant has previously been blocked on viewWillAppear
+  var participantPreviouslyBlocked: Signal<Bool, Never> { get }
+
   /// Emits when we should show the message dialog.
-  var presentMessageDialog: Signal<(MessageThread, Koala.MessageDialogContext), Never> { get }
+  var presentMessageDialog: Signal<(MessageThread, KSRAnalytics.MessageDialogContext), Never> { get }
 
   /// Emits the project we are viewing the messages for.
   var project: Signal<Project, Never> { get }
@@ -52,6 +62,12 @@ public protocol MessagesViewModelOutputs {
 
   /// Emits when the thread has been marked as read.
   var successfullyMarkedAsRead: Signal<(), Never> { get }
+
+  /// Emits when a block user request is successful.
+  var didBlockUser: Signal<(), Never> { get }
+
+  /// Emits when a block user request fails.
+  var didBlockUserError: Signal<(), Never> { get }
 }
 
 public protocol MessagesViewModelType {
@@ -152,10 +168,17 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       }
     )
 
-    self.replyButtonIsEnabled = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(false),
-      self.messages.map { !$0.isEmpty }
+    self.participantPreviouslyBlocked = self.project
+      .map { $0.creator.isBlocked }
+      .takeWhen(self.viewWillAppearProperty.signal)
+
+    self.replyButtonIsEnabled = Signal.combineLatest(
+      self.messages.map { !$0.isEmpty },
+      self.participantPreviouslyBlocked
     )
+    .map { messages, isBlocked in
+      messages && !isBlocked
+    }
 
     self.presentMessageDialog = messageThreadEnvelope
       .map { ($0.messageThread, .messages) }
@@ -163,7 +186,7 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
 
     self.goToBacking = Signal.combineLatest(messageThreadEnvelope, currentUser)
       .takeWhen(self.backingInfoPressedProperty.signal)
-      .filterMap { env, _ -> ManagePledgeViewParamConfigData? in
+      .compactMap { env, _ -> ManagePledgeViewParamConfigData? in
         guard let backing = env.messageThread.backing else {
           return nil
         }
@@ -183,16 +206,52 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
       }
       .ignoreValues()
 
-    Signal.combineLatest(self.project, self.viewDidLoadProperty.signal)
-      .take(first: 1)
-      .observeValues { project, _ in
-        AppEnvironment.current.koala.trackMessageThreadView(project: project)
+    let blockUserEvent = self.blockUserProperty.signal
+      .map(BlockUserInput.init(blockUserId:))
+      .switchMap { input in
+        AppEnvironment.current.apiService
+          .blockUser(input: input)
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .materialize()
+      }
+
+    self.didBlockUser = blockUserEvent.values().ignoreValues()
+      .map { _ in NotificationCenter.default.post(.init(name: .ksr_blockedUser)) }
+
+    // TODO: Display proper error messaging from the backend
+    self.didBlockUserError = blockUserEvent.errors().ignoreValues()
+
+    // MARK: User Blocking Analytics
+
+    _ = self.blockUserProperty.signal
+      .combineLatest(with: self.project)
+      .observeValues { blockedUserId, project in
+        AppEnvironment.current.ksrAnalytics
+          .trackBlockedUser(
+            project,
+            page: .messages,
+            typeContext: .initiate,
+            targetUserId: "\(blockedUserId)"
+          )
+      }
+
+    _ = self.blockUserProperty.signal
+      .combineLatest(with: self.project)
+      .takeWhen(blockUserEvent.values().ignoreValues())
+      .observeValues { blockedUserId, project in
+        AppEnvironment.current.ksrAnalytics
+          .trackBlockedUser(project, page: .messages, typeContext: .confirm, targetUserId: "\(blockedUserId)")
       }
   }
 
   private let backingInfoPressedProperty = MutableProperty(())
   public func backingInfoPressed() {
     self.backingInfoPressedProperty.value = ()
+  }
+
+  private let blockUserProperty = MutableProperty<String>("")
+  public func blockUser(id: String) {
+    self.blockUserProperty.value = id
   }
 
   private let configData = MutableProperty<Either<MessageThread, (project: Project, backing: Backing)>?>(nil)
@@ -220,15 +279,23 @@ public final class MessagesViewModel: MessagesViewModelType, MessagesViewModelIn
     self.viewDidLoadProperty.value = ()
   }
 
+  private let viewWillAppearProperty = MutableProperty(())
+  public func viewWillAppear() {
+    self.viewWillAppearProperty.value = ()
+  }
+
   public let backingAndProjectAndIsFromBacking: Signal<(Backing, Project, Bool), Never>
   public let emptyStateIsVisibleAndMessageToUser: Signal<(Bool, String), Never>
   public let goToBacking: Signal<ManagePledgeViewParamConfigData, Never>
   public let goToProject: Signal<(Project, RefTag), Never>
   public let messages: Signal<[Message], Never>
-  public let presentMessageDialog: Signal<(MessageThread, Koala.MessageDialogContext), Never>
+  public let participantPreviouslyBlocked: Signal<Bool, Never>
+  public let presentMessageDialog: Signal<(MessageThread, KSRAnalytics.MessageDialogContext), Never>
   public let project: Signal<Project, Never>
   public let replyButtonIsEnabled: Signal<Bool, Never>
   public let successfullyMarkedAsRead: Signal<(), Never>
+  public let didBlockUser: Signal<(), Never>
+  public let didBlockUserError: Signal<(), Never>
 
   public var inputs: MessagesViewModelInputs { return self }
   public var outputs: MessagesViewModelOutputs { return self }

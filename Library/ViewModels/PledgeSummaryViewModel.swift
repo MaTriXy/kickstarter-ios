@@ -1,12 +1,22 @@
-import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
-public typealias PledgeSummaryViewData = (project: Project, total: Double, confirmationLabelHidden: Bool)
+private enum Constants {
+  public static let dateFormat = "MMMM d, yyyy"
+}
+
+public typealias PledgeSummaryViewData = (
+  project: Project,
+  total: Double,
+  confirmationLabelHidden: Bool,
+  pledgeHasNoReward: Bool?
+)
 
 public protocol PledgeSummaryViewModelInputs {
   func configure(with data: PledgeSummaryViewData)
+  func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?)
   func tapped(_ url: URL)
   func viewDidLoad()
 }
@@ -16,7 +26,10 @@ public protocol PledgeSummaryViewModelOutputs {
   var confirmationLabelAttributedText: Signal<NSAttributedString, Never> { get }
   var confirmationLabelHidden: Signal<Bool, Never> { get }
   var notifyDelegateOpenHelpType: Signal<HelpType, Never> { get }
+  var pledgeOverTimeStackViewHidden: Signal<Bool, Never> { get }
+  var pledgeOverTimeChargesText: Signal<String, Never> { get }
   var totalConversionLabelText: Signal<String, Never> { get }
+  var titleLabelText: Signal<String, Never> { get }
 }
 
 public protocol PledgeSummaryViewModelType {
@@ -33,7 +46,17 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
     )
     .map(first)
 
-    let projectAndPledgeTotal = initialData.map { project, total, _ in (project, total) }
+    let projectAndPledgeTotal = initialData
+      .map { project, total, _, _ in (project, total) }
+
+    let pledgeHasNoReward = initialData
+      .map { _, _, _, pledgeHasNoReward in pledgeHasNoReward }
+
+    let pledgeOverTimeData = Signal.combineLatest(
+      self.pledgeOverTimeDataProperty.signal,
+      self.viewDidLoadProperty.signal
+    )
+    .map(first)
 
     self.amountLabelAttributedText = projectAndPledgeTotal
       .map(attributedCurrency(with:total:))
@@ -68,20 +91,45 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
     }
     .skipNil()
 
-    self.confirmationLabelAttributedText = projectAndPledgeTotal
-      .map { project, pledgeTotal in
-        attributedConfirmationString(
-          with: project,
-          pledgeTotal: pledgeTotal
-        )
+    self.titleLabelText = pledgeHasNoReward
+      .map { hasNoRewards in
+        hasNoRewards == true
+          ? Strings.Pledge_without_a_reward()
+          : Strings.Pledge_amount()
       }
 
-    self.confirmationLabelHidden = initialData.map(third)
+    self.confirmationLabelAttributedText = Signal.combineLatest(initialData, pledgeOverTimeData)
+      .map { data, pledgeOverTimeData in
+        attributedConfirmationString(with: data, pledgeOverTimeData: pledgeOverTimeData)
+      }
+
+    let project = initialData.map(\.project)
+
+    self.confirmationLabelHidden = Signal.combineLatest(initialData, project)
+      .map { initialData, project in
+        guard featurePostCampaignPledgeEnabled(), project.isInPostCampaignPledgingPhase else {
+          return initialData.confirmationLabelHidden
+        }
+
+        return true
+      }
+
+    self.pledgeOverTimeStackViewHidden = pledgeOverTimeData.map { $0?.isPledgeOverTime ?? false }.negate()
+
+    self.pledgeOverTimeChargesText = pledgeOverTimeData.skipNil()
+      .map {
+        Strings.Charged_as_number_of_payments(number: "\($0.paymentIncrements.count)")
+      }
   }
 
   private let configureWithDataProperty = MutableProperty<PledgeSummaryViewData?>(nil)
   public func configure(with data: PledgeSummaryViewData) {
     self.configureWithDataProperty.value = data
+  }
+
+  private let pledgeOverTimeDataProperty = MutableProperty<PledgePaymentPlansAndSelectionData?>(nil)
+  public func configureWith(pledgeOverTimeData: PledgePaymentPlansAndSelectionData?) {
+    self.pledgeOverTimeDataProperty.value = pledgeOverTimeData
   }
 
   private let (tappedUrlSignal, tappedUrlObserver) = Signal<URL, Never>.pipe()
@@ -98,7 +146,10 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
   public let confirmationLabelAttributedText: Signal<NSAttributedString, Never>
   public let confirmationLabelHidden: Signal<Bool, Never>
   public let notifyDelegateOpenHelpType: Signal<HelpType, Never>
+  public let pledgeOverTimeStackViewHidden: Signal<Bool, Never>
+  public let pledgeOverTimeChargesText: Signal<String, Never>
   public let totalConversionLabelText: Signal<String, Never>
+  public let titleLabelText: Signal<String, Never>
 
   public var inputs: PledgeSummaryViewModelInputs { return self }
   public var outputs: PledgeSummaryViewModelOutputs { return self }
@@ -106,10 +157,12 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
 
 private func attributedCurrency(with project: Project, total: Double) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_text_black])
+    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_700])
+  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+
   return Format.attributedCurrency(
     total,
-    country: project.country,
+    country: projectCurrencyCountry,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     defaultAttributes: defaultAttributes,
     superscriptAttributes: checkoutCurrencySuperscriptAttributes()
@@ -117,24 +170,62 @@ private func attributedCurrency(with project: Project, total: Double) -> NSAttri
 }
 
 private func attributedConfirmationString(with project: Project, pledgeTotal: Double) -> NSAttributedString {
-  let date = Format.date(secondsInUTC: project.dates.deadline, template: "MMMM d, yyyy")
-  let pledgeTotal = Format.currency(pledgeTotal, country: project.country)
+  var date = ""
 
-  let font = UIFont.ksr_caption1()
-  let foregroundColor = UIColor.ksr_text_dark_grey_500
-
-  guard project.stats.needsConversion else {
-    return Strings.If_the_project_reaches_its_funding_goal_you_will_be_charged_on_project_deadline(
-      project_deadline: date
-    )
-    .attributed(with: font, foregroundColor: foregroundColor, attributes: [:], bolding: [date])
+  if let deadline = project.dates.deadline {
+    date = Format.date(secondsInUTC: deadline, template: Constants.dateFormat)
   }
 
-  return Strings.If_the_project_reaches_its_funding_goal_you_will_be_charged_total_on_project_deadline(
-    total: pledgeTotal,
-    project_deadline: date
-  )
-  .attributed(
-    with: font, foregroundColor: foregroundColor, attributes: [:], bolding: [pledgeTotal, date]
-  )
+  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+  let pledgeTotal = Format.currency(pledgeTotal, country: projectCurrencyCountry)
+
+  let font = UIFont.ksr_caption1()
+  let foregroundColor = UIColor.ksr_support_400
+
+  return Strings
+    .If_the_project_reaches_its_funding_goal_you_will_be_charged_total_on_project_deadline_and_receive_proof_of_pledge(
+      total: pledgeTotal,
+      project_deadline: date
+    )
+    .attributed(
+      with: font, foregroundColor: foregroundColor, attributes: [:], bolding: [pledgeTotal, date]
+    )
+}
+
+private func attributedConfirmationPledgeOverTimeString(
+  with project: Project,
+  increments: [PledgePaymentIncrement]
+) -> NSAttributedString {
+  guard let firstIncrement = increments.first else { return NSAttributedString() }
+
+  let date = Format.date(secondsInUTC: firstIncrement.scheduledCollection, template: Constants.dateFormat)
+
+  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+  let chargeAmount = firstIncrement.amount.amountFormattedInProjectNativeCurrency
+
+  let font = UIFont.ksr_caption1()
+  let foregroundColor = UIColor.ksr_support_400
+
+  return Strings
+    .If_the_project_reaches_its_funding_goal_the_first_charge_will_be_collected_on_project_deadline(
+      amount: chargeAmount,
+      project_deadline: date
+    )
+    .attributed(
+      with: font, foregroundColor: foregroundColor, attributes: [:], bolding: [chargeAmount, date]
+    )
+}
+
+private func attributedConfirmationString(
+  with data: PledgeSummaryViewData,
+  pledgeOverTimeData: PledgePaymentPlansAndSelectionData?
+) -> NSAttributedString {
+  if let plotData = pledgeOverTimeData, plotData.isPledgeOverTime {
+    return attributedConfirmationPledgeOverTimeString(
+      with: data.project,
+      increments: plotData.paymentIncrements
+    )
+  }
+
+  return attributedConfirmationString(with: data.project, pledgeTotal: data.total)
 }

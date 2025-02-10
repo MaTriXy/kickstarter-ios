@@ -1,9 +1,8 @@
-import Argo
 import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
-import Runes
+import UIKit
 
 public protocol DiscoveryViewModelInputs {
   /// Call when Recommendations setting changes on Settings > Account > Privacy > Recommendations.
@@ -12,11 +11,11 @@ public protocol DiscoveryViewModelInputs {
   /// Call when params have been selected.
   func filter(withParams params: DiscoveryParams)
 
-  /// Call when the OptimizelyClient has been configured
-  func optimizelyClientConfigured()
+  /// Call when the Remote Config Client has been configured
+  func remoteConfigClientConfigured()
 
-  /// Call when the OptimizelyClient configuration has failed
-  func optimizelyClientConfigurationFailed()
+  /// Call when the RemoteConfigClient configuration has failed
+  func remoteConfigClientConfigurationFailed()
 
   /// Call when the UIPageViewController finishes transitioning.
   func pageTransition(completed: Bool)
@@ -83,21 +82,15 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
   }
 
   public init() {
-    let optimizelyReadyOrContinue = Signal.merge(
-      self.optimizelyClientConfiguredProperty.signal,
-      self.viewDidLoadProperty.signal.map { AppEnvironment.current.optimizelyClient }
-        .skipNil()
-        .ignoreValues(),
-      self.optimizelyClientConfigurationFailedProperty.signal
+    let remoteConfigReadyOrContinue = Signal.merge(
+      self.remoteConfigClientConfiguredProperty.signal,
+      self.viewDidLoadProperty.signal.ignoreValues(),
+      self.remoteConfigClientConfigurationFailedProperty.signal
     ).take(first: 1)
-      .map {
-        // Immediately activate the nativeProjectCards experiment
-        activateNativeProjectCardsExperiment()
-      }.ignoreValues()
 
     let sorts: [DiscoveryParams.Sort] = [.magic, .popular, .newest, .endingSoon]
 
-    let configureWithSorts = optimizelyReadyOrContinue.mapConst(sorts)
+    let configureWithSorts = remoteConfigReadyOrContinue.mapConst(sorts)
 
     self.configurePagerDataSource = configureWithSorts
     self.configureSortPager = configureWithSorts
@@ -129,6 +122,13 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
       .takeWhen(self.pageTransitionCompletedProperty.signal.filter(isTrue))
       .map { sorts[$0] }
 
+    let prevSortedPage = Signal.merge(
+      swipeToSort,
+      self.sortPagerSelectedSortProperty.signal.skipNil()
+    )
+    .combinePrevious(.magic)
+    .map(first)
+
     self.selectSortPage = Signal
       .merge(
         swipeToSort,
@@ -158,15 +158,39 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
 
     self.sortsAreEnabled = self.setSortsEnabledProperty.signal.skipNil()
 
-    currentParams
-      .takePairWhen(self.sortPagerSelectedSortProperty.signal.skipNil().skipRepeats(==))
-      .observeValues { AppEnvironment.current.koala.trackDiscoverySelectedSort(nextSort: $1, params: $0) }
+    let currentSortedPage = Signal.merge(
+      self.sortPagerSelectedSortProperty.signal.skipNil().skipRepeats(==),
+      swipeToSort
+    )
 
-    currentParams
-      .takePairWhen(swipeToSort)
-      .observeValues {
-        AppEnvironment.current.koala.trackDiscoverySelectedSort(nextSort: $1, params: $0)
-      }
+    Signal.combineLatest(
+      currentParams,
+      currentSortedPage,
+      prevSortedPage
+    )
+    .filter { $0.1.rawValue != $0.2.rawValue }
+    .observeValues { currentParams, currentSortedPage, prevSortedPage in
+      AppEnvironment
+        .current
+        .ksrAnalytics
+        .trackDiscoverySelectedSort(
+          prevSort: prevSortedPage,
+          params: currentParams,
+          discoverySortContext: self.getDiscoverySortTypeContext(from: currentSortedPage)
+        )
+    }
+  }
+
+  /// convert DiscoveryParams.Sort to TypeContext.DiscoverySortContext
+  private func getDiscoverySortTypeContext(
+    from sort: DiscoveryParams.Sort
+  ) -> KSRAnalytics.TypeContext.DiscoverySortContext {
+    switch sort {
+    case .endingSoon: return .endingSoon
+    case .magic: return .magic
+    case .newest: return .newest
+    case .popular: return .popular
+    }
   }
 
   fileprivate let didChangeRecommendationsSettingProperty = MutableProperty(())
@@ -179,14 +203,14 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
     self.filterWithParamsProperty.value = params
   }
 
-  fileprivate let optimizelyClientConfiguredProperty = MutableProperty(())
-  public func optimizelyClientConfigured() {
-    self.optimizelyClientConfiguredProperty.value = ()
+  fileprivate let remoteConfigClientConfiguredProperty = MutableProperty(())
+  public func remoteConfigClientConfigured() {
+    self.remoteConfigClientConfiguredProperty.value = ()
   }
 
-  fileprivate let optimizelyClientConfigurationFailedProperty = MutableProperty(())
-  public func optimizelyClientConfigurationFailed() {
-    self.optimizelyClientConfigurationFailedProperty.value = ()
+  fileprivate let remoteConfigClientConfigurationFailedProperty = MutableProperty(())
+  public func remoteConfigClientConfigurationFailed() {
+    self.remoteConfigClientConfigurationFailedProperty.value = ()
   }
 
   fileprivate let pageTransitionCompletedProperty = MutableProperty(false)
@@ -230,14 +254,4 @@ public final class DiscoveryViewModel: DiscoveryViewModelType, DiscoveryViewMode
 
   public var inputs: DiscoveryViewModelInputs { return self }
   public var outputs: DiscoveryViewModelOutputs { return self }
-}
-
-private func activateNativeProjectCardsExperiment() -> OptimizelyExperiment.Variant {
-  guard let optimizelyClient = AppEnvironment.current.optimizelyClient else {
-    return .control
-  }
-
-  let variant = optimizelyClient.variant(for: .nativeProjectCards)
-
-  return variant
 }

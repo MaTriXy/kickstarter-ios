@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public struct ShareActivityCompletionData {
   internal let activityType: UIActivity.ActivityType?
@@ -21,22 +22,12 @@ public struct ShareActivityCompletionData {
   }
 }
 
-/// These share types provide us access to knowing when the user successfully shares through that method,
-/// or when the user cancels.
-private let firstPartyShareTypes: [UIActivity.ActivityType] = [
-  .postToFacebook, .postToTwitter, .postToWeibo, .message, .mail, .copyToPasteboard, .addToReadingList,
-  .postToTencentWeibo, .airDrop, SafariActivityType
-]
-
 public protocol ShareViewModelInputs {
   /// Call with the context that this sharing is taking place in.
   func configureWith(shareContext: ShareContext, shareContextView: UIView?)
 
   /// Call when the general share button is pressed.
   func shareButtonTapped()
-
-  /// Call from the UIActivityViewController's completion handler.
-  func shareActivityCompletion(with data: ShareActivityCompletionData)
 }
 
 public protocol ShareViewModelOutputs {
@@ -52,72 +43,14 @@ public protocol ShareViewModelType {
 public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, ShareViewModelOutputs {
   public init() {
     let shareContextAndView = self.shareContextProperty.signal.skipNil()
-    let shareContext = self.shareContextProperty.signal.skipNil().map(first)
 
     self.showShareSheet = shareContextAndView
       .takeWhen(self.shareButtonTappedProperty.signal)
-      .map { (context, view) -> (UIActivityViewController, UIView?)? in
+      .map { context, view -> (UIActivityViewController, UIView?)? in
         guard let controller = activityController(forShareContext: context) else { return nil }
         return (controller, view)
       }
       .skipNil()
-
-    let shareCompletion = self.shareActivityCompletionProperty.signal.skipNil()
-
-    let shareActivityCompletion = shareContext
-      .takePairWhen(shareCompletion)
-
-    let canceledShare = shareActivityCompletion
-      .filter { _, completion in !completion.completed }
-
-    shareContext
-      .takeWhen(self.shareButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackShowedShareSheet(shareContext: $0) }
-
-    canceledShare
-      .filter { _, completion in completion.activityType == nil }
-      .map(first)
-      .observeValues { AppEnvironment.current.koala.trackCanceledShareSheet(shareContext: $0) }
-
-    shareActivityCompletion
-      .filter { _, completion in completion.activityType != nil }
-      .observeValues { arg in
-
-        let (shareContext, completion) = arg
-        AppEnvironment.current.koala.trackShowedShare(
-          shareContext: shareContext, shareActivityType: completion.activityType
-        )
-      }
-
-    shareActivityCompletion
-      .filter { _, completion in
-        completion.completed && completion.activityType.map(firstPartyShareTypes.contains) == .some(true)
-      }
-      .flatMap {
-        SignalProducer(value: $0)
-          .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-      }
-      .observeValues { arg in
-
-        let (shareContext, completion) = arg
-        AppEnvironment.current.koala.trackShared(
-          shareContext: shareContext, shareActivityType: completion.activityType
-        )
-      }
-
-    canceledShare
-      .filter { _, completion in completion.activityType.map(firstPartyShareTypes.contains) == .some(true) }
-      .flatMap {
-        SignalProducer(value: $0)
-          .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-      }
-      .observeValues { arg in
-
-        let (shareContext, completion) = arg
-        AppEnvironment.current.koala.trackCanceledShare(
-          shareContext: shareContext, shareActivityType: completion.activityType
-        )
-      }
   }
 
   fileprivate let shareContextProperty = MutableProperty<(ShareContext, UIView?)?>(nil)
@@ -130,11 +63,6 @@ public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, Sha
     self.shareButtonTappedProperty.value = ()
   }
 
-  fileprivate let shareActivityCompletionProperty = MutableProperty<ShareActivityCompletionData?>(nil)
-  public func shareActivityCompletion(with data: ShareActivityCompletionData) {
-    self.shareActivityCompletionProperty.value = data
-  }
-
   public let showShareSheet: Signal<(UIActivityViewController, UIView?), Never>
 
   public var inputs: ShareViewModelInputs { return self }
@@ -143,8 +71,6 @@ public final class ShareViewModel: ShareViewModelType, ShareViewModelInputs, Sha
 
 private func activityItemProvider(forShareContext shareContext: ShareContext) -> UIActivityItemProvider {
   switch shareContext {
-  case let .creatorDashboard(project):
-    return ProjectActivityItemProvider(project: project)
   case let .discovery(project):
     return ProjectActivityItemProvider(project: project)
   case let .project(project):
@@ -158,8 +84,6 @@ private func activityItemProvider(forShareContext shareContext: ShareContext) ->
 
 private func shareUrl(forShareContext shareContext: ShareContext) -> URL? {
   switch shareContext {
-  case let .creatorDashboard(project):
-    return URL(string: project.urls.web.project)
   case let .discovery(project):
     return URL(string: project.urls.web.project)
   case let .project(project):

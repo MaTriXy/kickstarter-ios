@@ -15,7 +15,6 @@ final class RootViewModelTests: TestCase {
   let setBadgeValueAtIndexValue = TestObserver<String?, Never>()
   let setBadgeValueAtIndexIndex = TestObserver<RootViewControllerIndex, Never>()
   let scrollToTopControllerName = TestObserver<String, Never>()
-  let switchDashboardProject = TestObserver<Param, Never>()
   let tabBarItemsData = TestObserver<TabBarItemsData, Never>()
   let updateUserInEnvironment = TestObserver<User, Never>()
 
@@ -30,7 +29,6 @@ final class RootViewModelTests: TestCase {
     self.vm.outputs.selectedIndex.observe(self.selectedIndex.observer)
     self.vm.outputs.setBadgeValueAtIndex.map { $0.0 }.observe(self.setBadgeValueAtIndexValue.observer)
     self.vm.outputs.setBadgeValueAtIndex.map { $0.1 }.observe(self.setBadgeValueAtIndexIndex.observer)
-    self.vm.outputs.switchDashboardProject.map(second).observe(self.switchDashboardProject.observer)
     self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
 
     let viewControllers = self.vm.outputs.setViewControllers
@@ -362,7 +360,8 @@ final class RootViewModelTests: TestCase {
 
   func testSetViewControllers() {
     let viewControllerNames = TestObserver<[String], Never>()
-    vm.outputs.setViewControllers.map(extractRootNames)
+
+    self.vm.outputs.setViewControllers.map(extractRootNames)
       .observe(viewControllerNames.observer)
 
     self.vm.inputs.viewDidLoad()
@@ -391,10 +390,9 @@ final class RootViewModelTests: TestCase {
     viewControllerNames.assertValues(
       [
         ["Discovery", "Activities", "Search", "LoginTout"],
-        ["Discovery", "Activities", "Search", "BackerDashboard"],
-        ["Discovery", "Activities", "Search", "Dashboard", "BackerDashboard"]
+        ["Discovery", "Activities", "Search", "BackerDashboard"]
       ],
-      "Show the creator dashboard tab."
+      "Updating the member projects does not trigger any view controller changes"
     )
 
     AppEnvironment.logout()
@@ -404,47 +402,15 @@ final class RootViewModelTests: TestCase {
       [
         ["Discovery", "Activities", "Search", "LoginTout"],
         ["Discovery", "Activities", "Search", "BackerDashboard"],
-        ["Discovery", "Activities", "Search", "Dashboard", "BackerDashboard"],
         ["Discovery", "Activities", "Search", "LoginTout"]
       ],
       "Show the logged out tabs."
     )
   }
 
-  func testBackerDashboardFeatureFlagEnabled() {
-    let config = .template
-      |> Config.lens.features .~ ["ios_backer_dashboard": true]
-
-    withEnvironment(config: config) {
-      vm.inputs.viewDidLoad()
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
-      vm.inputs.userSessionStarted()
-
-      viewControllerNames.assertValues(
-        [
-          ["Discovery", "Activities", "Search", "LoginTout"],
-          ["Discovery", "Activities", "Search", "BackerDashboard"]
-        ],
-        "Show the BackerDashboard instead of Profile."
-      )
-
-      AppEnvironment.updateCurrentUser(.template |> \.stats.memberProjectsCount .~ 1)
-      vm.inputs.currentUserUpdated()
-
-      viewControllerNames.assertValues(
-        [
-          ["Discovery", "Activities", "Search", "LoginTout"],
-          ["Discovery", "Activities", "Search", "BackerDashboard"],
-          ["Discovery", "Activities", "Search", "Dashboard", "BackerDashboard"]
-        ],
-        "Show the creator dashboard tab."
-      )
-    }
-  }
-
   func testViewControllersDontOverEmit() {
     let viewControllerNames = TestObserver<[String], Never>()
-    vm.outputs.setViewControllers.map(extractRootNames)
+    self.vm.outputs.setViewControllers.map(extractRootNames)
       .observe(viewControllerNames.observer)
 
     self.vm.inputs.viewDidLoad()
@@ -458,7 +424,7 @@ final class RootViewModelTests: TestCase {
 
   func testUpdateUserLocalePreferences() {
     let viewControllerNames = TestObserver<[String], Never>()
-    vm.outputs.setViewControllers.map(extractRootNames)
+    self.vm.outputs.setViewControllers.map(extractRootNames)
       .observe(viewControllerNames.observer)
 
     self.vm.inputs.viewDidLoad()
@@ -473,7 +439,7 @@ final class RootViewModelTests: TestCase {
   }
 
   func testSelectedIndex() {
-    self.selectedIndex.assertValues([], "No index seleted before view loads.")
+    self.selectedIndex.assertValues([], "No index selected before view loads.")
 
     self.vm.inputs.viewDidLoad()
 
@@ -482,20 +448,27 @@ final class RootViewModelTests: TestCase {
     self.vm.inputs.didSelect(index: 1)
 
     self.selectedIndex.assertValues([0, 1], "Selects index immediately.")
-    XCTAssertEqual(["Tab Bar Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["activity"], self.trackingClient.properties(forKey: "context_tab_bar_label"))
 
     self.vm.inputs.didSelect(index: 0)
 
     self.selectedIndex.assertValues([0, 1, 0], "Selects index immediately.")
-    XCTAssertEqual(["Tab Bar Clicked", "Tab Bar Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "discovery"], self.trackingClient.properties(forKey: "context_tab_bar_label"))
+
+    self.vm.inputs.didSelect(index: 2)
+
+    self.selectedIndex.assertValues([0, 1, 0, 2], "Selects index immediately.")
+
+    XCTAssertEqual(
+      ["activity_feed", "discover"],
+      self.segmentTrackingClient.properties(forKey: "context_page")
+    )
+    XCTAssertEqual(
+      ["discover", "search"],
+      self.segmentTrackingClient.properties(forKey: "context_cta")
+    )
 
     self.vm.inputs.didSelect(index: 10)
 
-    self.selectedIndex.assertValues([0, 1, 0, 3], "Selects index immediately.")
-    XCTAssertEqual(["Tab Bar Clicked", "Tab Bar Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "discovery"], self.trackingClient.properties(forKey: "context_tab_bar_label"))
+    self.selectedIndex.assertValues([0, 1, 0, 2, 3], "Selects index immediately.")
   }
 
   func testScrollToTop() {
@@ -560,22 +533,6 @@ final class RootViewModelTests: TestCase {
     self.filterDiscovery.assertValues([params])
   }
 
-  func testSwitchToDashboardParam() {
-    self.vm.inputs.viewDidLoad()
-
-    let param = Param.id(1)
-
-    AppEnvironment.login(AccessTokenEnvelope(
-      accessToken: "deadbeef", user: .template
-        |> \.stats.memberProjectsCount .~ 1
-    ))
-    self.vm.inputs.userSessionStarted()
-
-    self.switchDashboardProject.assertValues([])
-    self.vm.inputs.switchToDashboard(project: param)
-    self.switchDashboardProject.assertValues([param])
-  }
-
   func testTabBarItemStyles() {
     let user = User.template |> \.avatar.small .~ "http://image.com/image"
     let creator = User.template
@@ -595,17 +552,16 @@ final class RootViewModelTests: TestCase {
       .search(index: 2),
       .profile(avatarUrl: URL(string: user.avatar.small), index: 3)
     ]
-    let itemsMember: [TabBarItem] = [
+    let itemsCreator: [TabBarItem] = [
       .home(index: 0),
       .activity(index: 1),
       .search(index: 2),
-      .dashboard(index: 3),
-      .profile(avatarUrl: URL(string: creator.avatar.small), index: 4)
+      .profile(avatarUrl: URL(string: creator.avatar.small), index: 3)
     ]
 
-    let tabData = TabBarItemsData(items: items, isLoggedIn: false, isMember: false)
-    let tabDataLoggedIn = TabBarItemsData(items: itemsLoggedIn, isLoggedIn: true, isMember: false)
-    let tabDataMember = TabBarItemsData(items: itemsMember, isLoggedIn: true, isMember: true)
+    let tabData = TabBarItemsData(items: items, isLoggedIn: false)
+    let tabDataLoggedIn = TabBarItemsData(items: itemsLoggedIn, isLoggedIn: true)
+    let tabDataCreator = TabBarItemsData(items: itemsCreator, isLoggedIn: true)
 
     self.tabBarItemsData.assertValueCount(0)
 
@@ -630,14 +586,14 @@ final class RootViewModelTests: TestCase {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: creator))
     self.vm.inputs.userSessionStarted()
 
-    self.tabBarItemsData.assertValues([tabData, tabDataLoggedIn, tabDataLoggedIn, tabData, tabDataMember])
+    self.tabBarItemsData.assertValues([tabData, tabDataLoggedIn, tabDataLoggedIn, tabData, tabDataCreator])
   }
 
   func testSetViewControllers_DoesNotFilterDiscovery() {
     self.filterDiscovery.assertValueCount(0)
 
     let viewControllerNames = TestObserver<[String], Never>()
-    vm.outputs.setViewControllers.map(extractRootNames)
+    self.vm.outputs.setViewControllers.map(extractRootNames)
       .observe(viewControllerNames.observer)
 
     self.vm.inputs.viewDidLoad()
@@ -649,14 +605,162 @@ final class RootViewModelTests: TestCase {
     AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
     self.vm.inputs.userSessionStarted()
 
-    AppEnvironment.updateCurrentUser(.template |> \.stats.memberProjectsCount .~ 1)
-    self.vm.inputs.currentUserUpdated()
-
     AppEnvironment.logout()
     self.vm.inputs.userSessionEnded()
 
-    self.viewControllerNames.assertValueCount(4)
+    self.viewControllerNames.assertValueCount(3)
     self.filterDiscovery.assertValues([params])
+  }
+
+  func testPPOTabBarBadging_FeatureFlagEnabledWithoutPersistence() {
+    let user = User.template
+      |> \.unseenActivityCount .~ 50
+      |> \.erroredBackingsCount .~ 4
+
+    let remoteConfig = MockRemoteConfigClient()
+    remoteConfig.features = [
+      RemoteConfigFeature.pledgedProjectsOverviewEnabled.rawValue: true
+    ]
+
+    self.setBadgeValueAtIndexValue.assertValues([])
+    self.setBadgeValueAtIndexIndex.assertValues([])
+
+    withEnvironment(
+      currentUserPPOSettings: nil,
+      remoteConfigClient: remoteConfig
+    ) {
+      self.vm.inputs.viewDidLoad()
+
+      AppEnvironment.login(.init(accessToken: "deadbeef", user: user))
+      withEnvironment(currentUserPPOSettings: PPOUserSettings(hasAction: true)) {
+        self.vm.inputs.currentUserUpdated()
+      }
+
+      self.setBadgeValueAtIndexValue.assertValues([nil, ""])
+      self.setBadgeValueAtIndexIndex.assertValues([1, 1])
+    }
+  }
+
+  func testPPOTabBarBadging_FeatureFlagEnabledWithPersistence() {
+    let user = User.template
+      |> \.unseenActivityCount .~ 50
+      |> \.erroredBackingsCount .~ 4
+
+    let remoteConfig = MockRemoteConfigClient()
+    remoteConfig.features = [
+      RemoteConfigFeature.pledgedProjectsOverviewEnabled.rawValue: true
+    ]
+
+    self.setBadgeValueAtIndexValue.assertValues([])
+    self.setBadgeValueAtIndexIndex.assertValues([])
+
+    withEnvironment(
+      currentUserPPOSettings: PPOUserSettings(hasAction: true),
+      remoteConfigClient: remoteConfig
+    ) {
+      self.vm.inputs.viewDidLoad()
+
+      AppEnvironment.login(.init(accessToken: "deadbeef", user: user))
+      self.vm.inputs.currentUserUpdated()
+
+      self.setBadgeValueAtIndexValue.assertValues(["", ""])
+      self.setBadgeValueAtIndexIndex.assertValues([1, 1])
+    }
+  }
+
+  func testPPOTabBarBadging_FeatureFlagDisabled() {
+    let user = User.template
+      |> \.unseenActivityCount .~ 50
+      |> \.erroredBackingsCount .~ 4
+
+    let remoteConfig = MockRemoteConfigClient()
+    remoteConfig.features = [
+      RemoteConfigFeature.pledgedProjectsOverviewEnabled.rawValue: false
+    ]
+
+    self.setBadgeValueAtIndexValue.assertValues([])
+    self.setBadgeValueAtIndexIndex.assertValues([])
+
+    withEnvironment(
+      currentUserPPOSettings: PPOUserSettings(hasAction: true),
+      remoteConfigClient: remoteConfig
+    ) {
+      self.vm.inputs.viewDidLoad()
+
+      AppEnvironment.login(.init(accessToken: "deadbeef", user: user))
+      self.vm.inputs.currentUserUpdated()
+
+      self.setBadgeValueAtIndexValue.assertValues([nil, "54"])
+      self.setBadgeValueAtIndexIndex.assertValues([1, 1])
+    }
+  }
+
+  func testSetViewControllers_PledgedProjectsOverview_LoggedIn() {
+    let remoteConfig = MockRemoteConfigClient()
+    remoteConfig.features = [
+      RemoteConfigFeature.pledgedProjectsOverviewEnabled.rawValue: true
+    ]
+
+    withEnvironment(
+      currentUser: nil,
+      remoteConfigClient: remoteConfig
+    ) {
+      self.vm.inputs.viewDidLoad()
+
+      self.viewControllerNames.assertValues(
+        [
+          ["Discovery", "Activities", "Search", "LoginTout"]
+        ],
+        "Shows regular Activities tab initially"
+      )
+
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
+      self.vm.inputs.userSessionStarted()
+
+      self.viewControllerNames.assertValues(
+        [
+          ["Discovery", "Activities", "Search", "LoginTout"],
+          ["Discovery", "PPOContainer", "Search", "BackerDashboard"]
+        ],
+        "Shows PPO tab when logged in with feature flag enabled"
+      )
+
+      AppEnvironment.logout()
+      self.vm.inputs.userSessionEnded()
+
+      self.viewControllerNames.assertValues(
+        [
+          ["Discovery", "Activities", "Search", "LoginTout"],
+          ["Discovery", "PPOContainer", "Search", "BackerDashboard"],
+          ["Discovery", "Activities", "Search", "LoginTout"]
+        ],
+        "Shows regular Activities tab when logged out again"
+      )
+    }
+  }
+
+  func testSetViewControllers_PledgedProjectsOverview_FeatureFlagDisabled() {
+    let remoteConfig = MockRemoteConfigClient()
+    remoteConfig.features = [
+      RemoteConfigFeature.pledgedProjectsOverviewEnabled.rawValue: false
+    ]
+
+    withEnvironment(
+      remoteConfigClient: remoteConfig
+    ) {
+      self.vm.inputs.viewDidLoad()
+
+      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
+      self.vm.inputs.userSessionStarted()
+
+      self.viewControllerNames.assertValues(
+        [
+          ["Discovery", "Activities", "Search", "LoginTout"],
+          ["Discovery", "Activities", "Search", "BackerDashboard"]
+        ],
+        "Shows regular Activities tab when feature flag disabled, even when logged in"
+      )
+    }
   }
 }
 

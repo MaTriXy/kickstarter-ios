@@ -31,10 +31,11 @@ import ReactiveSwift
                                    values. By default this simply concatenates the arrays, but you might want
                                    to do something more specific, such as concatenating only distinct values.
 
- - returns: A tuple of signals, (paginatedValues, isLoading, pageCount). The `paginatedValues` signal will
+ - returns: A tuple of signals, (paginatedValues, isLoading, pageCount, errors). The `paginatedValues` signal will
             emit a full set of values when a new page has loaded. The `isLoading` signal will emit `true`
             while a page of values is loading, and then `false` when it has terminated (either by completion
-            or error). Finally, `pageCount` emits the number of the page that loaded, starting at 1.
+            or error). The `pageCount` signal emits the number of the page that loaded, starting at 1. Finally,
+            `errors` emits the `ErrorEnvelope` when a page request fails.
  */
 public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestParams>(
   requestFirstPageWith requestFirstPage: Signal<RequestParams, Never>,
@@ -51,10 +52,12 @@ public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestP
   (
     paginatedValues: Signal<[Value], Never>,
     isLoading: Signal<Bool, Never>,
-    pageCount: Signal<Int, Never>
+    pageCount: Signal<Int, Never>,
+    errors: Signal<ErrorEnvelope, Never>
   ) {
   let cursor = MutableProperty<Cursor?>(nil)
   let isLoading = MutableProperty<Bool>(false)
+  let errors = MutableProperty<ErrorEnvelope?>(nil)
 
   // Emits the last cursor when nextPage emits
   let cursorOnNextPage = cursor.producer.skipNil().sample(on: requestNextPage)
@@ -73,6 +76,9 @@ public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestP
             .on(
               starting: { [weak isLoading] in
                 isLoading?.value = true
+              },
+              failed: { [weak errors] error in
+                errors?.value = error
               },
               terminated: { [weak isLoading] in
                 isLoading?.value = false
@@ -97,6 +103,7 @@ public func paginate<Cursor, Value: Equatable, Envelope, ErrorEnvelope, RequestP
   return (
     skipRepeats ? paginatedValues.skipRepeats(==) : paginatedValues,
     isLoading.signal,
-    pageCount
+    pageCount,
+    errors.signal.skipNil()
   )
 }

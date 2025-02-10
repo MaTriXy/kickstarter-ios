@@ -1,0 +1,53 @@
+fragment RewardFragment on Reward {
+  amount {
+    ...MoneyFragment
+  }
+  backersCount
+  convertedAmount {
+    ...MoneyFragment
+  }
+  allowedAddons {
+    pageInfo {
+      startCursor
+    }
+  }
+  description
+  displayName
+  endsAt
+  estimatedDeliveryOn
+  id
+  isMaxPledge
+  available
+  items {
+    edges {
+      quantity
+      node {
+        id
+        name
+      }
+    }
+  }
+  limit
+  limitPerBacker
+  localReceiptLocation @include(if: $includeLocalPickup) {
+    ...LocationFragment
+  }
+  name
+  pledgeAmount {
+    ...MoneyFragment
+  }
+  latePledgeAmount {
+    ...MoneyFragment
+  }
+  postCampaignPledgingEnabled
+  project {
+    id
+  }
+  remainingQuantity
+  shippingPreference
+  shippingSummary
+  shippingRules @include(if: $includeShippingRules) {
+    ...ShippingRuleFragment
+  }
+  startsAt
+}

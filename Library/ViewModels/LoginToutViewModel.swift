@@ -21,7 +21,7 @@ public protocol LoginToutViewModelInputs {
   func appleLoginButtonPressed()
 
   /// Call to set the reason the user is attempting to log in
-  func configureWith(_ intent: LoginIntent, project: Project?, reward: Reward?)
+  func configureWith(_ intent: LoginIntent)
 
   /// Call when the environment has been logged into
   func environmentLoggedIn()
@@ -35,11 +35,8 @@ public protocol LoginToutViewModelInputs {
   /// Call when Facebook login completed successfully with a result
   func facebookLoginSuccess(result: LoginManagerLoginResult)
 
-  /// Call when login button is pressed
-  func loginButtonPressed()
-
-  /// Call when sign up button is pressed
-  func signupButtonPressed()
+  /// Call with login with OAuth button is pressed
+  func signupOrLoginWithOAuthButtonPressed()
 
   /// Call when a user session starts.
   func userSessionStarted()
@@ -53,9 +50,6 @@ public protocol LoginToutViewModelInputs {
 }
 
 public protocol LoginToutViewModelOutputs {
-  /// Emits whether the Sign In With Apple Button should be hidden.
-  var appleButtonHidden: Signal<Bool, Never> { get }
-
   /// Emits when Apple login should start
   var attemptAppleLogin: Signal<Void, Never> { get }
 
@@ -74,8 +68,11 @@ public protocol LoginToutViewModelOutputs {
   /// Emits the login context to be displayed.
   var logInContextText: Signal<String, Never> { get }
 
-  /// Emits an access token envelope that can be used to update the environment.
-  var logIntoEnvironment: Signal<AccessTokenEnvelope, Never> { get }
+  /// Emits an access token envelope that can be used to update the environment via Apple.
+  var logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never> { get }
+
+  /// Emits an access token envelope that can be used to update the environment via Facebook.
+  var logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never> { get }
 
   /// Emits when a login success notification should be posted.
   var postNotification: Signal<(Notification, Notification), Never> { get }
@@ -86,11 +83,8 @@ public protocol LoginToutViewModelOutputs {
   /// Emits when should show Facebook error alert with AlertError
   var showFacebookErrorAlert: Signal<AlertError, Never> { get }
 
-  /// Emits when Login view should be shown
-  var startLogin: Signal<(), Never> { get }
-
-  /// Emits when Signup view should be shown
-  var startSignup: Signal<(), Never> { get }
+  /// Emits when OAuth flow should be shown
+  var startOAuthSignupOrLogin: Signal<(), Never> { get }
 
   /// Emits a Facebook user and access token when Facebook login has occurred
   var startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never> { get }
@@ -119,8 +113,7 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     let isLoading: MutableProperty<Bool> = MutableProperty(false)
 
     self.isLoading = isLoading.signal.skipRepeats()
-    self.startLogin = self.loginButtonPressedProperty.signal
-    self.startSignup = self.signupButtonPressedProperty.signal
+    self.startOAuthSignupOrLogin = self.signupOrLoginWithOAuthButtonPressedProperty.signal
     self.attemptFacebookLogin = self.facebookLoginButtonPressedProperty.signal
     self.attemptAppleLogin = self.appleLoginButtonPressedProperty.signal.ignoreValues()
 
@@ -263,72 +256,8 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.showAppleErrorAlert = Signal
       .merge(appleAuthorizationError, fetchUserEventError, appleSignInEventError)
 
-    self.logIntoEnvironment = Signal.merge(logIntoEnvironmentWithApple, logIntoEnvironmentWithFacebook)
-
-    self.appleButtonHidden = self.viewWillAppearProperty.signal
-      .map { _ in
-        AppEnvironment.current.optimizelyClient?.isFeatureEnabled(
-          featureKey: OptimizelyFeature.Key.signInWithAppleKillswitch.rawValue
-        ) ?? false
-      }
-
-    // MARK: - Tracking
-
-    let trackingData = Signal.combineLatest(
-      self.loginIntentProperty.signal.skipNil(),
-      self.projectProperty.signal,
-      self.rewardProperty.signal
-    )
-
-    trackingData
-      .takeWhen(self.viewWillAppearProperty.signal.take(first: 1))
-      .observeValues { intent, project, reward in
-        AppEnvironment.current.koala.trackLoginOrSignupPageViewed(
-          intent: intent,
-          project: project,
-          reward: reward
-        )
-      }
-
-    trackingData
-      .takeWhen(self.loginButtonPressedProperty.signal)
-      .observeValues { intent, project, reward in
-        AppEnvironment.current.koala.trackLoginButtonClicked(
-          intent: intent,
-          project: project,
-          reward: reward
-        )
-      }
-
-    trackingData
-      .takeWhen(self.signupButtonPressedProperty.signal)
-      .observeValues { intent, project, reward in
-        AppEnvironment.current.koala.trackSignupButtonClicked(
-          intent: intent,
-          project: project,
-          reward: reward
-        )
-      }
-
-    trackingData
-      .takeWhen(self.facebookLoginButtonPressedProperty.signal)
-      .observeValues { intent, project, reward in
-        AppEnvironment.current.koala.trackFacebookLoginOrSignupButtonClicked(
-          intent: intent,
-          project: project,
-          reward: reward
-        )
-      }
-
-    trackingData
-      .takeWhen(self.appleLoginButtonPressedProperty.signal)
-      .observeValues { intent, project, reward in
-        AppEnvironment.current.koala.trackContinueWithAppleButtonClicked(
-          intent: intent,
-          project: project,
-          reward: reward
-        )
-      }
+    self.logIntoEnvironmentWithApple = logIntoEnvironmentWithApple.signal
+    self.logIntoEnvironmentWithFacebook = logIntoEnvironmentWithFacebook.signal
   }
 
   public var inputs: LoginToutViewModelInputs { return self }
@@ -350,12 +279,8 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
   }
 
   fileprivate let loginIntentProperty = MutableProperty<LoginIntent?>(.loginTab)
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
-  fileprivate let rewardProperty = MutableProperty<Reward?>(nil)
-  public func configureWith(_ intent: LoginIntent, project: Project? = nil, reward: Reward? = nil) {
+  public func configureWith(_ intent: LoginIntent) {
     self.loginIntentProperty.value = intent
-    self.projectProperty.value = project
-    self.rewardProperty.value = reward
   }
 
   fileprivate let environmentLoggedInProperty = MutableProperty(())
@@ -378,14 +303,9 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.facebookLoginSuccessProperty.value = result
   }
 
-  fileprivate let loginButtonPressedProperty = MutableProperty(())
-  public func loginButtonPressed() {
-    self.loginButtonPressedProperty.value = ()
-  }
-
-  fileprivate let signupButtonPressedProperty = MutableProperty(())
-  public func signupButtonPressed() {
-    self.signupButtonPressedProperty.value = ()
+  fileprivate let signupOrLoginWithOAuthButtonPressedProperty = MutableProperty(())
+  public func signupOrLoginWithOAuthButtonPressed() {
+    self.signupOrLoginWithOAuthButtonPressedProperty.value = ()
   }
 
   fileprivate let userSessionStartedProperty = MutableProperty(())
@@ -403,18 +323,17 @@ public final class LoginToutViewModel: LoginToutViewModelType, LoginToutViewMode
     self.viewWillAppearProperty.value = ()
   }
 
-  public let appleButtonHidden: Signal<Bool, Never>
   public let attemptAppleLogin: Signal<(), Never>
   public let attemptFacebookLogin: Signal<(), Never>
   public let dismissViewController: Signal<(), Never>
   public let headlineLabelHidden: Signal<Bool, Never>
   public let isLoading: Signal<Bool, Never>
   public let logInContextText: Signal<String, Never>
-  public let logIntoEnvironment: Signal<AccessTokenEnvelope, Never>
+  public let logIntoEnvironmentWithApple: Signal<AccessTokenEnvelope, Never>
+  public let logIntoEnvironmentWithFacebook: Signal<AccessTokenEnvelope, Never>
   public let postNotification: Signal<(Notification, Notification), Never>
   public let startFacebookConfirmation: Signal<(ErrorEnvelope.FacebookUser?, String), Never>
-  public let startLogin: Signal<(), Never>
-  public let startSignup: Signal<(), Never>
+  public let startOAuthSignupOrLogin: Signal<(), Never>
   public let startTwoFactorChallenge: Signal<String, Never>
   public let showAppleErrorAlert: Signal<String, Never>
   public let showFacebookErrorAlert: Signal<AlertError, Never>

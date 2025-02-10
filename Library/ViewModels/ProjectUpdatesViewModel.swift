@@ -162,10 +162,14 @@ public final class ProjectUpdatesViewModel: ProjectUpdatesViewModelType, Project
     self.webViewLoadRequest = Signal.merge(initialUpdatesIndexLoadRequest, anotherIndexRequest)
       .map { AppEnvironment.current.apiService.preparedRequest(forURL: $0) }
 
+    // Tracking
+
     project
-      .takeWhen(self.goToSafariBrowser)
-      .observeValues {
-        AppEnvironment.current.koala.trackOpenedExternalLink(project: $0, context: .projectUpdates)
+      .observeValues { project in
+        AppEnvironment.current.ksrAnalytics.trackProjectViewed(
+          project,
+          sectionContext: .updates
+        )
       }
   }
 

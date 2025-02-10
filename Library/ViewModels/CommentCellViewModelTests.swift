@@ -5,145 +5,398 @@ import ReactiveExtensions_TestHelpers
 import ReactiveSwift
 import XCTest
 
-final class CommentCellViewModelTest: TestCase {
+internal final class CommentCellViewModelTests: TestCase {
   let vm: CommentCellViewModelType = CommentCellViewModel()
 
-  let avatarUrl = TestObserver<URL?, Never>()
-  let body = TestObserver<String, Never>()
-  let bodyColor = TestObserver<UIColor, Never>()
-  let bodyFont = TestObserver<UIFont, Never>()
-  let creatorHidden = TestObserver<Bool, Never>()
-  let commenterName = TestObserver<String, Never>()
-  let timestamp = TestObserver<String, Never>()
-  let youHidden = TestObserver<Bool, Never>()
+  private let authorBadge = TestObserver<Comment.AuthorBadge, Never>()
+  private let authorImageURL = TestObserver<URL?, Never>()
+  private let authorName = TestObserver<String, Never>()
+  private let body = TestObserver<String, Never>()
+  private let bottomRowStackViewIsHidden = TestObserver<Bool, Never>()
+  private let cellAuthor = TestObserver<Comment.Author, Never>()
+  private let commentStatus = TestObserver<Comment.Status, Never>()
+  private let flagButtonIsHidden = TestObserver<Bool, Never>()
+  private let notifyDelegateLinkTappedWithURL = TestObserver<URL, Never>()
+  private let postTime = TestObserver<String, Never>()
+  private let postedButtonIsHidden = TestObserver<Bool, Never>()
+  private let replyButtonIsHidden = TestObserver<Bool, Never>()
+  private let replyCommentTapped = TestObserver<Comment, Never>()
+  private let shouldIndentContent = TestObserver<Bool, Never>()
+  private let viewCommentReplies = TestObserver<Comment, Never>()
+  private let viewRepliesStackViewIsHidden = TestObserver<Bool, Never>()
 
   override func setUp() {
     super.setUp()
-
-    self.vm.outputs.avatarUrl.observe(self.avatarUrl.observer)
+    self.vm.outputs.authorBadge.observe(self.authorBadge.observer)
+    self.vm.outputs.authorImageURL.observe(self.authorImageURL.observer)
+    self.vm.outputs.authorName.observe(self.authorName.observer)
     self.vm.outputs.body.observe(self.body.observer)
-    self.vm.outputs.bodyColor.observe(self.bodyColor.observer)
-    self.vm.outputs.bodyFont.observe(self.bodyFont.observer)
-    self.vm.outputs.creatorHidden.observe(self.creatorHidden.observer)
-    self.vm.outputs.name.observe(self.commenterName.observer)
-    self.vm.outputs.timestamp.observe(self.timestamp.observer)
-    self.vm.outputs.youHidden.observe(self.youHidden.observer)
+    self.vm.outputs.bottomRowStackViewIsHidden.observe(self.bottomRowStackViewIsHidden.observer)
+    self.vm.outputs.cellAuthor.observe(self.cellAuthor.observer)
+    self.vm.outputs.commentStatus.observe(self.commentStatus.observer)
+    self.vm.outputs.flagButtonIsHidden.observe(self.flagButtonIsHidden.observer)
+    self.vm.outputs.notifyDelegateLinkTappedWithURL.observe(self.notifyDelegateLinkTappedWithURL.observer)
+    self.vm.outputs.postTime.observe(self.postTime.observer)
+    self.vm.outputs.postedButtonIsHidden.observe(self.postedButtonIsHidden.observer)
+    self.vm.outputs.replyButtonIsHidden.observe(self.replyButtonIsHidden.observer)
+    self.vm.outputs.replyCommentTapped.observe(self.replyCommentTapped.observer)
+    self.vm.outputs.shouldIndentContent.observe(self.shouldIndentContent.observer)
+    self.vm.outputs.viewCommentReplies.observe(self.viewCommentReplies.observer)
+    self.vm.outputs.viewRepliesViewHidden.observe(self.viewRepliesStackViewIsHidden.observer)
   }
 
   func testOutputs() {
+    let author = Comment.Author.template
+      |> \.imageUrl .~ "http://www.kickstarter.com/small.jpg"
+
     let comment = Comment.template
-    let project = .template |> Project.lens.creator.id .~ 222
-    let viewer = User.template |> \.id .~ 12_345
+      |> \.author .~ author
 
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
-
-    self.avatarUrl.assertValueCount(1, "An avatar is emitted.")
-    self.body.assertValues([comment.body], "The comment body is emitted.")
-    self.bodyColor.assertValueCount(1, "A body color is emitted.")
-    self.bodyFont.assertValueCount(1, "A body font is emitted.")
-    self.creatorHidden.assertValues([true], "The creator tag is hidden.")
-    self.commenterName.assertValues([comment.author.name], "The author's name is emitted.")
-    self.timestamp.assertValueCount(1, "A timestamp is emitted.")
-    self.youHidden.assertValues([true], "The you tag is hidden.")
-  }
-
-  func testOutputs_ViewerIs_LoggedOut() {
-    let comment = Comment.template
-    let project = .template |> Project.lens.creator.id .~ 222
-
-    self.vm.inputs.comment(comment, project: project, viewer: nil)
-
-    self.avatarUrl.assertValueCount(1, "An avatar is emitted.")
-    self.body.assertValues([comment.body], "The comment body is emitted.")
-    self.bodyColor.assertValueCount(1, "A body color is emitted.")
-    self.bodyFont.assertValueCount(1, "A body font is emitted.")
-    self.creatorHidden.assertValues([true], "The creator tag is hidden.")
-    self.commenterName.assertValues([comment.author.name], "The author's name is emitted.")
-    self.timestamp.assertValueCount(1, "A timestamp is emitted.")
-    self.youHidden.assertValues([true], "The you tag is hidden.")
-  }
-
-  func testPersonalizedLabels_ViewerIs_NotCreator_NotAuthor() {
-    let comment = Comment.template
-    let project = .template |> Project.lens.creator.id .~ 222
-    let viewer = User.template |> \.id .~ 12_345
-
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
-
-    self.creatorHidden.assertValues([true], "The creator tag is hidden.")
-    self.youHidden.assertValues([true], "The you tag is hidden.")
-  }
-
-  func testPersonalizedLabels_ViewerIs_NotCreator_Author() {
-    let author = Author.template |> \.id .~ 12_345
-    let viewer = User.template |> \.id .~ author.id
-    let comment = Comment(
-      author: author,
-      body: "HELLO",
-      createdAt: 123_456_789.0,
-      deletedAt: nil,
-      id: 1
-    )
     let project = Project.template
+      |> \.personalization.isBacking .~ true
 
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
+    self.vm.inputs.configureWith(comment: comment, project: project)
 
-    self.creatorHidden.assertValues([true], "The creator tag is hidden.")
-    self.youHidden.assertValues([false], "The you tag is shown.")
+    self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
+    self.authorImageURL.assertValues([URL(string: "http://www.kickstarter.com/small.jpg")!])
+    self.authorName.assertValues([comment.author.name], "The author's name is emitted.")
+    self.body.assertValues([comment.body], "The comment body is emitted.")
+    self.commentStatus.assertValues([.success], "The comment status is emmited.")
+    self.postTime.assertValueCount(1, "The relative time of the comment is emitted.")
   }
 
-  func testPersonalizedLabels_ViewerIs_Creator_Author() {
+  func testOutput_ReplyComment() {
+    let comment = Comment.template
+    withEnvironment(currentUser: .template) {
+      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.replyCommentTapped.assertDidNotEmitValue()
+
+      self.vm.inputs.replyButtonTapped()
+
+      self.replyCommentTapped
+        .assertValue(comment, "The that should be replied to was emmited")
+    }
+  }
+
+  func testOutput_CellHeaderTapped_EmitsCellAuthor() {
+    let comment = Comment.template
+    withEnvironment(currentUser: .template) {
+      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.cellAuthor.assertDidNotEmitValue()
+
+      self.vm.inputs.cellHeaderTapped()
+
+      self.cellAuthor
+        .assertValue(comment.author)
+    }
+  }
+
+  func testOutputs_bottomRowStackViewIsHidden_LoggedIn() {
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: .template)
+
+      self.bottomRowStackViewIsHidden
+        .assertValue(
+          true,
+          "The feature flags are false, therefore the stack view is hidden."
+        )
+    }
+  }
+
+  func testOutputs_bottomRowStackViewIsHidden_IsBacking() {
     let project = Project.template
-    let author = Author.template
-      |> \.id .~ project.creator.id
+      |> \.personalization.isBacking .~ true
 
-    let comment = Comment(
-      author: author,
-      body: "HELLO",
-      createdAt: 123_456_789.0,
-      deletedAt: nil,
-      id: 1
-    )
-    let viewer = User.template
-      |> \.id .~ project.creator.id
+    self.vm.inputs.configureWith(comment: .template, project: project)
 
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
-
-    self.creatorHidden.assertValues([false], "Creator tag is shown instead of You tag.")
-    self.youHidden.assertValues([true], "You tag is hidden.")
+    self.bottomRowStackViewIsHidden
+      .assertValue(
+        true,
+        "The feature flags are false, therefore the stack view is hidden."
+      )
   }
 
-  func testPersonalizedLabels_ViewerIs_Creator_NonAuthor() {
-    let project = .template |> Project.lens.creator.id .~ 11_111
-    let comment = Comment(
-      author: Author.template |> \.id .~ 12_345,
-      body: "HELLO",
-      createdAt: 123_456_789.0,
-      deletedAt: nil,
-      id: 1
-    )
-    let viewer = project.creator
+  func testOutput_bottomRowStackViewIsHidden_IsReply() {
+    self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
 
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
-
-    self.creatorHidden.assertValues([true], "Creator tag is hidden for non-authored comment.")
-    self.youHidden.assertValues([true], "You tag is hidden.")
+    self.bottomRowStackViewIsHidden
+      .assertValue(
+        true,
+        "The bottom row stack view should be hidden if comment is a reply."
+      )
   }
 
-  func testDeletedComment() {
-    let comment = .template |> Comment.lens.deletedAt .~ 123_456_789.0
-    let project = .template |> Project.lens.creator.id .~ 11_111
-    let viewer = User.template |> \.id .~ 12_345
+  func testOutput_bottomRowStackViewIsHidden_LoggedOut_IsReplyTrue() {
+    withEnvironment(currentUser: nil) {
+      self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
 
-    self.vm.inputs.comment(comment, project: project, viewer: viewer)
+      self.bottomRowStackViewIsHidden
+        .assertValue(
+          true,
+          "The bottom row stack view should be hidden if comment is a reply."
+        )
+    }
+  }
 
-    self.avatarUrl.assertValueCount(1)
-    self.body.assertValues([comment.body])
-    self.bodyColor.assertValueCount(1)
-    self.bodyFont.assertValueCount(1)
-    self.creatorHidden.assertValues([true])
-    self.commenterName.assertValues([comment.author.name])
-    self.timestamp.assertValueCount(1)
-    self.youHidden.assertValues([true])
+  func testOutput_shouldIndentContent_True() {
+    self.vm.inputs.configureWith(comment: .replyTemplate, project: .template)
+    self.vm.inputs.bindStyles()
+    self.shouldIndentContent.assertValue(true)
+  }
+
+  func testOutput_shouldIndentContent_False() {
+    self.vm.inputs.configureWith(comment: .template, project: .template)
+    self.vm.inputs.bindStyles()
+    self.shouldIndentContent.assertValue(false)
+  }
+
+  func testOutputs_flagButtonIsHidden() {
+    self.vm.inputs.configureWith(comment: .template, project: .template)
+
+    self.flagButtonIsHidden
+      .assertValue(true, "The feature flag is not enabled, therefore the flag button is hidden.")
+  }
+
+  func testOutput_notifyDelegateLinkTappedWithURL() {
+    guard let expectedURL = HelpType.community
+      .url(withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl) else {
+      XCTFail()
+      return
+    }
+
+    self.vm.inputs.configureWith(comment: .template, project: nil)
+
+    self.scheduler.advance()
+
+    self.vm.inputs.linkTapped(url: expectedURL)
+
+    self.notifyDelegateLinkTappedWithURL
+      .assertValue(expectedURL, "The URL directs to Kickstarters Community Guidelines.")
+  }
+
+  func testOutputs_replyButtonIsHidden_IsBacker_False_IsLoggedOut() {
+    withEnvironment(currentUser: nil) {
+      self.vm.inputs.configureWith(comment: .template, project: .template)
+
+      self.replyButtonIsHidden
+        .assertValue(true, "The replyButton is hidden because the user is not a backer AND not logged in.")
+    }
+  }
+
+  func testOutputs_replyButtonIsHidden_IsBacker_False_IsLoggedIn() {
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: .template)
+
+      self.replyButtonIsHidden
+        .assertValue(true, "The replyButton is hidden because the user is logged in but not a backer.")
+    }
+  }
+
+  func testOutputs_replyButtonIsHidden_IsNotBacker_IsNotCreatorOrCollaborator_False() {
+    let user = User.template |> \.id .~ 12_345
+
+    let project = Project.template
+      |> \.memberData.permissions .~ [.post, .comment]
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: project)
+
+      self.replyButtonIsHidden
+        .assertValue(false, "The replyButton is not hidden because the user is a creator collaborator.")
+    }
+  }
+
+  func testOutputs_replyButtonIsHidden_IsNotBacker_IsNotCreatorOrCollaborator_True() {
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: .template)
+
+      self.replyButtonIsHidden
+        .assertValue(
+          true,
+          "The replyButton is hidden because the user is not backing, and not a creator or collaborator."
+        )
+    }
+  }
+
+  func testOutputs_replyButtonIsHidden_viewRepliesStackViewIsHidden_IsBacker_True_IsLoggedIn() {
+    let project = Project.template
+      |> \.personalization.isBacking .~ true
+
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: project)
+
+      self.replyButtonIsHidden
+        .assertValue(false, "The replyButton is not hidden.")
+    }
+    self.viewRepliesStackViewIsHidden
+      .assertValue(false, "The stack view is not hidden.")
+  }
+
+  func testOutputs_replyButtonIsHidden_viewRepliesStackViewIsHidden_IsBacker_False_IsLoggedIn() {
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: .template, project: .template)
+
+      self.replyButtonIsHidden
+        .assertValue(true, "The replyButton is hidden because the user is not a backer.")
+    }
+    self.viewRepliesStackViewIsHidden
+      .assertValue(
+        false,
+        "The stack view is not hidden when there are replies on the comment."
+      )
+  }
+
+  func testOutputs_UserIs_LoggedOut() {
+    let author = Comment.Author.template
+      |> \.imageUrl .~ "http://www.kickstarter.com/small.jpg"
+
+    let comment = Comment.template
+      |> \.author .~ author
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+
+    self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
+    self.authorImageURL.assertValues([URL(string: "http://www.kickstarter.com/small.jpg")!])
+    self.authorName.assertValues([comment.author.name], "The author's name is emitted.")
+    self.body.assertValues([comment.body], "The comment body is emitted.")
+    self.postTime.assertValueCount(1, "The relative time of the comment is emitted.")
+    self.replyButtonIsHidden.assertValue(true, "User is not logged in.")
+  }
+
+  func testOutput_ViewCommentReplies() {
+    let comment = Comment.template
+    withEnvironment(currentUser: .template) {
+      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.viewCommentReplies.assertDidNotEmitValue()
+
+      self.vm.inputs.viewRepliesButtonTapped()
+
+      self.viewCommentReplies
+        .assertValue(comment, "A Comment was emitted after the view replies button was tapped.")
+    }
+  }
+
+  func testPersonalizedLabels_UserIs_Creator_Author() {
+    let comment = Comment.template
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
+  }
+
+  func testPersonalizedLabels_User_Is_You_Author() {
+    let author = Comment.Author.template
+      |> \.id .~ "12345"
+
+    let comment = Comment.template
+      |> \.author .~ author
+      |> \.authorBadges .~ [.superbacker]
+
+    let user = User.template |> \.id .~ 12_345
+
+    withEnvironment(currentUser: user) {
+      self.vm.inputs.configureWith(comment: comment, project: .template)
+      self.authorBadge.assertValues([.you], "The author's badge is emitted.")
+    }
+  }
+
+  func testPersonalizedLabels_UserIs_Superbacker_Author() {
+    let comment = Comment.superbackerTemplate
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.authorBadge.assertValues([.superbacker], "The author's badge is emitted.")
+  }
+
+  func testPersonalizedLabels_UserIs_Backer_Author() {
+    let comment = Comment.backerTemplate
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.authorBadge.assertValues([.backer], "The author's badge is emitted.")
+  }
+
+  func testBlockedAuthor() {
+    let comment = Comment.blockedTemplate
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+    self.authorBadge.assertValues([.backer], "The default badge is emitted.")
+    self.authorName.assertValue(Strings.Blocked_user(), "The author's name is hidden.")
+    self.authorImageURL.assertValue(nil, "The author's avatar is hidden.")
+    self.body.assertValue(Strings.This_user_has_been_blocked(), "The comment text is hidden.")
+  }
+
+  func testBindStylesEmitsAuthorBadge() {
+    self.authorBadge.assertDidNotEmitValue()
+
+    self.vm.inputs.configureWith(comment: .template, project: .template)
+
+    self.authorBadge.assertValues([.creator], "The author's badge is emitted.")
+
+    self.vm.inputs.bindStyles()
+
+    self.authorBadge.assertValues([.creator, .creator], "The author's badge is emitted.")
+  }
+
+  func testBindStylesEmitsCommentStatus() {
+    self.commentStatus.assertDidNotEmitValue()
+
+    let comment = Comment.template
+      |> \.status .~ .retrying
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+
+    self.commentStatus.assertValues([.retrying], "The comment status is emitted.")
+    self.postedButtonIsHidden.assertValues([true], "The posted button hiddent state is emitted.")
+
+    self.vm.inputs.bindStyles()
+
+    self.commentStatus.assertValues([.retrying, .retrying], "The comment status is emitted.")
+    self.postedButtonIsHidden.assertValues([true, true], "The posted button hiddent state is emitted.")
+  }
+
+  func testPostedButtonIsHidden_NotHiddenWhenCommentStatus_IsRetrySuccess() {
+    let comment = Comment.template
+      |> \.status .~ .retrySuccess
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+
+    self.commentStatus.assertValues([.retrySuccess], "The comment status is emitted.")
+    self.postedButtonIsHidden.assertValues([false], "The posted button hiddent state is emitted.")
+
+    self.vm.inputs.bindStyles()
+
+    self.commentStatus.assertValues([.retrySuccess, .retrySuccess], "The comment status is emitted.")
+    self.postedButtonIsHidden.assertValues([false, false], "The posted button hiddent state is emitted.")
+  }
+
+  func testViewRepliesContainerHidden_IsHiddenWhenNoReplies() {
+    self.viewRepliesStackViewIsHidden.assertDidNotEmitValue()
+
+    let comment = Comment.template
+      |> \.replyCount .~ 0
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+
+    self.viewRepliesStackViewIsHidden.assertValues([true])
+  }
+
+  func testViewRepliesContainerHidden_IsHiddenWhenCommentHasReplies_False() {
+    let comment = Comment.template
+      |> \.replyCount .~ 1
+
+    self.viewRepliesStackViewIsHidden.assertDidNotEmitValue()
+
+    self.vm.inputs.configureWith(comment: comment, project: .template)
+
+    self.viewRepliesStackViewIsHidden
+      .assertValue(false, "The stack view is not hidden because there are replies.")
   }
 }

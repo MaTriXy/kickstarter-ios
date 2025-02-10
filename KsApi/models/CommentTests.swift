@@ -2,62 +2,33 @@
 import XCTest
 
 final class CommentTests: XCTestCase {
-  func testJSONParsing_WithCompleteData() {
-    let comment = Comment.decodeJSONDictionary([
-      "author": [
-        "id": 1,
-        "name": "Blob",
-        "avatar": [
-          "thumb": "http://www.kickstarter.com/thumb.jpg",
-          "medium": "http://www.kickstarter.com/medium.jpg",
-          "small": "http://www.kickstarter.com/small.jpg"
-        ],
-        "urls": [
-          "web": [
-            "user": "https://staging.kickstarter.com/profile/382491714"
-          ],
-          "api": [
-            "user": "https://api-staging.kickstarter.com/v1/users/382491714"
-          ]
-        ]
-      ],
-      "body": "hello!",
-      "created_at": 123_456_789.0,
-      "deleted_at": 123_456_789.0,
-      "id": 1
-    ])
+  func testOptimisticComment() {
+    let comment = Comment.failableComment(
+      withId: "comment-id",
+      date: ApiMockDate().date,
+      project: .template,
+      parentId: nil,
+      user: .template,
+      body: "Nice project!"
+    )
 
-    XCTAssertNil(comment.error)
-    XCTAssertEqual(1, comment.value?.id)
+    XCTAssertEqual("Nice project!", comment.body)
+    XCTAssertEqual(false, comment.isDeleted)
+    XCTAssertEqual(0, comment.replyCount)
+    XCTAssertEqual("Blob", comment.author.name)
+    XCTAssertEqual("http://www.kickstarter.com/medium.jpg", comment.author.imageUrl)
+    XCTAssertEqual(.you, comment.authorBadge)
+    XCTAssertEqual(.success, comment.status)
+    XCTAssertEqual([.you], comment.authorBadges)
   }
 
-  func testJSONParsing_ZeroDeletedAt() {
-    let comment = Comment.decodeJSONDictionary([
-      "author": [
-        "id": 1,
-        "name": "Blob",
-        "avatar": [
-          "thumb": "http://www.kickstarter.com/thumb.jpg",
-          "medium": "http://www.kickstarter.com/medium.jpg",
-          "small": "http://www.kickstarter.com/small.jpg"
-        ],
-        "urls": [
-          "web": [
-            "user": "https://staging.kickstarter.com/profile/382491714"
-          ],
-          "api": [
-            "user": "https://api-staging.kickstarter.com/v1/users/382491714"
-          ]
-        ]
-      ],
-      "body": "hello!",
-      "created_at": 123_456_789.0,
-      "deleted_at": 0,
-      "id": 1
-    ])
+  func testCommentIsReply_True() {
+    let comment = Comment.replyTemplate
+    XCTAssertTrue(comment.isReply)
+  }
 
-    XCTAssertNil(comment.error)
-    XCTAssertNotNil(comment.value)
-    XCTAssertNil(comment.value?.deletedAt)
+  func testCommentIsReply_False() {
+    let comment = Comment.template
+    XCTAssertFalse(comment.isReply)
   }
 }

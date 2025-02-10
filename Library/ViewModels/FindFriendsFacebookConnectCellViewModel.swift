@@ -150,18 +150,6 @@ public final class FindFriendsFacebookConnectCellViewModel: FindFriendsFacebookC
     self.facebookConnectButtonTitle = connectionType.signal
       .skipNil()
       .map { $0.buttonText }
-
-    source
-      .takeWhen(self.showErrorAlert)
-      .observeValues { AppEnvironment.current.koala.trackFacebookConnectError(source: $0) }
-
-    source
-      .takeWhen(self.facebookConnectButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackFacebookConnect(source: $0) }
-
-    source
-      .takeWhen(self.closeButtonTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackCloseFacebookConnect(source: $0) }
   }
 
   public var inputs: FindFriendsFacebookConnectCellViewModelInputs { return self }
@@ -219,8 +207,10 @@ extension FindFriendsFacebookConnectCellViewModel {
     let needsFreshFacebookToken = user?.needsFreshFacebookToken ?? false
 
     // Show section in "reconnect" state if facebook connected but requiring a new token
-    return !isFacebookConnected || (isFacebookConnected
-      && needsFreshFacebookToken)
+    return !isFacebookConnected || (
+      isFacebookConnected
+        && needsFreshFacebookToken
+    )
   }
 
   private static func connectionType(user: User?) -> FacebookConnectionType? {

@@ -41,7 +41,7 @@ final class ChangePasswordViewModelTests: TestCase {
   }
 
   func testChangePassword() {
-    let service = MockService()
+    let service = MockService(changePasswordResult: .success(EmptyResponseEnvelope()))
 
     withEnvironment(apiService: service) {
       self.vm.inputs.viewDidAppear()
@@ -303,8 +303,13 @@ final class ChangePasswordViewModelTests: TestCase {
   }
 
   func testChangePasswordFailure() {
-    let graphError = GraphError.decodeError(GraphResponseError(message: "Error changing password"))
-    let service = MockService(changePasswordError: graphError)
+    let service =
+      MockService(changePasswordResult: .failure(ErrorEnvelope(
+        errorMessages: ["Error changing password"],
+        ksrCode: nil,
+        httpCode: 1,
+        exception: nil
+      )))
 
     withEnvironment(apiService: service) {
       self.vm.inputs.viewDidAppear()
@@ -333,37 +338,6 @@ final class ChangePasswordViewModelTests: TestCase {
       self.changePasswordFailure.assertValues(["Error changing password"])
 
       self.activityIndicatorShouldShow.assertValues([true, false])
-    }
-  }
-
-  func testTrackViewedChangePassword() {
-    let client = MockTrackingClient()
-
-    withEnvironment(koala: Koala(client: client)) {
-      XCTAssertEqual([], client.events)
-
-      self.vm.inputs.viewDidAppear()
-
-      XCTAssertEqual(["Viewed Change Password"], client.events)
-
-      self.vm.inputs.viewDidAppear()
-
-      XCTAssertEqual(["Viewed Change Password", "Viewed Change Password"], client.events)
-    }
-  }
-
-  func testTrackChangePassword() {
-    let service = MockService()
-    let client = MockTrackingClient()
-
-    withEnvironment(apiService: service, koala: Koala(client: client)) {
-      self.vm.inputs.currentPasswordFieldDidReturn(currentPassword: "password")
-      self.vm.inputs.newPasswordFieldDidReturn(newPassword: "123456")
-      self.vm.inputs.newPasswordConfirmationFieldDidReturn(newPasswordConfirmed: "123456")
-
-      self.scheduler.advance()
-
-      XCTAssertEqual(["Changed Password"], client.events)
     }
   }
 }

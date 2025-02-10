@@ -1,16 +1,14 @@
 import Foundation
 
 final class TrackingHelpers {
-  static func pledgeContext(for viewContext: PledgeViewContext) -> Koala.PledgeContext {
+  static func pledgeContext(for viewContext: PledgeViewContext) -> KSRAnalytics.TypeContext.PledgeContext {
     switch viewContext {
-    case .pledge:
-      return Koala.PledgeContext.newPledge
-    case .update, .changePaymentMethod:
-      return Koala.PledgeContext.manageReward
-    case .updateReward:
-      return Koala.PledgeContext.changeReward
+    case .pledge, .latePledge:
+      return .newPledge
+    case .update, .updateReward, .changePaymentMethod:
+      return .managePledge
     case .fixPaymentMethod:
-      return Koala.PledgeContext.fixErroredPledge
+      return .fixErroredPledge
     }
   }
 }

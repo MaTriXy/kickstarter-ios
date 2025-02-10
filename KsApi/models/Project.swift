@@ -1,7 +1,6 @@
-import Argo
-import Curry
+import Foundation
 import Prelude
-import Runes
+import ReactiveSwift
 
 public struct Project {
   public var availableCardTypes: [String]?
@@ -9,25 +8,37 @@ public struct Project {
   public var category: Category
   public var country: Country
   public var creator: User
+  public var extendedProjectProperties: ExtendedProjectProperties?
   public var memberData: MemberData
   public var dates: Dates
+  public var displayPrelaunch: Bool?
+  public var flagging: Bool?
   public var id: Int
   public var location: Location
   public var name: String
+  public var pledgeOverTimeMinimumExplanation: String
   public var personalization: Personalization
   public var photo: Photo
+  public var isInPostCampaignPledgingPhase: Bool
+  public var postCampaignPledgingEnabled: Bool
   public var prelaunchActivated: Bool?
-  public var rewards: [Reward]
+  public var rewardData: RewardData
+  public var sendMetaCapiEvents: Bool
   public var slug: String
   public var staffPick: Bool
   public var state: State
   public var stats: Stats
+  public var tags: [String]?
   public var urls: UrlsEnvelope
   public var video: Video?
+  public var watchesCount: Int?
+  public var isPledgeOverTimeAllowed: Bool?
 
   public struct Category {
+    public var analyticsName: String?
     public var id: Int
     public var name: String
+    public var parentAnalyticsName: String?
     public var parentId: Int?
     public var parentName: String?
 
@@ -51,7 +62,7 @@ public struct Project {
     public var hls: String?
   }
 
-  public enum State: String, Argo.Decodable, CaseIterable {
+  public enum State: String, CaseIterable, Decodable {
     case canceled
     case failed
     case live
@@ -65,7 +76,7 @@ public struct Project {
   public struct Stats {
     public var backersCount: Int
     public var commentsCount: Int?
-    public var convertedPledgedAmount: Int?
+    public var convertedPledgedAmount: Float?
     /// The currency code of the project ex. USD
     public var currency: String
     /// The currency code of the User's preferred currency ex. SEK
@@ -77,6 +88,7 @@ public struct Project {
     public var pledged: Int
     public var staticUsdRate: Float
     public var updatesCount: Int?
+    public var usdExchangeRate: Float?
 
     /// Percent funded as measured from `0.0` to `1.0`. See `percentFunded` for a value from `0` to `100`.
     public var fundingProgress: Float {
@@ -90,18 +102,28 @@ public struct Project {
     }
 
     /// Pledged amount converted to USD.
-    public var pledgedUsd: Int {
-      return Int(floor(Float(self.pledged) * self.staticUsdRate))
+    public var pledgedUsd: Float {
+      return floor(Float(self.pledged) * self.staticUsdRate)
+    }
+
+    /// Total amount currently pledged to the project, converted to USD, irrespective of the users selected currency
+    public var totalAmountPledgedUsdCurrency: Float? {
+      return self.usdExchangeRate.map { Float(self.pledged) * $0 }
     }
 
     /// Goal amount converted to USD.
-    public var goalUsd: Int {
-      return Int(floor(Float(self.goal) * self.staticUsdRate))
+    public var goalUsd: Float {
+      return floor(Float(self.goal) * self.staticUsdRate)
     }
 
     /// Goal amount converted to current currency.
-    public var goalCurrentCurrency: Int? {
-      return self.currentCurrencyRate.map { Int(floor(Float(self.goal) * $0)) }
+    public var goalCurrentCurrency: Float? {
+      return self.currentCurrencyRate.map { floor(Float(self.goal) * $0) }
+    }
+
+    /// Goal amount, converted to USD, irrespective of the users selected currency
+    public var goalUsdCurrency: Float {
+      return Float(self.goal) * (self.usdExchangeRate ?? 0)
     }
 
     /// Country determined by current currency.
@@ -150,23 +172,33 @@ public struct Project {
   }
 
   public struct Dates {
-    public var deadline: TimeInterval
+    public var deadline: TimeInterval?
     public var featuredAt: TimeInterval?
-    public var launchedAt: TimeInterval
+    public var finalCollectionDate: TimeInterval?
+    public var launchedAt: TimeInterval?
     public var stateChangedAt: TimeInterval
 
     /**
      Returns project duration in Days
      */
     public func duration(using calendar: Calendar = .current) -> Int? {
-      let deadlineDate = Date(timeIntervalSince1970: self.deadline)
-      let launchedAtDate = Date(timeIntervalSince1970: self.launchedAt)
+      guard let deadlineDateValue = self.deadline,
+            let launchedAtDateValue = self.launchedAt else {
+        return nil
+      }
+
+      let deadlineDate = Date(timeIntervalSince1970: deadlineDateValue)
+      let launchedAtDate = Date(timeIntervalSince1970: launchedAtDateValue)
 
       return calendar.dateComponents([.day], from: launchedAtDate, to: deadlineDate).day
     }
 
     public func hoursRemaining(from date: Date = Date(), using calendar: Calendar = .current) -> Int? {
-      let deadlineDate = Date(timeIntervalSince1970: self.deadline)
+      guard let deadlineDateValue = self.deadline else {
+        return nil
+      }
+
+      let deadlineDate = Date(timeIntervalSince1970: deadlineDateValue)
 
       guard let hoursRemaining = calendar.dateComponents([.hour], from: date, to: deadlineDate).hour else {
         return nil
@@ -190,9 +222,30 @@ public struct Project {
     public var small: String
   }
 
+  public struct RewardData {
+    public var addOns: [Reward]?
+    public var rewards: [Reward]
+  }
+
+  public var hasAddOns: Bool {
+    return self.addOns?.isEmpty == false
+  }
+
+  public var addOns: [Reward]? {
+    return self.rewardData.addOns
+  }
+
+  public var rewards: [Reward] {
+    return self.rewardData.rewards
+  }
+
   public func endsIn48Hours(today: Date = Date()) -> Bool {
+    guard let datesDeadlineValue = self.dates.deadline else {
+      return true
+    }
+
     let twoDays: TimeInterval = 60.0 * 60.0 * 48.0
-    return self.dates.deadline - today.timeIntervalSince1970 <= twoDays
+    return datesDeadlineValue - today.timeIntervalSince1970 <= twoDays
   }
 
   public func isFeaturedToday(today: Date = Date(), calendar: Calendar = .current) -> Bool {
@@ -217,127 +270,202 @@ extension Project: CustomDebugStringConvertible {
   }
 }
 
-extension Project: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project> {
-    let tmp1 = curry(Project.init)
-      <^> json <||? "available_card_types"
-      <*> json <| "blurb"
-      <*> json <| "category"
-      <*> Project.Country.decode(json)
-      <*> json <| "creator"
-    let tmp2 = tmp1
-      <*> Project.MemberData.decode(json)
-      <*> Project.Dates.decode(json)
-      <*> json <| "id"
-      <*> (json <| "location" <|> .success(Location.none))
-    let tmp3 = tmp2
-      <*> json <| "name"
-      <*> Project.Personalization.decode(json)
-      <*> json <| "photo"
-      <*> json <|? "prelaunch_activated"
-      <*> (json <|| "rewards" <|> .success([]))
-      <*> json <| "slug"
-    return tmp3
-      <*> json <| "staff_pick"
-      <*> json <| "state"
-      <*> Project.Stats.decode(json)
-      <*> json <| "urls"
-      <*> json <|? "video"
+extension Project: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case availableCardTypes = "available_card_types"
+    case blurb
+    case category
+    case creator
+    case displayPrelaunch = "display_prelaunch"
+    case flagging
+    case id
+    case location
+    case name
+    case photo
+    case pledgeOverTimeMinimumExplanation = "pledge_over_time_minimum_explanation"
+    case isInPostCampaignPledgingPhase = "is_in_post_campaign_pledging_phase"
+    case postCampaignPledgingEnabled = "post_campaign_pledging_enabled"
+    case prelaunchActivated = "prelaunch_activated"
+    case sendMetaCapiEvents = "send_meta_capi_events"
+    case slug
+    case staffPick = "staff_pick"
+    case state
+    case tags
+    case urls
+    case video
+    case isPledgeOverTimeAllowed
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.availableCardTypes = try values.decodeIfPresent([String].self, forKey: .availableCardTypes)
+    self.blurb = try values.decode(String.self, forKey: .blurb)
+    self.category = try values.decode(Category.self, forKey: .category)
+    self.country = try Project.Country(from: decoder)
+    self.creator = try values.decode(User.self, forKey: .creator)
+    self.memberData = try Project.MemberData(from: decoder)
+    self.dates = try Project.Dates(from: decoder)
+    self.displayPrelaunch = try values.decodeIfPresent(Bool.self, forKey: .displayPrelaunch)
+    self.extendedProjectProperties = nil
+    self.flagging = try values.decodeIfPresent(Bool.self, forKey: .flagging) ?? false
+    self.id = try values.decode(Int.self, forKey: .id)
+    self.location = (try? values.decodeIfPresent(Location.self, forKey: .location)) ?? Location.none
+    self.name = try values.decode(String.self, forKey: .name)
+    self.personalization = try Project.Personalization(from: decoder)
+    self.photo = try values.decode(Photo.self, forKey: .photo)
+    self.isInPostCampaignPledgingPhase =
+      try values.decodeIfPresent(Bool.self, forKey: .isInPostCampaignPledgingPhase) ?? false
+    self.pledgeOverTimeMinimumExplanation = try values.decodeIfPresent(
+      String.self,
+      forKey: .pledgeOverTimeMinimumExplanation
+    ) ?? ""
+    self.postCampaignPledgingEnabled =
+      try values.decodeIfPresent(Bool.self, forKey: .postCampaignPledgingEnabled) ?? false
+    self.prelaunchActivated = try values.decodeIfPresent(Bool.self, forKey: .prelaunchActivated)
+    self.rewardData = try Project.RewardData(from: decoder)
+    self.sendMetaCapiEvents = try values.decodeIfPresent(Bool.self, forKey: .sendMetaCapiEvents) ?? false
+    self.slug = try values.decode(String.self, forKey: .slug)
+    self.staffPick = try values.decode(Bool.self, forKey: .staffPick)
+    self.state = try values.decode(State.self, forKey: .state)
+    self.stats = try Project.Stats(from: decoder)
+    self.tags = try values.decodeIfPresent([String].self, forKey: .tags)
+    self.urls = try values.decode(UrlsEnvelope.self, forKey: .urls)
+    self.video = try values.decodeIfPresent(Video.self, forKey: .video)
+    self.watchesCount = nil
+    self.isPledgeOverTimeAllowed =
+      try values.decodeIfPresent(Bool.self, forKey: .isPledgeOverTimeAllowed)
   }
 }
 
-extension Project.UrlsEnvelope: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.UrlsEnvelope> {
-    return curry(Project.UrlsEnvelope.init)
-      <^> json <| "web"
+extension Project.UrlsEnvelope: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case web
   }
 }
 
-extension Project.UrlsEnvelope.WebEnvelope: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.UrlsEnvelope.WebEnvelope> {
-    return curry(Project.UrlsEnvelope.WebEnvelope.init)
-      <^> json <| "project"
-      <*> json <|? "updates"
+extension Project.UrlsEnvelope.WebEnvelope: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case project
+    case updates
   }
 }
 
-extension Project.Stats: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.Stats> {
-    let tmp1 = curry(Project.Stats.init)
-      <^> json <| "backers_count"
-      <*> json <|? "comments_count"
-      <*> json <|? "converted_pledged_amount"
-      <*> json <| "currency"
-      <*> json <|? "current_currency"
-      <*> json <|? "fx_rate"
-    return tmp1
-      <*> json <| "goal"
-      <*> json <| "pledged"
-      <*> (json <| "static_usd_rate" <|> .success(1.0))
-      <*> json <|? "updates_count"
+extension Project.Stats: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case backersCount = "backers_count"
+    case commentsCount = "comments_count"
+    case convertedPledgedAmount = "converted_pledged_amount"
+    case currency
+    case currentCurrency = "current_currency"
+    case currentCurrencyRate = "fx_rate"
+    case goal
+    case pledged
+    case staticUsdRate = "static_usd_rate"
+    case updatesCount = "updates_count"
+    case usdExchangeRate = "usd_exchange_rate"
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.backersCount = try values.decode(Int.self, forKey: .backersCount)
+    self.commentsCount = try values.decodeIfPresent(Int.self, forKey: .commentsCount)
+    self.convertedPledgedAmount = try values.decodeIfPresent(Float.self, forKey: .convertedPledgedAmount)
+    self.currency = try values.decode(String.self, forKey: .currency)
+    self.currentCurrency = try values.decodeIfPresent(String.self, forKey: .currentCurrency)
+    self.currentCurrencyRate = try values.decodeIfPresent(Float.self, forKey: .currentCurrencyRate)
+    self.goal = try values.decode(Int.self, forKey: .goal)
+    let value = try values.decode(Double.self, forKey: .pledged)
+    self.pledged = Int(value)
+    self.staticUsdRate = try values.decodeIfPresent(Float.self, forKey: .staticUsdRate) ?? 1.0
+    self.updatesCount = try values.decodeIfPresent(Int.self, forKey: .updatesCount)
+    self.usdExchangeRate = try values.decodeIfPresent(Float.self, forKey: .usdExchangeRate)
   }
 }
 
-extension Project.MemberData: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.MemberData> {
-    return curry(Project.MemberData.init)
-      <^> json <|? "last_update_published_at"
-      <*> (removeUnknowns <^> (json <|| "permissions") <|> .success([]))
-      <*> json <|? "unread_messages_count"
-      <*> json <|? "unseen_activity_count"
+extension Project.MemberData: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case lastUpdatePublishedAt = "last_update_published_at"
+    case permissions
+    case unreadMessagesCount = "unread_messages_count"
+    case unseenActivityCount = "unseen_activity_count"
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.lastUpdatePublishedAt = try values.decodeIfPresent(TimeInterval.self, forKey: .lastUpdatePublishedAt)
+    self
+      .permissions = removeUnknowns(try values.decodeIfPresent([Permission].self, forKey: .permissions) ?? [])
+    self.unreadMessagesCount = try values.decodeIfPresent(Int.self, forKey: .unreadMessagesCount)
+    self.unseenActivityCount = try values.decodeIfPresent(Int.self, forKey: .unseenActivityCount)
   }
 }
 
-extension Project.Dates: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.Dates> {
-    return curry(Project.Dates.init)
-      <^> json <| "deadline"
-      <*> json <|? "featured_at"
-      <*> json <| "launched_at"
-      <*> json <| "state_changed_at"
+extension Project.Dates: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case deadline
+    case featuredAt = "featured_at"
+    case finalCollectionDate = "final_collection_date"
+    case launchedAt = "launched_at"
+    case stateChangedAt = "state_changed_at"
   }
 }
 
-extension Project.Personalization: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.Personalization> {
-    return curry(Project.Personalization.init)
-      <^> json <|? "backing"
-      <*> json <||? "friends"
-      <*> json <|? "is_backing"
-      <*> json <|? "is_starred"
+extension Project.Personalization: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case backing
+    case friends
+    case isBacking = "is_backing"
+    case isStarred = "is_starred"
   }
 }
 
-extension Project.Category: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.Category> {
-    return curry(Project.Category.init)
-      <^> json <| "id"
-      <*> json <| "name"
-      <*> json <|? "parent_id"
-      <*> json <|? "parent_name"
+extension Project.RewardData: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case addOns = "add_ons"
+    case rewards
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.addOns = try values.decodeIfPresent([Reward].self, forKey: .addOns)
+    self.rewards = try values.decodeIfPresent([Reward].self, forKey: .rewards) ?? []
   }
 }
 
-extension Project.Photo: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.Photo> {
-    let url1024: Decoded<String?> = ((json <| "1024x768") <|> (json <| "1024x576"))
-      .map(Optional<String>.init)
-      <|> .success(nil)
-
-    return curry(Project.Photo.init)
-      <^> json <| "full"
-      <*> json <| "med"
-      <*> url1024
-      <*> json <| "small"
+extension Project.Category: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case analyticsName = "analytics_name"
+    case id
+    case name
+    case parentId = "parent_id"
+    case parentName = "parent_name"
   }
 }
 
-extension Project.MemberData.Permission: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<Project.MemberData.Permission> {
-    if case let .string(permission) = json {
-      return self.init(rawValue: permission).map(pure) ?? .success(.unknown)
-    }
-    return .success(.unknown)
+extension Project.Photo: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case full
+    case med
+    case size1024x768 = "1024x768"
+    case size1024x576 = "1024x576"
+    case small
+  }
+
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.full = try values.decode(String.self, forKey: .full)
+    self.med = try values.decode(String.self, forKey: .med)
+    self.size1024x768 = try values
+      .decodeIfPresent(String.self, forKey: .size1024x768) ??
+      (try values.decodeIfPresent(String.self, forKey: .size1024x576))
+    self.small = try values.decode(String.self, forKey: .small)
+  }
+}
+
+extension Project.MemberData.Permission: Decodable {
+  public init(from decoder: Decoder) throws {
+    self = try Project.MemberData
+      .Permission(rawValue: decoder.singleValueContainer().decode(RawValue.self)) ?? .unknown
   }
 }
 
@@ -345,13 +473,10 @@ private func removeUnknowns(_ xs: [Project.MemberData.Permission]) -> [Project.M
   return xs.filter { $0 != .unknown }
 }
 
-private func toInt(string: String) -> Decoded<Int> {
-  return Int(string).map(Decoded.success)
-    ?? Decoded.failure(DecodeError.custom("Couldn't decoded \"\(string)\" into Int."))
-}
-
 extension Project: GraphIDBridging {
   public static var modelName: String {
     return "Project"
   }
 }
+
+extension Project.Video: Decodable {}

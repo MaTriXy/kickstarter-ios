@@ -1,0 +1,89 @@
+import KsApi
+import Library
+import Prelude
+import Prelude_UIKit
+import ReactiveSwift
+import UIKit
+
+internal protocol SettingsFollowCellDelegate: AnyObject {
+  /// Called when follow switch is switched off
+  func settingsFollowCellDidDisableFollowing(_ cell: SettingsFollowCell)
+  func settingsFollowCellDidUpdate(user: User)
+}
+
+internal final class SettingsFollowCell: UITableViewCell, ValueCell {
+  fileprivate let viewModel: SettingsFollowCellViewModelType = SettingsFollowCellViewModel()
+  internal weak var delegate: SettingsFollowCellDelegate?
+
+  @IBOutlet fileprivate var followingLabel: UILabel!
+  @IBOutlet fileprivate var followStackView: UIStackView!
+  @IBOutlet fileprivate var followingSwitch: UISwitch!
+  @IBOutlet fileprivate var separatorView: [UIView]!
+
+  override func awakeFromNib() {
+    super.awakeFromNib()
+
+    _ = self
+      |> \.accessibilityElements .~ [self.followingSwitch].compact()
+
+    _ = self.followingSwitch
+      |> \.accessibilityLabel %~ { _ in Strings.Following() }
+  }
+
+  internal func configureWith(value: SettingsPrivacyStaticCellValue) {
+    self.viewModel.inputs.configureWith(user: value.user)
+
+    _ = self.followingSwitch
+      |> \.accessibilityHint .~ value.cellType.description
+  }
+
+  internal override func bindStyles() {
+    super.bindStyles()
+
+    _ = self
+      |> baseTableViewCellStyle()
+      |> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
+        cell.traitCollection.isRegularRegular
+          ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(20))
+          : .init(topBottom: Styles.grid(1), leftRight: Styles.grid(2))
+      }
+
+    _ = self.separatorView
+      ||> settingsSeparatorStyle
+
+    _ = self.followingSwitch
+      |> settingsSwitchStyle
+
+    _ = self.followingLabel
+      |> settingsTitleLabelStyle
+      |> UILabel.lens.text %~ { _ in Strings.Following() }
+      |> UILabel.lens.numberOfLines .~ 1
+  }
+
+  internal override func bindViewModel() {
+    super.bindViewModel()
+
+    self.viewModel.outputs.updateCurrentUser
+      .observeForUI()
+      .observeValues { [weak self] user in
+        self?.delegate?.settingsFollowCellDidUpdate(user: user)
+      }
+
+    self.viewModel.outputs.showPrivacyFollowingPrompt
+      .observeForUI()
+      .observeValues { [weak self] in
+        guard let _self = self else { return }
+        self?.delegate?.settingsFollowCellDidDisableFollowing(_self)
+      }
+
+    self.followingSwitch.rac.on = self.viewModel.outputs.followingPrivacyOn
+  }
+
+  func toggleOn(animated: Bool = true) {
+    self.followingSwitch.setOn(true, animated: animated)
+  }
+
+  @IBAction func followingPrivacySwitchTapped(_ followingPrivacySwitch: UISwitch) {
+    self.viewModel.inputs.followTapped(on: followingPrivacySwitch.isOn)
+  }
+}

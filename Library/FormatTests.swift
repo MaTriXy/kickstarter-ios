@@ -111,6 +111,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.attributedCurrency(1_000, country: .dk)?.string, " DKK 1,000.00")
         XCTAssertEqual(Format.attributedCurrency(1_000, country: .de)?.string, "€1,000.00")
         XCTAssertEqual(Format.attributedCurrency(1_000, country: .jp)?.string, "¥1,000.00")
+        XCTAssertEqual(Format.attributedCurrency(1_000, country: .gr)?.string, "€1,000.00")
+        XCTAssertEqual(Format.attributedCurrency(1_000, country: .si)?.string, "€1,000.00")
+        XCTAssertEqual(Format.attributedCurrency(1_000, country: .pl)?.string, "zł 1,000.00")
 
         XCTAssertEqual(
           Format.attributedCurrency(1_000, country: .ca, omitCurrencyCode: true)?.string, " CA$ 1,000.00"
@@ -123,6 +126,18 @@ final class FormatTests: TestCase {
         )
         XCTAssertEqual(
           Format.attributedCurrency(1_000, country: .us, omitCurrencyCode: false)?.string, " US$ 1,000.00"
+        )
+        XCTAssertEqual(
+          Format.attributedCurrency(
+            1_000, country: .us, omitCurrencyCode: true, maximumFractionDigits: 0, minimumFractionDigits: 0
+          )?.string,
+          "$1,000"
+        )
+        XCTAssertEqual(
+          Format.attributedCurrency(
+            1_000, country: .us, omitCurrencyCode: false, maximumFractionDigits: 0, minimumFractionDigits: 0
+          )?.string,
+          " US$ 1,000"
         )
       }
     }
@@ -137,6 +152,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "DKK 1,000")
         XCTAssertEqual(Format.currency(1_000, country: .de), "€1,000")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "¥1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "zł 1,000")
 
         XCTAssertEqual(Format.currency(1_000, country: .ca, omitCurrencyCode: true), "CA$ 1,000")
         XCTAssertEqual(Format.currency(1_000, country: .ca, omitCurrencyCode: false), "CA$ 1,000")
@@ -151,6 +169,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "DKK 1,000")
         XCTAssertEqual(Format.currency(1_000, country: .de), "€1,000")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "¥1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "zł 1,000")
 
         XCTAssertEqual(Format.currency(1_000, country: .us, omitCurrencyCode: true), "US$ 1,000")
         XCTAssertEqual(Format.currency(1_000, country: .us, omitCurrencyCode: false), "US$ 1,000")
@@ -163,6 +184,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "DKK 1,000")
         XCTAssertEqual(Format.currency(1_000, country: .de), "€1,000")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "¥1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "€1,000")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "zł 1,000")
       }
     }
 
@@ -174,6 +198,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1000 zł")
       }
 
       withEnvironment(countryCode: "CA") {
@@ -183,6 +210,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1000 zł")
       }
 
       withEnvironment(countryCode: "GB") {
@@ -192,6 +222,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1000 zł")
       }
     }
 
@@ -203,6 +236,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1 000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1 000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1 000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1 000 zł")
       }
 
       withEnvironment(countryCode: "CA") {
@@ -212,6 +248,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1 000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1 000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1 000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1 000 zł")
       }
 
       withEnvironment(countryCode: "GB") {
@@ -221,6 +260,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1 000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1 000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1 000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1 000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1 000 zł")
       }
     }
 
@@ -232,6 +274,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
 
       withEnvironment(countryCode: "CA") {
@@ -241,6 +286,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
 
       withEnvironment(countryCode: "GB") {
@@ -250,6 +298,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
     }
 
@@ -261,6 +312,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "DKK 1000")
         XCTAssertEqual(Format.currency(1_000, country: .de), "€ 1000")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "¥ 1000")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "€ 1000")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "€ 1000")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "zł 1000")
       }
     }
 
@@ -272,6 +326,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
 
       withEnvironment(countryCode: "CA") {
@@ -281,6 +338,9 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
 
       withEnvironment(countryCode: "GB") {
@@ -290,7 +350,117 @@ final class FormatTests: TestCase {
         XCTAssertEqual(Format.currency(1_000, country: .dk), "1.000 DKK")
         XCTAssertEqual(Format.currency(1_000, country: .de), "1.000 €")
         XCTAssertEqual(Format.currency(1_000, country: .jp), "1.000 ¥")
+        XCTAssertEqual(Format.currency(1_000, country: .gr), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .si), "1.000 €")
+        XCTAssertEqual(Format.currency(1_000, country: .pl), "1.000 zł")
       }
+    }
+  }
+
+  func testCurrencyMoneyFragment_USD() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragment), "$1,000.00")
+    }
+  }
+
+  func testCurrencyMoneyFragment_USDCents() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.33", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragment), "$1,000.33")
+    }
+  }
+
+  func testCurrencyMoneyFragment_USD_MoreThanTwoDecimals() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.987", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragment), "$1,000.99", "Should round to 2 decimal places")
+
+      let fragmentRoundDown = GraphAPI.MoneyFragment(amount: "1000.994", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragmentRoundDown), "$1,000.99", "Should round down")
+
+      let fragmentRoundUp = GraphAPI.MoneyFragment(amount: "1000.995", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragmentRoundUp), "$1,001.00", "Should round up")
+    }
+  }
+
+  func testCurrencyMoneyFragment_EUR() {
+    withEnvironment(locale: Locale(identifier: "de_DE")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: .eur, symbol: "€")
+      XCTAssertEqual(Format.currency(fragment), "1.000,00 €")
+    }
+  }
+
+  func testCurrencyMoneyFragment_EUREurocents() {
+    withEnvironment(locale: Locale(identifier: "de_DE")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.33", currency: .eur, symbol: "€")
+      XCTAssertEqual(Format.currency(fragment), "1.000,33 €")
+    }
+  }
+
+  func testCurrencyMoneyFragment_EuroInUS() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: .eur, symbol: "€")
+      XCTAssertEqual(Format.currency(fragment), "€1,000.00")
+    }
+  }
+
+  func testCurrencyMoneyFragment_GBP() {
+    withEnvironment(locale: Locale(identifier: "en_GB")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: .gbp, symbol: "£")
+      XCTAssertEqual(Format.currency(fragment), "£1,000.00")
+    }
+  }
+
+  func testCurrencyMoneyFragment_GBPPence() {
+    withEnvironment(locale: Locale(identifier: "en_GB")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.33", currency: .gbp, symbol: "£")
+      XCTAssertEqual(Format.currency(fragment), "£1,000.33")
+    }
+  }
+
+  func testCurrencyMoneyFragment_JPY() {
+    withEnvironment(locale: Locale(identifier: "ja_JP")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: .jpy, symbol: "¥")
+      XCTAssertEqual(Format.currency(fragment), "¥1,000")
+    }
+  }
+
+  func testCurrencyMoneyFragment_JPY_MoreThanTwoDecimals() {
+    withEnvironment(locale: Locale(identifier: "ja_JP")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "1000.987", currency: .jpy, symbol: "¥")
+      XCTAssertEqual(Format.currency(fragment), "¥1,001", "JPY should round to whole numbers")
+
+      let fragmentRoundDown = GraphAPI.MoneyFragment(amount: "1000.499", currency: .jpy, symbol: "¥")
+      XCTAssertEqual(Format.currency(fragmentRoundDown), "¥1,000", "Should round down")
+
+      // for some reason the exact value of 1000.5 rounds down and not up
+      let fragmentRoundUp = GraphAPI.MoneyFragment(amount: "1000.501", currency: .jpy, symbol: "¥")
+      XCTAssertEqual(Format.currency(fragmentRoundUp), "¥1,001", "Should round up")
+    }
+  }
+
+  func testCurrencyMoneyFragment_InvalidAmount() {
+    let fragment = GraphAPI.MoneyFragment(amount: "invalid", currency: .usd, symbol: "$")
+    XCTAssertNil(Format.currency(fragment))
+  }
+
+  func testCurrencyMoneyFragment_MissingSymbol() {
+    let fragment = GraphAPI.MoneyFragment(amount: "1000.00", currency: nil, symbol: nil)
+    XCTAssertNil(Format.currency(fragment))
+  }
+
+  func testCurrencyMoneyFragment_SmallAmount() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "10.50", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragment), "$10.50")
+    }
+  }
+
+  func testCurrencyMoneyFragment_ZeroAmount() {
+    withEnvironment(locale: Locale(identifier: "en_US")) {
+      let fragment = GraphAPI.MoneyFragment(amount: "0.00", currency: .usd, symbol: "$")
+      XCTAssertEqual(Format.currency(fragment), "$0.00")
     }
   }
 
@@ -340,11 +510,11 @@ final class FormatTests: TestCase {
 
     withEnvironment(locale: Locale(identifier: "en")) {
       withEnvironment(calendar: calUTC) {
-        XCTAssertEqual(Format.date(secondsInUTC: date), "Oct 10, 1983 at 12:00:00 AM")
+        XCTAssertEqual(Format.date(secondsInUTC: date), "Oct 10, 1983 at 12:00:00 AM")
       }
 
       withEnvironment(calendar: calEST) {
-        XCTAssertEqual(Format.date(secondsInUTC: date), "Oct 9, 1983 at 8:00:00 PM")
+        XCTAssertEqual(Format.date(secondsInUTC: date), "Oct 9, 1983 at 8:00:00 PM")
       }
     }
 
@@ -359,10 +529,10 @@ final class FormatTests: TestCase {
 
     withEnvironment(locale: Locale(identifier: "es")) {
       withEnvironment(calendar: calUTC) {
-        XCTAssertEqual(Format.date(secondsInUTC: date), "10 oct 1983 0:00:00")
+        XCTAssertEqual(Format.date(secondsInUTC: date), "10 oct 1983, 0:00:00")
       }
       withEnvironment(calendar: calEST) {
-        XCTAssertEqual(Format.date(secondsInUTC: date), "9 oct 1983 20:00:00")
+        XCTAssertEqual(Format.date(secondsInUTC: date), "9 oct 1983, 20:00:00")
       }
     }
 
@@ -476,6 +646,12 @@ final class FormatTests: TestCase {
     withEnvironment {
       let date = Format.date(from: dateString, dateFormat: format, timeZone: PST)
       XCTAssertEqual(date?.description, "2018-01-01 08:00:00 +0000")
+    }
+
+    // Test different format
+    withEnvironment(calendar: calEST) {
+      let date = Format.date(from: "2018-01-14", dateFormat: "yyyy-MM-dd")
+      XCTAssertEqual(date?.description, "2018-01-14 05:00:00 +0000")
     }
   }
 

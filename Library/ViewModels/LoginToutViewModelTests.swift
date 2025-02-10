@@ -1,4 +1,3 @@
-@testable import FBSDKCoreKit
 @testable import FBSDKLoginKit
 @testable import KsApi
 @testable import Library
@@ -11,7 +10,6 @@ import XCTest
 final class LoginToutViewModelTests: TestCase {
   fileprivate var vm: LoginToutViewModelType!
 
-  fileprivate let appleButtonHidden = TestObserver<Bool, Never>()
   fileprivate let attemptAppleLogin = TestObserver<(), Never>()
   fileprivate let attemptFacebookLogin = TestObserver<(), Never>()
   fileprivate let didSignInWithApple = TestObserver<SignInWithAppleEnvelope, Never>()
@@ -19,13 +17,13 @@ final class LoginToutViewModelTests: TestCase {
   fileprivate let headlineLabelHidden = TestObserver<Bool, Never>()
   fileprivate let isLoading = TestObserver<Bool, Never>()
   fileprivate let logInContextText = TestObserver<String, Never>()
-  fileprivate let logIntoEnvironment = TestObserver<AccessTokenEnvelope, Never>()
+  fileprivate let logIntoEnvironmentWithApple = TestObserver<AccessTokenEnvelope, Never>()
+  fileprivate let logIntoEnvironmentWithFacebook = TestObserver<AccessTokenEnvelope, Never>()
   fileprivate let postNotification = TestObserver<(Notification.Name, Notification.Name), Never>()
   fileprivate let showAppleErrorAlert = TestObserver<String, Never>()
   fileprivate let showFacebookErrorAlert = TestObserver<AlertError, Never>()
   fileprivate let startFacebookConfirmation = TestObserver<String, Never>()
-  fileprivate let startLogin = TestObserver<(), Never>()
-  fileprivate let startSignup = TestObserver<(), Never>()
+  fileprivate let startOAuthSignupOrLogin = TestObserver<(), Never>()
   fileprivate let startTwoFactorChallenge = TestObserver<String, Never>()
 
   override func setUp() {
@@ -33,141 +31,55 @@ final class LoginToutViewModelTests: TestCase {
 
     self.vm = LoginToutViewModel()
 
-    self.vm.outputs.appleButtonHidden.observe(self.appleButtonHidden.observer)
     self.vm.outputs.attemptAppleLogin.observe(self.attemptAppleLogin.observer)
     self.vm.outputs.attemptFacebookLogin.observe(self.attemptFacebookLogin.observer)
     self.vm.outputs.dismissViewController.observe(self.dismissViewController.observer)
     self.vm.outputs.headlineLabelHidden.observe(self.headlineLabelHidden.observer)
     self.vm.outputs.isLoading.observe(self.isLoading.observer)
     self.vm.outputs.logInContextText.observe(self.logInContextText.observer)
-    self.vm.outputs.logIntoEnvironment.observe(self.logIntoEnvironment.observer)
+    self.vm.outputs.logIntoEnvironmentWithApple.observe(self.logIntoEnvironmentWithApple.observer)
+    self.vm.outputs.logIntoEnvironmentWithFacebook.observe(self.logIntoEnvironmentWithFacebook.observer)
     self.vm.outputs.postNotification.map { ($0.0.name, $0.1.name) }.observe(self.postNotification.observer)
     self.vm.outputs.showAppleErrorAlert.observe(self.showAppleErrorAlert.observer)
     self.vm.outputs.showFacebookErrorAlert.observe(self.showFacebookErrorAlert.observer)
     self.vm.outputs.startFacebookConfirmation.map { _, token in token }
       .observe(self.startFacebookConfirmation.observer)
-    self.vm.outputs.startLogin.observe(self.startLogin.observer)
-    self.vm.outputs.startSignup.observe(self.startSignup.observer)
+    self.vm.outputs.startOAuthSignupOrLogin.observe(self.startOAuthSignupOrLogin.observer)
     self.vm.outputs.startTwoFactorChallenge.observe(self.startTwoFactorChallenge.observer)
   }
 
-  func testLoginIntentTracking_Default() {
-    self.vm.inputs.configureWith(.loginTab, project: nil, reward: nil)
-
-    XCTAssertEqual([], trackingClient.events, "Login tout did not track")
-
-    self.vm.inputs.viewWillAppear()
-
-    XCTAssertEqual(["Log In or Signup Page Viewed"], trackingClient.events)
-    XCTAssertEqual("login_tab", trackingClient.properties.last?["login_intent"] as? String)
-  }
-
   func testLoginIntent_Pledge() {
-    let reward = Reward.template
-      |> Reward.lens.id .~ 10
-    let project = Project.template
-      |> Project.lens.id .~ 2
-
-    self.vm.inputs.configureWith(.backProject, project: project, reward: reward)
+    self.vm.inputs.configureWith(.backProject)
     self.vm.inputs.viewWillAppear()
 
-    XCTAssertEqual(["Log In or Signup Page Viewed"], self.trackingClient.events)
-    XCTAssertEqual(["pledge"], self.trackingClient.properties(forKey: "login_intent"))
-    XCTAssertEqual(
-      [2], self.trackingClient.properties(forKey: "project_pid", as: Int.self),
-      "Tracking properties contain project properties"
-    )
-    XCTAssertEqual(
-      [10], self.trackingClient.properties(forKey: "pledge_backer_reward_id", as: Int.self),
-      "Tracking properties contain pledge properties"
+    self.logInContextText.assertValues(
+      ["Please log in or sign up to back this project."],
+      "Emits login Context Text"
     )
   }
 
-  func testKoala_whenLoginIntentBeforeViewAppears() {
-    self.vm.inputs.configureWith(.activity, project: nil, reward: nil)
+  func testStartSignupOrLoginWithOAuth() {
     self.vm.inputs.viewWillAppear()
-
-    XCTAssertEqual(["Log In or Signup Page Viewed"], trackingClient.events)
-    XCTAssertEqual("activity", trackingClient.properties.last!["login_intent"] as? String)
-
-    self.vm.inputs.viewWillAppear()
-
-    XCTAssertEqual(
-      ["Log In or Signup Page Viewed"],
-      trackingClient.events,
-      "Only tracks the first time the view appears"
-    )
-    XCTAssertEqual("activity", trackingClient.properties.last!["login_intent"] as? String)
-  }
-
-  func testStartLogin() {
-    self.vm.inputs.configureWith(.activity, project: nil, reward: nil)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.loginButtonPressed()
-
-    self.startLogin.assertValueCount(1, "Start login emitted")
-
-    XCTAssertEqual(["Log In or Signup Page Viewed", "Log In Button Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "activity"], self.trackingClient.properties(forKey: "login_intent"))
-    XCTAssertEqual([nil, nil], self.trackingClient.properties(forKey: "project_pid"))
-    XCTAssertEqual([nil, nil], self.trackingClient.properties(forKey: "pledge_backer_reward_id"))
-  }
-
-  func testStartLogin_PledgeIntent() {
-    self.vm.inputs.configureWith(.backProject, project: .template, reward: .template)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.loginButtonPressed()
-
-    self.startLogin.assertValueCount(1)
-
-    XCTAssertEqual(["Log In or Signup Page Viewed", "Log In Button Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["pledge", "pledge"], self.trackingClient.properties(forKey: "login_intent"))
-    XCTAssertEqual([1, 1], self.trackingClient.properties(forKey: "project_pid", as: Int.self))
-    XCTAssertEqual([1, 1], self.trackingClient.properties(forKey: "pledge_backer_reward_id", as: Int.self))
-  }
-
-  func testStartSignup() {
-    self.vm.inputs.configureWith(.activity, project: nil, reward: nil)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.signupButtonPressed()
-
-    self.startSignup.assertValueCount(1, "Start sign up emitted")
-
-    XCTAssertEqual(["Log In or Signup Page Viewed", "Signup Button Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "activity"], self.trackingClient.properties(forKey: "login_intent"))
-    XCTAssertEqual([nil, nil], self.trackingClient.properties(forKey: "project_pid"))
-    XCTAssertEqual([nil, nil], self.trackingClient.properties(forKey: "pledge_backer_reward_id"))
-  }
-
-  func testStartSignup_PledgeIntent() {
-    self.vm.inputs.configureWith(.backProject, project: .template, reward: .template)
-    self.vm.inputs.viewWillAppear()
-    self.vm.inputs.signupButtonPressed()
-
-    self.startSignup.assertValueCount(1)
-
-    XCTAssertEqual(["Log In or Signup Page Viewed", "Signup Button Clicked"], self.trackingClient.events)
-    XCTAssertEqual(["pledge", "pledge"], self.trackingClient.properties(forKey: "login_intent"))
-    XCTAssertEqual([1, 1], self.trackingClient.properties(forKey: "project_pid", as: Int.self))
-    XCTAssertEqual([1, 1], self.trackingClient.properties(forKey: "pledge_backer_reward_id", as: Int.self))
+    self.vm.inputs.signupOrLoginWithOAuthButtonPressed()
+    self.startOAuthSignupOrLogin.assertValueCount(1, "OAuth signup/loginlogin emitted")
   }
 
   func testHeadlineLabelHidden() {
-    self.vm.inputs.configureWith(.starProject, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.starProject)
     self.vm.inputs.viewWillAppear()
 
     self.headlineLabelHidden.assertValues([true])
   }
 
   func testHeadlineLabelShown() {
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.headlineLabelHidden.assertValues([false])
   }
 
   func testLoginContextText() {
-    self.vm.inputs.configureWith(.starProject, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.starProject)
     self.vm.inputs.viewWillAppear()
 
     self.logInContextText.assertValues(
@@ -176,7 +88,7 @@ final class LoginToutViewModelTests: TestCase {
     )
   }
 
-  func testFacebookLoginFlow_Success() {
+  func testFacebookLoginFlow_Succes() {
     let token = AccessToken(
       tokenString: "12344566",
       permissions: [],
@@ -191,52 +103,48 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
     )
 
-    vm.inputs.configureWith(.generic, project: nil, reward: nil)
-    self.vm.inputs.viewWillAppear()
+    withEnvironment {
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-    self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login did not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login did not emit")
 
-    self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginButtonPressed()
 
-    self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
 
-    self.vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
-    self.isLoading.assertValues([true])
+      self.isLoading.assertValues([true])
 
-    // Wait enough time for API request to be made.
-    scheduler.advance()
+      // Wait enough time for API request to be made.
+      scheduler.advance()
 
-    self.isLoading.assertValues([true, false])
-    self.logIntoEnvironment.assertValueCount(1, "Log into environment.")
-    XCTAssertEqual(
-      [
-        "Log In or Signup Page Viewed",
-        "Facebook Log In or Signup Button Clicked"
-      ],
-      trackingClient.events
-    )
+      self.isLoading.assertValues([true, false])
+      self.logIntoEnvironmentWithFacebook.assertValueCount(1, "Log into environment.")
 
-    self.vm.inputs.environmentLoggedIn()
+      self.vm.inputs.environmentLoggedIn()
 
-    self.postNotification.assertDidNotEmitValue()
+      self.postNotification.assertDidNotEmitValue()
 
-    self.scheduler.advance()
+      self.scheduler.advance()
 
-    // Notifications are posted on the next run loop
-    XCTAssertEqual(self.postNotification.values.first?.0, .ksr_sessionStarted, "Login notification posted.")
-    XCTAssertEqual(
-      self.postNotification.values.first?.1, .ksr_showNotificationsDialog,
-      "Contextual Dialog notification posted."
-    )
+      // Notifications are posted on the next run loop
+      XCTAssertEqual(self.postNotification.values.first?.0, .ksr_sessionStarted, "Login notification posted.")
+      XCTAssertEqual(
+        self.postNotification.values.first?.1, .ksr_showNotificationsDialog,
+        "Contextual Dialog notification posted."
+      )
 
-    self.showFacebookErrorAlert.assertValueCount(0, "Facebook login error did not emit")
-    self.startFacebookConfirmation.assertValueCount(0, "Facebook confirmation did not emit")
+      self.showFacebookErrorAlert.assertValueCount(0, "Facebook login error did not emit")
+      self.startFacebookConfirmation.assertValueCount(0, "Facebook confirmation did not emit")
+    }
   }
 
   func testLoginFacebookFlow_AttemptFail() {
@@ -249,7 +157,7 @@ final class LoginToutViewModelTests: TestCase {
       ]
     )
 
-    vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login did not emit")
@@ -267,13 +175,6 @@ final class LoginToutViewModelTests: TestCase {
     self.showFacebookErrorAlert.assertValues(
       [AlertError.facebookLoginAttemptFail(error: error)],
       "Show Facebook Attempt Login error"
-    )
-    XCTAssertEqual(
-      [
-        "Log In or Signup Page Viewed",
-        "Facebook Log In or Signup Button Clicked"
-      ],
-      trackingClient.events
     )
   }
 
@@ -284,7 +185,7 @@ final class LoginToutViewModelTests: TestCase {
       userInfo: [:]
     )
 
-    vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login did not emit")
@@ -302,13 +203,6 @@ final class LoginToutViewModelTests: TestCase {
     self.showFacebookErrorAlert.assertValues(
       [AlertError.facebookLoginAttemptFail(error: error)],
       "Show Facebook Attempt Login error"
-    )
-    XCTAssertEqual(
-      [
-        "Log In or Signup Page Viewed",
-        "Facebook Log In or Signup Button Clicked"
-      ],
-      trackingClient.events
     )
   }
 
@@ -327,6 +221,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -340,26 +235,22 @@ final class LoginToutViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(loginError: error)) {
-      vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      vm.inputs.viewWillAppear()
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-      showFacebookErrorAlert.assertValueCount(0, "Facebook login fail does not emit")
+      self.showFacebookErrorAlert.assertValueCount(0, "Facebook login fail does not emit")
 
-      vm.inputs.facebookLoginButtonPressed()
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       scheduler.advance()
 
       self.isLoading.assertValues([true, false])
-      showFacebookErrorAlert.assertValues([AlertError.facebookTokenFail], "Show Facebook token fail error")
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
+      self.showFacebookErrorAlert.assertValues(
+        [AlertError.facebookTokenFail],
+        "Show Facebook token fail error"
       )
     }
   }
@@ -379,6 +270,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -392,27 +284,20 @@ final class LoginToutViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(loginError: error)) {
-      vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      vm.inputs.viewWillAppear()
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-      vm.inputs.facebookLoginButtonPressed()
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       scheduler.advance()
 
       self.isLoading.assertValues([true, false])
-      showFacebookErrorAlert.assertValues(
+      self.showFacebookErrorAlert.assertValues(
         [AlertError.genericFacebookError(envelope: error)],
         "Show Facebook account taken error"
-      )
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
       )
     }
   }
@@ -432,6 +317,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -445,27 +331,20 @@ final class LoginToutViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(loginError: error)) {
-      vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      vm.inputs.viewWillAppear()
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-      vm.inputs.facebookLoginButtonPressed()
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
       scheduler.advance()
 
       self.isLoading.assertValues([true, false])
-      showFacebookErrorAlert.assertValues(
+      self.showFacebookErrorAlert.assertValues(
         [AlertError.genericFacebookError(envelope: error)],
         "Show Facebook account taken error"
-      )
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
       )
     }
   }
@@ -485,6 +364,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -498,13 +378,13 @@ final class LoginToutViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(loginError: error)) {
-      vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      vm.inputs.viewWillAppear()
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-      vm.inputs.facebookLoginButtonPressed()
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
-      startTwoFactorChallenge.assertDidNotEmitValue()
+      self.startTwoFactorChallenge.assertDidNotEmitValue()
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
@@ -512,16 +392,10 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true, false])
       self.startTwoFactorChallenge.assertValues(["12344566"], "TFA challenge emitted with token")
-      self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
+      self.logIntoEnvironmentWithApple.assertValueCount(0, "Did not log into environment.")
+      self.logIntoEnvironmentWithFacebook.assertValueCount(0, "Did not log into environment.")
       self.showFacebookErrorAlert.assertValueCount(0, "Facebook login fail does not emit")
       self.startFacebookConfirmation.assertValueCount(0, "Facebook confirmation did not emit")
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
-      )
     }
   }
 
@@ -540,6 +414,7 @@ final class LoginToutViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -553,11 +428,11 @@ final class LoginToutViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(loginError: error)) {
-      vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      vm.inputs.viewWillAppear()
+      self.vm.inputs.configureWith(.generic)
+      self.vm.inputs.viewWillAppear()
 
-      vm.inputs.facebookLoginButtonPressed()
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginButtonPressed()
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.isLoading.assertValues([true])
       // Wait enough time for API request to be made.
@@ -568,15 +443,8 @@ final class LoginToutViewModelTests: TestCase {
         ["12344566"],
         "Start Facebook confirmation emitted with token"
       )
-      self.logIntoEnvironment.assertValueCount(0, "Did not log into environment.")
+      self.logIntoEnvironmentWithFacebook.assertValueCount(0, "Did not log into environment.")
       self.showFacebookErrorAlert.assertValueCount(0, "Facebook login fail does not emit")
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
-      )
 
       self.vm.inputs.viewWillAppear()
 
@@ -589,24 +457,15 @@ final class LoginToutViewModelTests: TestCase {
       scheduler.advance()
 
       self.isLoading.assertValues([true, false, true, false])
-      startFacebookConfirmation.assertValues(
+      self.startFacebookConfirmation.assertValues(
         ["12344566", "12344566"],
         "Start Facebook confirmation emitted with token"
-      )
-
-      XCTAssertEqual(
-        [
-          "Log In or Signup Page Viewed",
-          "Facebook Log In or Signup Button Clicked",
-          "Facebook Log In or Signup Button Clicked"
-        ],
-        trackingClient.events
       )
     }
   }
 
   func testDismissalWhenNotPresented() {
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.view(isPresented: false)
     self.vm.inputs.userSessionStarted()
@@ -615,7 +474,7 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   func testDismissalWhenPresented() {
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
     self.vm.inputs.view(isPresented: true)
     self.vm.inputs.userSessionStarted()
@@ -624,7 +483,7 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   func testShowAppleErrorAlert_DoesNotEmitWhen_CancellingSignInWithAppleModal() {
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.vm.inputs.appleAuthorizationDidFail(with: .canceled)
@@ -637,7 +496,7 @@ final class LoginToutViewModelTests: TestCase {
       domain: "notonlinesorry", code: -1_234, userInfo: [NSLocalizedDescriptionKey: "Not online sorry"]
     )
 
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.vm.inputs.appleAuthorizationDidFail(with: .other(error))
@@ -646,8 +505,8 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   func testShowAppleErrorAlert_SignInWithAppleMutationError() {
-    withEnvironment(apiService: MockService(signInWithAppleResult: .failure(.invalidInput))) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    withEnvironment(apiService: MockService(signInWithAppleResult: .failure(.couldNotParseJSON))) {
+      self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
       let data = SignInWithAppleData(
@@ -671,8 +530,14 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   func testShowAppleErrorAlert_FetchUserEventError() {
-    withEnvironment(apiService: MockService(fetchUserError: .couldNotParseJSON)) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    let envelope = SignInWithAppleEnvelope.template
+      |> \.signInWithApple.apiAccessToken .~ "some_token"
+
+    withEnvironment(apiService: MockService(
+      fetchUserResult: .failure(.couldNotParseJSON),
+      signInWithAppleResult: .success(envelope)
+    )) {
+      self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
       let data = SignInWithAppleData(
@@ -692,7 +557,7 @@ final class LoginToutViewModelTests: TestCase {
 
       self.isLoading.assertValues([true, false])
       self.showAppleErrorAlert.assertValue(
-        "The operation couldn’t be completed. (KsApi.ErrorEnvelope error 1.)"
+        "Something went wrong."
       )
     }
   }
@@ -703,10 +568,10 @@ final class LoginToutViewModelTests: TestCase {
     let envelope = SignInWithAppleEnvelope.template
       |> \.signInWithApple.apiAccessToken .~ "some_token"
 
-    let service = MockService(fetchUserResponse: user, signInWithAppleResult: .success(envelope))
+    let service = MockService(fetchUserResult: .success(user), signInWithAppleResult: .success(envelope))
 
     withEnvironment(apiService: service) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+      self.vm.inputs.configureWith(.generic)
       self.vm.inputs.viewWillAppear()
 
       let data = SignInWithAppleData(
@@ -717,7 +582,7 @@ final class LoginToutViewModelTests: TestCase {
       )
 
       self.isLoading.assertDidNotEmitValue()
-      self.logIntoEnvironment.assertDidNotEmitValue()
+      self.logIntoEnvironmentWithApple.assertDidNotEmitValue()
 
       self.vm.inputs.appleAuthorizationDidSucceed(with: data)
 
@@ -725,9 +590,9 @@ final class LoginToutViewModelTests: TestCase {
       self.scheduler.run()
 
       self.isLoading.assertValues([true, false])
-      self.logIntoEnvironment.assertValueCount(1)
+      self.logIntoEnvironmentWithApple.assertValueCount(1)
 
-      let value = self.logIntoEnvironment.values.first
+      let value = self.logIntoEnvironmentWithApple.values.first
 
       XCTAssertEqual(user, value?.user)
       XCTAssertEqual("some_token", value?.accessToken)
@@ -735,66 +600,13 @@ final class LoginToutViewModelTests: TestCase {
   }
 
   func testAttemptAppleLogin_Tracking() {
-    self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
+    self.vm.inputs.configureWith(.generic)
     self.vm.inputs.viewWillAppear()
 
     self.attemptAppleLogin.assertDidNotEmitValue()
 
     self.vm.inputs.appleLoginButtonPressed()
 
-    XCTAssertEqual(
-      [
-        "Log In or Signup Page Viewed",
-        "Continue With Apple Button Clicked"
-      ],
-      trackingClient.events
-    )
     self.attemptAppleLogin.assertValueCount(1)
-  }
-
-  func testAppleButtonHidden_FeatureEnabled() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [
-        OptimizelyFeature.Key.signInWithAppleKillswitch.rawValue: true
-      ]
-
-    self.appleButtonHidden.assertDidNotEmitValue()
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      self.vm.inputs.viewWillAppear()
-
-      self.appleButtonHidden.assertValues([true])
-    }
-  }
-
-  func testAppleButtonHidden_FeatureDisabled() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [
-        OptimizelyFeature.Key.signInWithAppleKillswitch.rawValue: false
-      ]
-
-    self.appleButtonHidden.assertDidNotEmitValue()
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      self.vm.inputs.viewWillAppear()
-
-      self.appleButtonHidden.assertValues([false])
-    }
-  }
-
-  func testAppleButtonHidden_FeatureMissing() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [:]
-
-    self.appleButtonHidden.assertDidNotEmitValue()
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(.generic, project: nil, reward: nil)
-      self.vm.inputs.viewWillAppear()
-
-      self.appleButtonHidden.assertValues([false])
-    }
   }
 }

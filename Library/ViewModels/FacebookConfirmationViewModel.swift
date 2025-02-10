@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import ReactiveExtensions
 import ReactiveSwift
@@ -17,6 +18,8 @@ public protocol FacebookConfirmationViewModelInputs {
   func loginButtonPressed()
   /// Call when the environment has been logged into
   func environmentLoggedIn()
+  /// Call when link tapped on disclaimer textView
+  func tapped(_ url: URL)
 }
 
 public protocol FacebookConfirmationViewModelOutputs {
@@ -32,6 +35,8 @@ public protocol FacebookConfirmationViewModelOutputs {
   var showLogin: Signal<(), Never> { get }
   /// Emits whether a request is loading or not
   var isLoading: Signal<Bool, Never> { get }
+  /// Emits when a help link from a disclaimer should be opened.
+  var notifyDelegateOpenHelpType: Signal<HelpType, Never> { get }
 }
 
 public protocol FacebookConfirmationViewModelErrors {
@@ -90,6 +95,11 @@ public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelT
     self.environmentLoggedInProperty.value = ()
   }
 
+  private let tappedUrlProperty = MutableProperty<URL?>(nil)
+  public func tapped(_ url: URL) {
+    self.tappedUrlProperty.value = url
+  }
+
   // MARK: - FacebookConfirmationViewModelOutputs
 
   public let displayEmail: Signal<String, Never>
@@ -98,6 +108,7 @@ public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelT
   public let postNotification: Signal<Notification, Never>
   public let showLogin: Signal<(), Never>
   public let isLoading: Signal<Bool, Never>
+  public let notifyDelegateOpenHelpType: Signal<HelpType, Never>
 
   // MARK: - FacebookConfirmationViewModelErrors
 
@@ -144,11 +155,13 @@ public final class FacebookConfirmationViewModel: FacebookConfirmationViewModelT
 
     self.showLogin = self.loginButtonPressedProperty.signal
 
-    self.sendNewslettersToggledProperty.signal
-      .observeValues {
-        AppEnvironment.current.koala.trackChangeNewsletter(
-          newsletterType: .weekly, sendNewsletter: $0, project: nil, context: .facebookSignup
-        )
-      }
+    self.notifyDelegateOpenHelpType = self.tappedUrlProperty.signal.skipNil().map { url -> HelpType? in
+      HelpType.allCases.first(where: {
+        url.absoluteString == $0.url(
+          withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl
+        )?.absoluteString
+      })
+    }
+    .skipNil()
   }
 }

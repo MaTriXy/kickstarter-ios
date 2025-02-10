@@ -1,7 +1,7 @@
 public enum Newsletter: CaseIterable {
+  case promo
   case weekly
   case happening
-  case promo
   case games
   case invent
   case arts
@@ -13,23 +13,23 @@ public enum Newsletter: CaseIterable {
   public var displayableName: String {
     switch self {
     case .arts:
-      return Strings.profile_settings_newsletter_arts_news()
+      return Strings.Kickstarter_Arts()
     case .games:
-      return Strings.profile_settings_newsletter_games()
+      return Strings.Kickstarter_Games()
     case .happening:
       return Strings.profile_settings_newsletter_happening()
     case .invent:
-      return Strings.profile_settings_newsletter_invent()
+      return Strings.Kickstarter_Invent()
     case .promo:
-      return Strings.profile_settings_newsletter_news_event()
+      return Strings.Announcements()
     case .weekly:
       return Strings.profile_settings_newsletter_weekly()
     case .films:
-      return Strings.profile_settings_newsletter_film()
+      return Strings.Kickstarter_on_Film()
     case .publishing:
       return Strings.profile_settings_newsletter_publishing()
     case .alumni:
-      return Strings.profile_settings_newsletter_alumni()
+      return Strings.Working_on_it()
     case .music:
       return Strings.Kickstarter_Music()
     }
@@ -54,7 +54,7 @@ public enum Newsletter: CaseIterable {
     case .publishing:
       return Strings.Welcome_to_our_library_Peruse_the_stacks_with_us()
     case .alumni:
-      return Strings.profile_settings_newsletter_alumni_newsletter()
+      return Strings.A_monthly_pep_talk_to_boost_your_creative_practice_for_creators_of_all_types()
     case .music:
       return Strings.Its_like_the_radio_but_nothing_sucks_and_also_its_a_newsletter()
     }

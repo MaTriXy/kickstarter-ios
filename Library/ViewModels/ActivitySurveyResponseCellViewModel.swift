@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public protocol ActivitySurveyResponseCellViewModelInputs {
   /// Call to configure with survey response, number of surveys, and the cell's position in the survey stack.
@@ -55,11 +56,11 @@ public final class ActivitySurveyResponseCellViewModel: ActivitySurveyResponseCe
       return text.simpleHtmlAttributedString(
         base: [
           NSAttributedString.Key.font: UIFont.ksr_subhead(size: 14),
-          NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+          NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
         ],
         bold: [
           NSAttributedString.Key.font: UIFont.ksr_headline(size: 14),
-          NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+          NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
         ]
       )
         ?? NSAttributedString(string: "")

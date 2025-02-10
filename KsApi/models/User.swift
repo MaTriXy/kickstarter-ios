@@ -1,6 +1,4 @@
-import Argo
-import Curry
-import Runes
+
 
 public struct User {
   public var avatar: Avatar
@@ -8,10 +6,13 @@ public struct User {
   public var facebookConnected: Bool?
   public var id: Int
   public var isAdmin: Bool?
+  public var isEmailVerified: Bool?
   public var isFriend: Bool?
+  public var isBlocked: Bool
   public var location: Location?
   public var name: String
   public var needsFreshFacebookToken: Bool?
+  public var needsPassword: Bool?
   public var newsletters: NewsletterSubscriptions
   public var notifications: Notifications
   public var optedOutOfRecommendations: Bool?
@@ -67,6 +68,7 @@ public struct User {
     public var mobileComments: Bool?
     public var mobileFollower: Bool?
     public var mobileFriendActivity: Bool?
+    public var mobileMarketingUpdate: Bool?
     public var mobileMessages: Bool?
     public var mobilePostLikes: Bool?
     public var mobileUpdates: Bool?
@@ -77,6 +79,7 @@ public struct User {
   public struct Stats {
     public var backedProjectsCount: Int?
     public var createdProjectsCount: Int?
+    public var draftProjectsCount: Int?
     public var memberProjectsCount: Int?
     public var starredProjectsCount: Int?
     public var unansweredSurveysCount: Int?
@@ -107,28 +110,47 @@ extension User: CustomDebugStringConvertible {
   }
 }
 
-extension User: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<User> {
-    let tmp1 = pure(curry(User.init))
-      <*> json <| "avatar"
-      <*> json <|? "errored_backings_count"
-      <*> json <|? "facebook_connected"
-      <*> json <| "id"
-    let tmp2 = tmp1
-      <*> json <|? "is_admin"
-      <*> json <|? "is_friend"
-      <*> (json <|? "location" <|> .success(nil))
-    let tmp3 = tmp2
-      <*> json <| "name"
-      <*> json <|? "needs_fresh_facebook_token"
-      <*> User.NewsletterSubscriptions.decode(json)
-      <*> User.Notifications.decode(json)
-      <*> json <|? "opted_out_of_recommendations"
-    return tmp3
-      <*> json <|? "show_public_profile"
-      <*> json <|? "social"
-      <*> User.Stats.decode(json)
-      <*> json <|? "unseen_activity_count"
+extension User: Decodable {
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    self.avatar = try values.decode(Avatar.self, forKey: .avatar)
+    self.erroredBackingsCount = try values.decodeIfPresent(Int.self, forKey: .erroredBackingsCount)
+    self.facebookConnected = try values.decodeIfPresent(Bool.self, forKey: .facebookConnected)
+    self.id = try values.decode(Int.self, forKey: .id)
+    self.isAdmin = try values.decodeIfPresent(Bool.self, forKey: .isAdmin)
+    self.isEmailVerified = try values.decodeIfPresent(Bool.self, forKey: .isEmailVerified)
+    self.isFriend = try values.decodeIfPresent(Bool.self, forKey: .isFriend)
+    self.isBlocked = try values.decodeIfPresent(Bool.self, forKey: .isBlocked) ?? false
+    self.location = try? values.decodeIfPresent(Location.self, forKey: .location)
+    self.name = try values.decode(String.self, forKey: .name)
+    self.needsFreshFacebookToken = try values.decodeIfPresent(Bool.self, forKey: .needsFreshFacebookToken)
+    self.needsPassword = try values.decodeIfPresent(Bool.self, forKey: .needsPassword)
+    self.newsletters = try User.NewsletterSubscriptions(from: decoder)
+    self.notifications = try User.Notifications(from: decoder)
+    self.optedOutOfRecommendations = try values.decodeIfPresent(Bool.self, forKey: .optedOutOfRecommendations)
+    self.showPublicProfile = try values.decodeIfPresent(Bool.self, forKey: .showPublicProfile)
+    self.social = try values.decodeIfPresent(Bool.self, forKey: .social)
+    self.stats = try User.Stats(from: decoder)
+    self.unseenActivityCount = try values.decodeIfPresent(Int.self, forKey: .unseenActivityCount)
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case avatar
+    case erroredBackingsCount = "errored_backings_count"
+    case facebookConnected = "facebook_connected"
+    case id
+    case isAdmin = "is_admin"
+    case isEmailVerified = "is_email_verified"
+    case isFriend = "is_friend"
+    case isBlocked
+    case location
+    case name
+    case needsFreshFacebookToken = "needs_fresh_facebook_token"
+    case needsPassword = "needs_password"
+    case optedOutOfRecommendations = "opted_out_of_recommendations"
+    case showPublicProfile = "show_public_profile"
+    case social
+    case unseenActivityCount = "unseen_activity_count"
   }
 }
 
@@ -139,9 +161,12 @@ extension User: EncodableType {
     result["facebook_connected"] = self.facebookConnected ?? false
     result["id"] = self.id
     result["is_admin"] = self.isAdmin ?? false
+    result["is_email_verified"] = self.isEmailVerified ?? false
     result["is_friend"] = self.isFriend ?? false
+    result["isBlocked"] = self.isBlocked ?? false
     result["location"] = self.location?.encode()
     result["name"] = self.name
+    result["needs_password"] = self.needsPassword ?? false
     result["opted_out_of_recommendations"] = self.optedOutOfRecommendations ?? false
     result["social"] = self.social ?? false
     result["show_public_profile"] = self.showPublicProfile ?? false
@@ -153,12 +178,11 @@ extension User: EncodableType {
   }
 }
 
-extension User.Avatar: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<User.Avatar> {
-    return curry(User.Avatar.init)
-      <^> json <|? "large"
-      <*> json <| "medium"
-      <*> json <| "small"
+extension User.Avatar: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case large
+    case medium
+    case small
   }
 }
 
@@ -168,26 +192,23 @@ extension User.Avatar: EncodableType {
       "medium": self.medium,
       "small": self.small
     ]
-
     ret["large"] = self.large
-
     return ret
   }
 }
 
-extension User.NewsletterSubscriptions: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<User.NewsletterSubscriptions> {
-    return curry(User.NewsletterSubscriptions.init)
-      <^> json <|? "arts_culture_newsletter"
-      <*> json <|? "games_newsletter"
-      <*> json <|? "happening_newsletter"
-      <*> json <|? "invent_newsletter"
-      <*> json <|? "promo_newsletter"
-      <*> json <|? "weekly_newsletter"
-      <*> json <|? "film_newsletter"
-      <*> json <|? "publishing_newsletter"
-      <*> json <|? "alumni_newsletter"
-      <*> json <|? "music_newsletter"
+extension User.NewsletterSubscriptions: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case arts = "arts_culture_newsletter"
+    case games = "games_newsletter"
+    case happening = "happening_newsletter"
+    case invent = "invent_newsletter"
+    case promo = "promo_newsletter"
+    case weekly = "weekly_newsletter"
+    case films = "film_newsletter"
+    case publishing = "publishing_newsletter"
+    case alumni = "alumni_newsletter"
+    case music = "music_newsletter"
   }
 }
 
@@ -221,28 +242,26 @@ public func == (lhs: User.NewsletterSubscriptions, rhs: User.NewsletterSubscript
     lhs.alumni == rhs.alumni
 }
 
-extension User.Notifications: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<User.Notifications> {
-    let tmp1 = curry(User.Notifications.init)
-      <^> json <|? "notify_of_backings"
-      <*> json <|? "notify_of_comment_replies"
-      <*> json <|? "notify_of_comments"
-      <*> json <|? "notify_of_creator_digest"
-      <*> json <|? "notify_of_creator_edu"
-      <*> json <|? "notify_of_follower"
-      <*> json <|? "notify_of_friend_activity"
-      <*> json <|? "notify_of_messages"
-    let tmp2 = tmp1
-      <*> json <|? "notify_mobile_of_backings"
-      <*> json <|? "notify_mobile_of_comments"
-      <*> json <|? "notify_mobile_of_follower"
-      <*> json <|? "notify_mobile_of_friend_activity"
-      <*> json <|? "notify_mobile_of_messages"
-    return tmp2
-      <*> json <|? "notify_mobile_of_post_likes"
-      <*> json <|? "notify_mobile_of_updates"
-      <*> json <|? "notify_of_post_likes"
-      <*> json <|? "notify_of_updates"
+extension User.Notifications: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case backings = "notify_of_backings"
+    case commentReplies = "notify_of_comment_replies"
+    case comments = "notify_of_comments"
+    case creatorDigest = "notify_of_creator_digest"
+    case creatorTips = "notify_of_creator_edu"
+    case follower = "notify_of_follower"
+    case friendActivity = "notify_of_friend_activity"
+    case messages = "notify_of_messages"
+    case mobileBackings = "notify_mobile_of_backings"
+    case mobileComments = "notify_mobile_of_comments"
+    case mobileFriendActivity = "notify_mobile_of_friend_activity"
+    case mobileMarketingUpdate = "notify_mobile_of_marketing_update"
+    case mobileMessages = "notify_mobile_of_messages"
+    case mobileFollower = "notify_mobile_of_follower"
+    case mobilePostLikes = "notify_mobile_of_post_likes"
+    case mobileUpdates = "notify_mobile_of_updates"
+    case postLikes = "notify_of_post_likes"
+    case updates = "notify_of_updates"
   }
 }
 
@@ -260,6 +279,7 @@ extension User.Notifications: EncodableType {
     result["notify_mobile_of_comments"] = self.mobileComments
     result["notify_mobile_of_follower"] = self.mobileFollower
     result["notify_mobile_of_friend_activity"] = self.mobileFriendActivity
+    result["notify_mobile_of_marketing_update"] = self.mobileMarketingUpdate
     result["notify_mobile_of_messages"] = self.mobileMessages
     result["notify_mobile_of_post_likes"] = self.mobilePostLikes
     result["notify_mobile_of_updates"] = self.mobileUpdates
@@ -271,35 +291,16 @@ extension User.Notifications: EncodableType {
 }
 
 extension User.Notifications: Equatable {}
-public func == (lhs: User.Notifications, rhs: User.Notifications) -> Bool {
-  return lhs.backings == rhs.backings &&
-    lhs.commentReplies == rhs.commentReplies &&
-    lhs.comments == rhs.comments &&
-    lhs.creatorDigest == rhs.creatorDigest &&
-    lhs.creatorTips == rhs.creatorTips &&
-    lhs.follower == rhs.follower &&
-    lhs.friendActivity == rhs.friendActivity &&
-    lhs.messages == rhs.messages &&
-    lhs.mobileBackings == rhs.mobileBackings &&
-    lhs.mobileComments == rhs.mobileComments &&
-    lhs.mobileFollower == rhs.mobileFollower &&
-    lhs.mobileFriendActivity == rhs.mobileFriendActivity &&
-    lhs.mobileMessages == rhs.mobileMessages &&
-    lhs.mobilePostLikes == rhs.mobilePostLikes &&
-    lhs.mobileUpdates == rhs.mobileUpdates &&
-    lhs.postLikes == rhs.postLikes &&
-    lhs.updates == rhs.updates
-}
 
-extension User.Stats: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<User.Stats> {
-    return curry(User.Stats.init)
-      <^> json <|? "backed_projects_count"
-      <*> json <|? "created_projects_count"
-      <*> json <|? "member_projects_count"
-      <*> json <|? "starred_projects_count"
-      <*> json <|? "unanswered_surveys_count"
-      <*> json <|? "unread_messages_count"
+extension User.Stats: Decodable {
+  enum CodingKeys: String, CodingKey {
+    case backedProjectsCount = "backed_projects_count"
+    case createdProjectsCount = "created_projects_count"
+    case draftProjectsCount = "draft_projects_count"
+    case memberProjectsCount = "member_projects_count"
+    case starredProjectsCount = "starred_projects_count"
+    case unansweredSurveysCount = "unanswered_surveys_count"
+    case unreadMessagesCount = "unread_messages_count"
   }
 }
 
@@ -308,6 +309,7 @@ extension User.Stats: EncodableType {
     var result: [String: Any] = [:]
     result["backed_projects_count"] = self.backedProjectsCount
     result["created_projects_count"] = self.createdProjectsCount
+    result["draft_projects_count"] = self.draftProjectsCount
     result["member_projects_count"] = self.memberProjectsCount
     result["starred_projects_count"] = self.starredProjectsCount
     result["unanswered_surveys_count"] = self.unansweredSurveysCount

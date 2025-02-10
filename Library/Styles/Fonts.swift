@@ -7,9 +7,23 @@ extension UIFont {
       .map { UIFont(descriptor: $0, size: 0.0) } ?? self
   }
 
+  /// Returns a version of `self` with the desired weight.
+  public func weighted(_ weight: UIFont.Weight) -> UIFont {
+    let descriptor = self.fontDescriptor.addingAttributes([
+      .traits: [UIFontDescriptor.TraitKey.weight: weight]
+    ])
+    return UIFont(descriptor: descriptor, size: 0.0)
+  }
+
   /// Returns a italicized version of `self`.
   public var italicized: UIFont {
     return self.fontDescriptor.withSymbolicTraits(.traitItalic)
+      .map { UIFont(descriptor: $0, size: 0.0) } ?? self
+  }
+
+  /// Returns a bold and italized version of `self`
+  public var boldItalic: UIFont {
+    return self.fontDescriptor.withSymbolicTraits([.traitBold, .traitItalic])
       .map { UIFont(descriptor: $0, size: 0.0) } ?? self
   }
 
@@ -121,15 +135,10 @@ extension UIFont {
     default: defaultSize = 17
     }
 
-    let font: UIFont
-    if #available(iOS 13.0, *) {
-      font = UIFont.preferredFont(
-        forTextStyle: style,
-        compatibleWith: .current
-      )
-    } else {
-      font = UIFont.preferredFont(forTextStyle: style)
-    }
+    let font = UIFont.preferredFont(
+      forTextStyle: style,
+      compatibleWith: .current
+    )
     let descriptor = font.fontDescriptor
     return UIFont(
       descriptor: descriptor,

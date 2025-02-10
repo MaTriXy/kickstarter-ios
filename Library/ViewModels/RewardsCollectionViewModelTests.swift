@@ -11,16 +11,16 @@ final class RewardsCollectionViewModelTests: TestCase {
 
   private let configureRewardsCollectionViewFooterWithCount = TestObserver<Int, Never>()
   private let flashScrollIndicators = TestObserver<Void, Never>()
-  private let goToPledgeProject = TestObserver<Project, Never>()
-  private let goToPledgeRefTag = TestObserver<RefTag?, Never>()
-  private let goToPledgeReward = TestObserver<Reward, Never>()
-  private let goToPledgeContext = TestObserver<PledgeViewContext, Never>()
+  private let goToAddOnSelection = TestObserver<PledgeViewData, Never>()
+  private let goToPledge = TestObserver<PledgeViewData, Never>()
   private let navigationBarShadowImageHidden = TestObserver<Bool, Never>()
-  private let reloadDataWithValues = TestObserver<[(Project, Either<Reward, Backing>)], Never>()
+  private let reloadDataWithValues = TestObserver<[RewardCardViewData], Never>()
   private let reloadDataWithValuesProject = TestObserver<[Project], Never>()
-  private let reloadDataWithValuesRewardOrBacking = TestObserver<[Either<Reward, Backing>], Never>()
+  private let reloadDataWithValuesRewardOrBacking = TestObserver<[Reward], Never>()
   private let rewardsCollectionViewFooterIsHidden = TestObserver<Bool, Never>()
   private let scrollToBackedRewardIndexPath = TestObserver<IndexPath, Never>()
+  private let showEditRewardConfirmationPromptMessage = TestObserver<String, Never>()
+  private let showEditRewardConfirmationPromptTitle = TestObserver<String, Never>()
   private let title = TestObserver<String, Never>()
 
   override func setUp() {
@@ -29,10 +29,8 @@ final class RewardsCollectionViewModelTests: TestCase {
     self.vm.outputs.configureRewardsCollectionViewFooterWithCount
       .observe(self.configureRewardsCollectionViewFooterWithCount.observer)
     self.vm.outputs.flashScrollIndicators.observe(self.flashScrollIndicators.observer)
-    self.vm.outputs.goToPledge.map(first).map { $0.project }.observe(self.goToPledgeProject.observer)
-    self.vm.outputs.goToPledge.map(first).map { $0.reward }.observe(self.goToPledgeReward.observer)
-    self.vm.outputs.goToPledge.map(first).map { $0.refTag }.observe(self.goToPledgeRefTag.observer)
-    self.vm.outputs.goToPledge.map(second).observe(self.goToPledgeContext.observer)
+    self.vm.outputs.goToAddOnSelection.observe(self.goToAddOnSelection.observer)
+    self.vm.outputs.goToPledge.observe(self.goToPledge.observer)
     self.vm.outputs.navigationBarShadowImageHidden.observe(self.navigationBarShadowImageHidden.observer)
     self.vm.outputs.reloadDataWithValues.observe(self.reloadDataWithValues.observer)
     self.vm.outputs.reloadDataWithValues.map { $0.map { $0.0 } }
@@ -42,6 +40,10 @@ final class RewardsCollectionViewModelTests: TestCase {
     self.vm.outputs.rewardsCollectionViewFooterIsHidden
       .observe(self.rewardsCollectionViewFooterIsHidden.observer)
     self.vm.outputs.scrollToBackedRewardIndexPath.observe(self.scrollToBackedRewardIndexPath.observer)
+    self.vm.outputs.showEditRewardConfirmationPrompt.map(first)
+      .observe(self.showEditRewardConfirmationPromptTitle.observer)
+    self.vm.outputs.showEditRewardConfirmationPrompt.map(second)
+      .observe(self.showEditRewardConfirmationPromptMessage.observer)
     self.vm.outputs.title.observe(self.title.observer)
   }
 
@@ -62,73 +64,514 @@ final class RewardsCollectionViewModelTests: TestCase {
     XCTAssertTrue(value?.count == rewardsCount)
   }
 
-  func testGoToPledge() {
+  func testConfigureWithProject_NoLocalPickupRewards_ShowsAllRewards_Success() {
+    let project = Project.cosmicSurgery
+
     withEnvironment(config: .template) {
+      self.vm.inputs.configure(with: project, refTag: RefTag.category, context: .createPledge)
+
+      self.reloadDataWithValues.assertDidNotEmitValue()
+
+      self.vm.inputs.viewDidLoad()
+
+      self.reloadDataWithValues.assertDidEmitValue()
+
+      let displayableRewards = self.reloadDataWithValues.lastValue?.compactMap { $0.reward }
+
+      XCTAssertEqual(displayableRewards?.sorted(), project.rewards.sorted())
+    }
+  }
+
+  func testConfigureWithProject_LocalPickupRewards_ShowsAllRewards_Success() {
+    let rewards = Project.cosmicSurgery.rewards
+
+    let middleRewardId = rewards[2].id
+
+    let updatedLocalRewards = rewards.map { reward -> Reward in
+      if reward.id == middleRewardId {
+        let updatedReward = reward
+          |> Reward.lens.localPickup .~ .brooklyn
+          |> Reward.lens.shipping.preference .~ .local
+          |> Reward.lens.shipping.enabled .~ false
+
+        return updatedReward
+      }
+
+      return reward
+    }
+
+    let allNonLocalPickupRewards = updatedLocalRewards
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.rewardData.rewards .~ updatedLocalRewards
+
+    withEnvironment(config: .template) {
+      self.vm.inputs.configure(with: project, refTag: RefTag.category, context: .createPledge)
+
+      self.reloadDataWithValues.assertDidNotEmitValue()
+
+      self.vm.inputs.viewDidLoad()
+
+      self.reloadDataWithValues.assertDidEmitValue()
+
+      let displayableRewards = self.reloadDataWithValues.lastValue?.compactMap { $0.reward }
+
+      XCTAssertEqual(displayableRewards?.sorted(), allNonLocalPickupRewards.sorted())
+    }
+  }
+
+  func testConfigureWithProject_LocalPickupRewards_IncludesBackedLocalPickup_ShowsAllRewards_Success() {
+    let rewards = Project.cosmicSurgery.rewards.map { $0 |> Reward.lens.isAvailable .~ true }
+
+    let lastRewardId = rewards.last?.id ?? -1
+
+    let updatedLocalRewards = rewards.map { reward -> Reward in
+      if reward.id == lastRewardId {
+        let updatedReward = reward
+          |> Reward.lens.localPickup .~ .brooklyn
+          |> Reward.lens.shipping.preference .~ .local
+          |> Reward.lens.shipping.enabled .~ false
+
+        return updatedReward
+      }
+
+      return reward
+    }
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.rewardData.rewards .~ updatedLocalRewards
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ updatedLocalRewards.last
+          |> Backing.lens.rewardId .~ updatedLocalRewards.last?.id
+      )
+
+    withEnvironment(config: .template) {
+      self.vm.inputs.configure(with: project, refTag: RefTag.category, context: .createPledge)
+
+      self.reloadDataWithValues.assertDidNotEmitValue()
+
+      self.vm.inputs.viewDidLoad()
+
+      self.reloadDataWithValues.assertDidEmitValue()
+
+      let displayableRewards = self.reloadDataWithValues.lastValue?.compactMap { $0.reward }
+
+      XCTAssertEqual(displayableRewards, updatedLocalRewards)
+    }
+  }
+
+  func testConfigureWithProject_LocalPickupRewards_NonLocalPickupRewards_IncludingNonLocalBackedReward_ShowsAllRewards_Success(
+  ) {
+    let rewards = Project.cosmicSurgery.rewards.map { $0 |> Reward.lens.isAvailable .~ true }
+
+    let lastRewardId = rewards.last?.id ?? -1
+
+    let updatedLocalAndNonLocalRewards = rewards.map { reward -> Reward in
+      if reward.id == lastRewardId {
+        let updatedReward = reward
+          |> Reward.lens.localPickup .~ .brooklyn
+          |> Reward.lens.shipping.preference .~ .local
+          |> Reward.lens.shipping.enabled .~ false
+          |> Reward.lens.isAvailable .~ true
+
+        return updatedReward
+      }
+
+      return reward
+    }
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.rewardData.rewards .~ updatedLocalAndNonLocalRewards
+      |> Project.lens.personalization.backing .~ (
+        .template
+          |> Backing.lens.reward .~ updatedLocalAndNonLocalRewards.first
+          |> Backing.lens.rewardId .~ updatedLocalAndNonLocalRewards.first?.id
+      )
+
+    withEnvironment(config: .template) {
+      self.vm.inputs.configure(with: project, refTag: RefTag.category, context: .createPledge)
+
+      self.reloadDataWithValues.assertDidNotEmitValue()
+
+      self.vm.inputs.viewDidLoad()
+
+      self.reloadDataWithValues.assertDidEmitValue()
+
+      let displayableRewards = self.reloadDataWithValues.lastValue?.compactMap { $0.reward }
+
+      XCTAssertEqual(displayableRewards, updatedLocalAndNonLocalRewards)
+    }
+  }
+
+  func testGoToAddOnSelection_NotBacked() {
+    withEnvironment(config: .template) {
+      var rewards = Project.cosmicSurgery.rewards
+
+      let reward = rewards.first!
+        |> Reward.lens.hasAddOns .~ true
+        |> Reward.lens.isAvailable .~ true
+
+      rewards[0] = reward
+
       let project = Project.cosmicSurgery
-      let firstRewardId = project.rewards.first!.id
+        |> Project.lens.rewardData.rewards .~ rewards
+      let firstRewardId = reward.id
 
       self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
       self.vm.inputs.viewDidLoad()
 
-      self.goToPledgeProject.assertDidNotEmitValue()
-      self.goToPledgeReward.assertDidNotEmitValue()
-      self.goToPledgeContext.assertDidNotEmitValue()
-      self.goToPledgeRefTag.assertDidNotEmitValue()
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
       XCTAssertNil(self.vm.outputs.selectedReward())
 
       self.vm.inputs.rewardSelected(with: firstRewardId)
 
-      self.goToPledgeProject.assertValues([project])
-      self.goToPledgeReward.assertValues([project.rewards[0]])
-      self.goToPledgeContext.assertValues([.pledge])
-      self.goToPledgeRefTag.assertValues([.activity])
-      XCTAssertEqual(self.vm.outputs.selectedReward(), project.rewards[0])
+      let expected = PledgeViewData(
+        project: project,
+        rewards: [reward],
+        selectedShippingRule: nil,
+        selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .pledge
+      )
 
-      let lastCardRewardId = project.rewards.last!.id
-      let endIndex = project.rewards.endIndex
-
-      self.vm.inputs.rewardSelected(with: lastCardRewardId)
-
-      self.goToPledgeProject.assertValues([project, project])
-      self.goToPledgeReward.assertValues([project.rewards[0], project.rewards[endIndex - 1]])
-      self.goToPledgeContext.assertValues([.pledge, .pledge])
-      self.goToPledgeRefTag.assertValues([.activity, .activity])
-      XCTAssertEqual(self.vm.outputs.selectedReward(), project.rewards[endIndex - 1])
+      self.goToAddOnSelection.assertValues([expected])
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
     }
   }
 
-  func testGoToUpdatePledge() {
-    withEnvironment(config: .template) {
-      let project = Project.cosmicSurgery
-      let firstRewardId = project.rewards.first!.id
+  func testGoToPledge_DoesNotEmitIfCreatorOfProject() {
+    let user = User.template
+    let project = Project.cosmicSurgery
+      |> Project.lens.creator .~ user
 
-      self.vm.inputs.configure(with: project, refTag: .activity, context: .managePledge)
+    withEnvironment(config: .template, currentUser: user) {
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
       self.vm.inputs.viewDidLoad()
 
-      self.goToPledgeProject.assertDidNotEmitValue()
-      self.goToPledgeReward.assertDidNotEmitValue()
-      self.goToPledgeContext.assertDidNotEmitValue()
-      self.goToPledgeRefTag.assertDidNotEmitValue()
+      self.vm.inputs.rewardSelected(with: project.rewards[0].id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+    }
+  }
+
+  func testGoToPledge_DoesNotEmitIfUnavailable() {
+    let user = User.template
+
+    let reward = Reward.template
+      |> Reward.lens.limit .~ 5
+      |> Reward.lens.remaining .~ 0
+      |> Reward.lens.startsAt .~ (MockDate().date.timeIntervalSince1970 - 60)
+      |> Reward.lens.endsAt .~ (MockDate().date.timeIntervalSince1970 + 60)
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    withEnvironment(config: .template, currentUser: user) {
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.vm.inputs.rewardSelected(with: project.rewards[0].id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+    }
+  }
+
+  func testGoToPledge_DoesNotEmitIfEnded() {
+    let user = User.template
+
+    let reward = Reward.template
+      |> Reward.lens.limit .~ 5
+      |> Reward.lens.remaining .~ 2
+      |> Reward.lens.startsAt .~ (MockDate().date.timeIntervalSince1970 - 60)
+      |> Reward.lens.endsAt .~ (MockDate().date.timeIntervalSince1970 - 1)
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    withEnvironment(config: .template, currentUser: user) {
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.vm.inputs.rewardSelected(with: project.rewards[0].id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+    }
+  }
+
+  func testGoToPledge_NotBacked() {
+    withEnvironment(config: .template) {
+      let firstReward = Project.cosmicSurgery.rewards[0]
+        |> Reward.lens.isAvailable .~ true
+      let secondReward = Project.cosmicSurgery.rewards[1]
+        |> Reward.lens.remaining .~ 5
+        |> Reward.lens.isAvailable .~ true
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.rewardData.rewards .~ [firstReward, secondReward]
+
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToPledge.assertDidNotEmitValue()
       XCTAssertNil(self.vm.outputs.selectedReward())
 
-      self.vm.inputs.rewardSelected(with: firstRewardId)
+      let expected1 = PledgeViewData(
+        project: project,
+        rewards: [firstReward],
+        selectedShippingRule: nil,
+        selectedQuantities: [firstReward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .pledge
+      )
 
-      self.goToPledgeProject.assertValues([project])
-      self.goToPledgeReward.assertValues([project.rewards[0]])
-      self.goToPledgeContext.assertValues([.pledge])
-      self.goToPledgeRefTag.assertValues([.activity])
-      XCTAssertEqual(self.vm.outputs.selectedReward(), project.rewards[0])
+      self.vm.inputs.rewardSelected(with: firstReward.id)
 
-      let lastCardRewardId = project.rewards.last!.id
-      let endIndex = project.rewards.endIndex
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertValues([expected1])
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertEqual(self.vm.outputs.selectedReward(), firstReward)
 
-      self.vm.inputs.rewardSelected(with: lastCardRewardId)
+      let expected2 = PledgeViewData(
+        project: project,
+        rewards: [secondReward],
+        selectedShippingRule: nil,
+        selectedQuantities: [secondReward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .pledge
+      )
 
-      self.goToPledgeProject.assertValues([project, project])
-      self.goToPledgeReward.assertValues([project.rewards[0], project.rewards[endIndex - 1]])
-      self.goToPledgeContext.assertValues([.pledge, .pledge])
-      self.goToPledgeRefTag.assertValues([.activity, .activity])
-      XCTAssertEqual(self.vm.outputs.selectedReward(), project.rewards[endIndex - 1])
+      self.vm.inputs.rewardSelected(with: secondReward.id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertValues([expected1, expected2])
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertEqual(self.vm.outputs.selectedReward(), secondReward)
+    }
+  }
+
+  func testGoToAddOnSelection_IsBackedWithAddOns_RewardUnchanged() {
+    withEnvironment(config: .template) {
+      let reward = Reward.template
+        |> Reward.lens.hasAddOns .~ true
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.rewardData.rewards .~ [reward]
+        |> Project.lens.personalization.backing .~ (
+          .template
+            |> Backing.lens.reward .~ reward
+            |> Backing.lens.rewardId .~ reward.id
+        )
+
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertNil(self.vm.outputs.selectedReward())
+
+      let expected1 = PledgeViewData(
+        project: project,
+        rewards: [reward],
+        selectedShippingRule: nil,
+        selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .updateReward
+      )
+
+      self.vm.inputs.rewardSelected(with: reward.id)
+
+      self.goToAddOnSelection.assertValues([expected1])
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
+    }
+  }
+
+  func testGoToAddOnSelection_IsBackedWithAddOns_RewardUnavailableButEditableBecauseBacked() {
+    withEnvironment(config: .template) {
+      let reward = Reward.template
+        |> Reward.lens.hasAddOns .~ true
+        |> Reward.lens.limit .~ 5
+        |> Reward.lens.remaining .~ 0
+        |> Reward.lens.endsAt .~ (MockDate().timeIntervalSince1970 - 1)
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.rewardData.rewards .~ [reward]
+        |> Project.lens.personalization.backing .~ (
+          .template
+            |> Backing.lens.reward .~ reward
+            |> Backing.lens.rewardId .~ reward.id
+        )
+
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertNil(self.vm.outputs.selectedReward())
+
+      let expected1 = PledgeViewData(
+        project: project,
+        rewards: [reward],
+        selectedShippingRule: nil,
+        selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .updateReward
+      )
+
+      self.vm.inputs.rewardSelected(with: reward.id)
+
+      self.goToAddOnSelection.assertValues([expected1])
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
+    }
+  }
+
+  func testGoToAddOnSelection_IsBackedWithAddOns_Changed_BackingWithAddOns() {
+    withEnvironment(config: .template) {
+      let reward = Reward.template
+        |> Reward.lens.hasAddOns .~ true
+        |> Reward.lens.isAvailable .~ true
+
+      let backedReward = Reward.template
+        |> Reward.lens.id .~ 55
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.rewardData.rewards .~ [reward, backedReward]
+        |> Project.lens.personalization.backing .~ (
+          .template
+            |> Backing.lens.reward .~ backedReward
+            |> Backing.lens.rewardId .~ backedReward.id
+        )
+
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertNil(self.vm.outputs.selectedReward())
+
+      let expected1 = PledgeViewData(
+        project: project,
+        rewards: [reward],
+        selectedShippingRule: nil,
+        selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .updateReward
+      )
+
+      self.vm.inputs.rewardSelected(with: reward.id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertValues([
+        "Continue with this reward?"
+      ])
+      self.showEditRewardConfirmationPromptMessage.assertValues([
+        "It may not offer some or all of your add-ons."
+      ])
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
+
+      self.vm.inputs.confirmedEditReward()
+
+      self.goToAddOnSelection.assertValues([expected1])
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertValues([
+        "Continue with this reward?"
+      ])
+      self.showEditRewardConfirmationPromptMessage.assertValues([
+        "It may not offer some or all of your add-ons."
+      ])
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
+    }
+  }
+
+  func testGoToAddOnSelection_IsBackedWithAddOns_Changed_BackingWithoutAddOns() {
+    withEnvironment(config: .template) {
+      let reward = Reward.template
+        |> Reward.lens.hasAddOns .~ false
+        |> Reward.lens.isAvailable .~ true
+
+      let backedReward = Reward.template
+        |> Reward.lens.id .~ 55
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.rewardData.rewards .~ [reward, backedReward]
+        |> Project.lens.personalization.backing .~ (
+          .template
+            |> Backing.lens.reward .~ backedReward
+            |> Backing.lens.rewardId .~ backedReward.id
+        )
+
+      self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptMessage.assertDidNotEmitValue()
+      XCTAssertNil(self.vm.outputs.selectedReward())
+
+      let expected1 = PledgeViewData(
+        project: project,
+        rewards: [reward],
+        selectedShippingRule: nil,
+        selectedQuantities: [reward.id: 1],
+        selectedLocationId: nil,
+        refTag: .activity,
+        context: .updateReward
+      )
+
+      self.vm.inputs.rewardSelected(with: reward.id)
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
+      self.showEditRewardConfirmationPromptTitle.assertValues([
+        "Continue with this reward?"
+      ])
+      self.showEditRewardConfirmationPromptMessage.assertValues([
+        "It may not offer some or all of your add-ons."
+      ])
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
+
+      self.vm.inputs.confirmedEditReward()
+
+      self.goToAddOnSelection.assertDidNotEmitValue()
+      self.goToPledge.assertValues([expected1])
+      self.showEditRewardConfirmationPromptTitle.assertValues([
+        "Continue with this reward?"
+      ])
+      self.showEditRewardConfirmationPromptMessage.assertValues([
+        "It may not offer some or all of your add-ons."
+      ])
+      XCTAssertEqual(self.vm.outputs.selectedReward(), reward)
     }
   }
 
@@ -204,7 +647,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     let reward = project.rewards.first!
 
     withEnvironment {
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
 
       self.vm.inputs.configure(with: project, refTag: nil, context: .createPledge)
       self.vm.inputs.viewDidLoad()
@@ -213,7 +656,7 @@ final class RewardsCollectionViewModelTests: TestCase {
 
       self.vm.inputs.rewardSelected(with: reward.id)
 
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
     }
   }
 
@@ -231,7 +674,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     let user = User.template
 
     withEnvironment(currentUser: user) {
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
 
       self.vm.inputs.configure(with: project, refTag: nil, context: .createPledge)
       self.vm.inputs.viewDidLoad()
@@ -240,11 +683,11 @@ final class RewardsCollectionViewModelTests: TestCase {
 
       self.vm.inputs.rewardSelected(with: 123)
 
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
 
       self.vm.inputs.rewardSelected(with: reward.id)
 
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
     }
   }
 
@@ -254,7 +697,7 @@ final class RewardsCollectionViewModelTests: TestCase {
       |> Backing.lens.rewardId .~ nil
 
     let project = Project.template
-      |> Project.lens.rewards .~ [Reward.noReward, Reward.template]
+      |> Project.lens.rewardData.rewards .~ [Reward.noReward, Reward.template]
       |> Project.lens.state .~ .successful
       |> Project.lens.personalization.backing .~ backing
       |> Project.lens.personalization.isBacking .~ true
@@ -262,7 +705,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     let user = User.template
 
     withEnvironment(currentUser: user) {
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
 
       self.vm.inputs.configure(with: project, refTag: nil, context: .createPledge)
       self.vm.inputs.viewDidLoad()
@@ -271,11 +714,11 @@ final class RewardsCollectionViewModelTests: TestCase {
 
       self.vm.inputs.rewardSelected(with: 123)
 
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
 
       self.vm.inputs.rewardSelected(with: Reward.noReward.id)
 
-      self.goToPledgeProject.assertDidNotEmitValue()
+      self.goToPledge.assertDidNotEmitValue()
     }
   }
 
@@ -290,7 +733,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     self.vm.inputs.configure(with: Project.cosmicSurgery, refTag: .activity, context: .managePledge)
     self.vm.inputs.viewDidLoad()
 
-    self.title.assertValue("Choose another reward")
+    self.title.assertValue("Edit reward")
   }
 
   func testTitle_CreatePledgeContext_IsCreator() {
@@ -353,7 +796,7 @@ final class RewardsCollectionViewModelTests: TestCase {
       self.vm.inputs.configure(with: project, refTag: .activity, context: .managePledge)
       self.vm.inputs.viewDidLoad()
 
-      self.title.assertValue("Choose another reward")
+      self.title.assertValue("Edit reward")
     }
   }
 
@@ -388,7 +831,7 @@ final class RewardsCollectionViewModelTests: TestCase {
       |> Backing.lens.rewardId .~ 5
 
     let project = Project.template
-      |> Project.lens.rewards .~ rewards
+      |> Project.lens.rewardData.rewards .~ rewards
       |> Project.lens.state .~ .live
       |> Project.lens.personalization.backing .~ backing
       |> Project.lens.personalization.isBacking .~ true
@@ -405,7 +848,7 @@ final class RewardsCollectionViewModelTests: TestCase {
     self.scrollToBackedRewardIndexPath.assertValue(indexPath)
   }
 
-  func testRewardSelectedTracking_PledgeContext() {
+  func testTrackingRewardsViewed_Properties_AdvertisingConsentAllowed_EventsTracked() {
     let rewards = [
       .template
         |> Reward.lens.id .~ 1,
@@ -418,17 +861,162 @@ final class RewardsCollectionViewModelTests: TestCase {
     ]
 
     let project = Project.template
-      |> \.rewards .~ rewards
+      |> \.rewardData.rewards .~ rewards
+
+    self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
+    XCTAssertEqual(["activity"], self.segmentTrackingClient.properties(forKey: "session_ref_tag"))
+    XCTAssertEqual(["rewards"], self.segmentTrackingClient.properties(forKey: "context_page"))
+  }
+
+  func testTrackingRewardsViewed_Properties_AdvertisingConsentNotAllowed_NoEventsTracked() {
+    let rewards = [
+      .template
+        |> Reward.lens.id .~ 1,
+      .template
+        |> Reward.lens.id .~ 2,
+      .template
+        |> Reward.lens.id .~ 3,
+      .template
+        |> Reward.lens.id .~ 4
+    ]
+
+    let project = Project.template
+      |> \.rewardData.rewards .~ rewards
+
+    (self.appTrackingTransparency as? MockAppTrackingTransparency)?.shouldRequestAuthStatus = false
+    self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+    self.vm.inputs.viewDidLoad()
+
+    XCTAssertEqual([], self.segmentTrackingClient.events)
+  }
+
+  func testTrackingRewardClicked_Properties() {
+    let rewards = [
+      .template
+        |> Reward.lens.id .~ 1,
+      .template
+        |> Reward.lens.id .~ 2,
+      .template
+        |> Reward.lens.id .~ 3,
+      .template
+        |> Reward.lens.id .~ 4
+    ]
+
+    let project = Project.template
+      |> \.rewardData.rewards .~ rewards
 
     self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.rewardSelected(with: 2)
 
-    XCTAssertEqual(["Select Reward Button Clicked"], self.trackingClient.events)
+    XCTAssertEqual("CTA Clicked", self.segmentTrackingClient.events.last)
+    XCTAssertEqual("activity", self.segmentTrackingClient.properties.last?["session_ref_tag"] as? String)
+  }
 
-    XCTAssertEqual([2], self.trackingClient.properties(forKey: "pledge_backer_reward_id", as: Int.self))
-    XCTAssertEqual(["new_pledge"], self.trackingClient.properties(forKey: "context_pledge_flow"))
-    XCTAssertEqual(["activity"], self.trackingClient.properties(forKey: "session_ref_tag"))
+  func testTrackingRewardClicked_ProjectBackingNil() {
+    let rewardTwo = Reward.template
+      |> Reward.lens.id .~ 2
+
+    let rewards = [
+      .template
+        |> Reward.lens.id .~ 1,
+      rewardTwo,
+      .template
+        |> Reward.lens.id .~ 3,
+      .template
+        |> Reward.lens.id .~ 4
+    ]
+
+    let project = Project.template
+      |> \.rewardData.rewards .~ rewards
+
+    self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+    self.vm.inputs.viewDidLoad()
+
+    self.vm.inputs.rewardSelected(with: 2)
+
+    XCTAssertEqual("CTA Clicked", self.segmentTrackingClient.events.last)
+
+    XCTAssertEqual("rewards", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("reward_continue", self.segmentTrackingClient.properties.last?["context_cta"] as? String)
+
+    XCTAssertEqual(
+      0.00,
+      self.segmentTrackingClient.properties.last?["checkout_bonus_amount_usd"] as? Decimal
+    )
+    XCTAssertEqual(0, self.segmentTrackingClient.properties.last?["checkout_add_ons_count_total"] as? Int)
+  }
+
+  func testTrackingRewardClicked_ProjectBackingNotNil() {
+    let rewardTwo = Reward.template
+      |> Reward.lens.id .~ 2
+    let backing = Backing.template
+      |> Backing.lens.amount .~ 20.00
+      |> Backing.lens.bonusAmount .~ 100.00
+
+    let rewards = [
+      .template
+        |> Reward.lens.id .~ 1,
+      rewardTwo,
+      .template
+        |> Reward.lens.id .~ 3,
+      .template
+        |> Reward.lens.id .~ 4
+    ]
+
+    let project = Project.template
+      |> \.rewardData.rewards .~ rewards
+      |> \.personalization.backing .~ backing
+
+    self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+    self.vm.inputs.viewDidLoad()
+
+    self.vm.inputs.rewardSelected(with: 2)
+
+    XCTAssertEqual("CTA Clicked", self.segmentTrackingClient.events.last)
+
+    XCTAssertEqual("rewards", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("reward_continue", self.segmentTrackingClient.properties.last?["context_cta"] as? String)
+
+    XCTAssertEqual(
+      100.00,
+      self.segmentTrackingClient.properties.last?["checkout_bonus_amount_usd"] as? Decimal
+    )
+
+    // Even though there is an addOn on the Backing, we don't calculate that as a total in the Rewards carousel
+    XCTAssertEqual(0, self.segmentTrackingClient.properties.last?["checkout_add_ons_count_total"] as? Int)
+  }
+
+  func testTracking_RewardsViewed_RewardClicked_Properties() {
+    let rewards = [
+      .template
+        |> Reward.lens.id .~ 1,
+      .template
+        |> Reward.lens.id .~ 2,
+      .template
+        |> Reward.lens.id .~ 3,
+      .template
+        |> Reward.lens.id .~ 4
+    ]
+
+    let project = Project.template
+      |> \.rewardData.rewards .~ rewards
+
+    self.vm.inputs.configure(with: project, refTag: .activity, context: .createPledge)
+    self.vm.inputs.viewDidLoad()
+
+    self.vm.inputs.rewardSelected(with: 2)
+
+    XCTAssertEqual(["Page Viewed", "CTA Clicked"], self.segmentTrackingClient.events)
+
+    XCTAssertEqual(["activity", "activity"], self.segmentTrackingClient.properties(forKey: "session_ref_tag"))
+
+    XCTAssertEqual(["rewards", "rewards"], self.segmentTrackingClient.properties(forKey: "context_page"))
+
+    XCTAssertEqual([nil, "reward_continue"], self.segmentTrackingClient.properties(forKey: "context_cta"))
   }
 }

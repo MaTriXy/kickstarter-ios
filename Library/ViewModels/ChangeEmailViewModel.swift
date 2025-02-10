@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public protocol ChangeEmailViewModelInputs {
   func emailFieldTextDidChange(text: String?)
@@ -10,7 +11,6 @@ public protocol ChangeEmailViewModelInputs {
   func saveButtonIsEnabled(_ enabled: Bool)
   func textFieldShouldReturn(with returnKeyType: UIReturnKeyType)
   func viewDidLoad()
-  func viewDidAppear()
 }
 
 public protocol ChangeEmailViewModelOutputs {
@@ -73,7 +73,7 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
       .switchMap { _ in
         AppEnvironment.current
           .apiService
-          .fetchGraphUserEmailFields(query: NonEmptySet(Query.user(changeEmailQueryFields())))
+          .fetchGraphUser(withStoredCards: false)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
@@ -85,9 +85,6 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
           .materialize()
       }
 
-    resendEmailVerificationEvent.values()
-      .observeValues { _ in AppEnvironment.current.koala.trackResentVerificationEmail() }
-
     self.didSendVerificationEmail = resendEmailVerificationEvent.values().ignoreValues()
 
     self.didFailToSendVerificationEmail = resendEmailVerificationEvent.errors()
@@ -95,13 +92,17 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
 
     self.emailText = Signal.merge(
       changeEmailEvent.values(),
-      userEmailEvent.values().map { $0.me.email }
+      userEmailEvent.values().map { $0.me.email ?? "" }
     )
 
     let isEmailVerified = userEmailEvent.values().map { $0.me.isEmailVerified }.skipNil()
     let isEmailDeliverable = userEmailEvent.values().map { $0.me.isDeliverable }.skipNil()
-    let emailVerifiedAndDeliverable = Signal.combineLatest(isEmailVerified, isEmailDeliverable)
-      .map { $0 && $1 }
+    let emailVerifiedAndDeliverable: Signal<Bool, Never> = Signal
+      .combineLatest(isEmailVerified, isEmailDeliverable)
+      .map { isEmailVerified, isEmailDeliverable -> Bool in
+        let r = isEmailVerified && isEmailDeliverable
+        return r
+      }
 
     self.resendVerificationEmailViewIsHidden = Signal.merge(
       self.viewDidLoadProperty.signal.mapConst(true),
@@ -134,9 +135,6 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
       .filter { $0 == .next }
       .ignoreValues()
 
-    changeEmailEvent.values()
-      .observeValues { _ in AppEnvironment.current.koala.trackChangeEmail() }
-
     self.didChangeEmail = changeEmailEvent.values().ignoreValues()
 
     self.resetFields = changeEmailEvent.values()
@@ -157,9 +155,6 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
     )
 
     self.textFieldsAreEnabled = self.activityIndicatorShouldShow.map { $0 }.negate()
-
-    self.viewDidAppearProperty.signal
-      .observeValues { _ in AppEnvironment.current.koala.trackChangeEmailView() }
   }
 
   private let newEmailProperty = MutableProperty<String?>(nil)
@@ -190,11 +185,6 @@ public final class ChangeEmailViewModel: ChangeEmailViewModelType, ChangeEmailVi
   private let saveButtonTappedProperty = MutableProperty(())
   public func saveButtonTapped() {
     self.saveButtonTappedProperty.value = ()
-  }
-
-  private let viewDidAppearProperty = MutableProperty(())
-  public func viewDidAppear() {
-    self.viewDidAppearProperty.value = ()
   }
 
   private let textFieldShouldReturnProperty = MutableProperty<UIReturnKeyType?>(nil)

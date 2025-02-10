@@ -35,6 +35,9 @@ public protocol BackerDashboardProjectCellViewModelOutputs {
 
   /// Emits a boolean when the saved icon is hidden or not.
   var savedIconIsHidden: Signal<Bool, Never> { get }
+
+  /// Emits to hide information about pledging when project is prelaunch
+  var prelaunchProject: Signal<Bool, Never> { get }
 }
 
 public protocol BackerDashboardProjectCellViewModelType {
@@ -57,13 +60,19 @@ public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCe
 
     self.metadataText = project.map(metadataString(for:))
 
-    self.metadataIconIsHidden = project.map { $0.state != .live }
+    self.metadataIconIsHidden = project.map { project in
+      guard !isProjectPrelaunch(project) else { return true }
+
+      return project.state != .live
+    }
 
     self.percentFundedText = project.map(percentFundedString(for:))
 
     self.progressBarColor = project.map(progressBarColorForProject)
 
     self.savedIconIsHidden = project.map { $0.personalization.isStarred != .some(true) }
+
+    self.prelaunchProject = project.map(isProjectPrelaunch)
   }
 
   fileprivate let projectProperty = MutableProperty<Project?>(nil)
@@ -79,6 +88,7 @@ public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCe
   public let progress: Signal<Float, Never>
   public let progressBarColor: Signal<UIColor, Never>
   public let projectTitleText: Signal<NSAttributedString, Never>
+  public let prelaunchProject: Signal<Bool, Never>
   public let savedIconIsHidden: Signal<Bool, Never>
 
   public var inputs: BackerDashboardProjectCellViewModelInputs { return self }
@@ -86,9 +96,15 @@ public final class BackerDashboardProjectCellViewModel: BackerDashboardProjectCe
 }
 
 private func metadataString(for project: Project) -> String {
+  guard !isProjectPrelaunch(project) else { return Strings.Coming_soon() }
+
   switch project.state {
   case .live:
-    let duration = Format.duration(secondsInUTC: project.dates.deadline, abbreviate: true, useToGo: false)
+    guard let deadline = project.dates.deadline else {
+      return ""
+    }
+
+    let duration = Format.duration(secondsInUTC: deadline, abbreviate: true, useToGo: false)
     return "\(duration.time) \(duration.unit)"
   default:
     return stateString(for: project)
@@ -102,12 +118,12 @@ private func percentFundedString(for project: Project) -> NSAttributedString {
   case .live, .successful:
     return NSAttributedString(string: percentage, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 10),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_green_700
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_create_700
     ])
   default:
     return NSAttributedString(string: percentage, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 10),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_500
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_400
     ])
   }
 }
@@ -115,18 +131,22 @@ private func percentFundedString(for project: Project) -> NSAttributedString {
 private func progressBarColorForProject(_ project: Project) -> UIColor {
   switch project.state {
   case .live, .successful:
-    return .ksr_green_700
+    return .ksr_create_700
   default:
-    return .ksr_grey_400
+    return .ksr_support_300
   }
 }
 
 private func metadataBackgroundColorForProject(_ project: Project) -> UIColor {
+  guard !isProjectPrelaunch(project) else {
+    return .ksr_create_700
+  }
+
   switch project.state {
   case .live, .successful:
-    return .ksr_green_500
+    return .ksr_create_700
   default:
-    return .ksr_soft_black
+    return .ksr_support_700
   }
 }
 
@@ -135,12 +155,12 @@ private func titleString(for project: Project) -> NSAttributedString {
   case .live, .successful:
     return NSAttributedString(string: project.name, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 13),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
     ])
   default:
     return NSAttributedString(string: project.name, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 13),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_400
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_400
     ])
   }
 }
@@ -157,5 +177,20 @@ private func stateString(for project: Project) -> String {
     return Strings.profile_projects_status_unsuccessful()
   default:
     return ""
+  }
+}
+
+private func isProjectPrelaunch(_ project: Project) -> Bool {
+  switch (project.displayPrelaunch, project.prelaunchActivated, project.dates.launchedAt) {
+  // GraphQL requests using ProjectFragment will populate displayPrelaunch and prelaunchActivated
+  case (.some(true), .some(true), _):
+    return true
+
+  // V1 requests may not return displayPrelaunch and prelaunchActivated.
+  // But if no launch date is set, we can assume this is a prelaunch project.
+  case let (.none, .none, .some(timeValue)):
+    return timeValue <= 0
+  default:
+    return false
   }
 }

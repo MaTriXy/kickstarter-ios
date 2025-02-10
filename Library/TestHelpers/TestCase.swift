@@ -1,36 +1,28 @@
 import AVFoundation
-import FBSnapshotTestCase
 @testable import KsApi
 @testable import Library
 import Prelude
 import ReactiveSwift
 import XCTest
 
-internal class TestCase: FBSnapshotTestCase {
+internal class TestCase: XCTestCase {
   internal static let interval = DispatchTimeInterval.milliseconds(1)
 
   internal let apiService = MockService()
+  internal let appTrackingTransparency: AppTrackingTransparencyType = MockAppTrackingTransparency()
   internal let cache = KSCache()
   internal let config = Config.config
   internal let cookieStorage = MockCookieStorage()
   internal let coreTelephonyNetworkInfo = MockCoreTelephonyNetworkInfo()
-  internal let dataLakeTrackingClient = MockTrackingClient()
   internal let dateType = MockDate.self
   internal let mainBundle = MockBundle()
-  internal let optimizelyClient = MockOptimizelyClient()
+  internal let remoteConfigClient = MockRemoteConfigClient()
   internal let reachability = MutableProperty(Reachability.wifi)
   internal let scheduler = TestScheduler(startDate: MockDate().date)
-  internal let trackingClient = MockTrackingClient()
+  internal let segmentTrackingClient = MockTrackingClient()
   internal let ubiquitousStore = MockKeyValueStore()
   internal let userDefaults = MockKeyValueStore()
-
-  override var recordMode: Bool {
-    willSet(newValue) {
-      if newValue {
-        preferredSimulatorCheck()
-      }
-    }
-  }
+  internal let uuidType = MockUUID.self
 
   override func setUp() {
     super.setUp()
@@ -46,6 +38,7 @@ internal class TestCase: FBSnapshotTestCase {
       apiDelayInterval: .seconds(0),
       applePayCapabilities: MockApplePayCapabilities(),
       application: UIApplication.shared,
+      appTrackingTransparency: self.appTrackingTransparency,
       assetImageGeneratorType: AVAssetImageGenerator.self,
       cache: self.cache,
       calendar: calendar,
@@ -58,35 +51,49 @@ internal class TestCase: FBSnapshotTestCase {
       debounceInterval: .seconds(0),
       device: MockDevice(),
       isVoiceOverRunning: { false },
-      koala: Koala(
-        dataLakeClient: self.dataLakeTrackingClient,
-        client: self.trackingClient,
-        loggedInUser: nil
+      ksrAnalytics: KSRAnalytics(
+        loggedInUser: nil,
+        segmentClient: self.segmentTrackingClient,
+        appTrackingTransparency: self.appTrackingTransparency
       ),
       language: .en,
       launchedCountries: .init(),
       locale: .init(identifier: "en_US"),
       mainBundle: self.mainBundle,
-      optimizelyClient: self.optimizelyClient,
       pushRegistrationType: MockPushRegistration.self,
       reachability: self.reachability.producer,
+      remoteConfigClient: self.remoteConfigClient,
       scheduler: self.scheduler,
       ubiquitousStore: self.ubiquitousStore,
-      userDefaults: self.userDefaults
+      userDefaults: self.userDefaults,
+      uuidType: self.uuidType
     )
+
+    self.preferredSimulatorCheck()
   }
 
   override func tearDown() {
     super.tearDown()
     AppEnvironment.popEnvironment()
   }
-}
 
-internal func preferredSimulatorCheck() {
-  let supportedModels = ["iPhone10,1", "iPhone10,4"] // iPhone 8
-  let modelKey = "SIMULATOR_MODEL_IDENTIFIER"
+  /// Fulfills an expectation on the next run loop to allow a layout pass when required in some tests.
+  internal func allowLayoutPass() {
+    let exp = self.expectation(description: "layoutPass")
+    DispatchQueue.main.async {
+      exp.fulfill()
+    }
 
-  guard #available(iOS 13.0, *), supportedModels.contains(ProcessInfo().environment[modelKey] ?? "") else {
-    fatalError("Please only test and record screenshots on an iPhone 8 simulator running iOS 13")
+    waitForExpectations(timeout: 0.01)
+  }
+
+  internal func preferredSimulatorCheck() {
+    let deviceName = ProcessInfo().environment["SIMULATOR_VERSION_INFO"]
+    let iOSVersion = ProcessInfo().environment["SIMULATOR_RUNTIME_VERSION"]
+
+    // Keep this check in sync with the device specified in `.cicleci/config.yml` and `Makefile`.
+    guard deviceName!.localizedStandardContains("iPhone SE (3rd generation)"), iOSVersion == "17.5" else {
+      fatalError("Please only test and record screenshots on an iPhone SE simulator running iOS 17.5")
+    }
   }
 }

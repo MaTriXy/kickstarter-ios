@@ -1,0 +1,10 @@
+fragment UserStoredCardsFragment on UserCreditCardTypeConnection {
+    nodes {
+      expirationDate
+      id
+      lastFour
+      type
+      stripeCardId
+    }
+    totalCount
+}

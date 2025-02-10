@@ -1,3 +1,4 @@
+import Foundation
 import Prelude
 
 extension Reward {
@@ -9,20 +10,29 @@ extension Reward {
     estimatedDeliveryOn: Date(
       timeIntervalSince1970: 1_475_361_315
     ).timeIntervalSince1970 + 60.0 * 60.0 * 24.0 * 365.0,
+    hasAddOns: false,
     id: 1,
+    latePledgeAmount: 10.00,
     limit: 100,
+    limitPerBacker: nil,
     minimum: 10.00,
+    pledgeAmount: 10.00,
+    postCampaignPledgingEnabled: false,
     remaining: 50,
-    rewardsItems: [],
+    rewardsItems: [RewardsItem.template],
     shipping: Reward.Shipping(
       enabled: false,
       location: nil,
-      preference: nil,
+      preference: Reward.Shipping.Preference.none,
       summary: nil,
       type: nil
     ),
+    shippingRules: nil,
+    shippingRulesExpanded: nil,
     startsAt: nil,
-    title: nil
+    title: "My Reward",
+    localPickup: nil,
+    isAvailable: nil
   )
 
   public static let noReward = Reward(
@@ -31,20 +41,29 @@ extension Reward {
     description: "",
     endsAt: nil,
     estimatedDeliveryOn: nil,
+    hasAddOns: false,
     id: 0,
+    latePledgeAmount: 0,
     limit: nil,
+    limitPerBacker: nil,
     minimum: 0,
+    pledgeAmount: 0,
+    postCampaignPledgingEnabled: false,
     remaining: nil,
     rewardsItems: [],
     shipping: Reward.Shipping(
       enabled: false,
       location: nil,
-      preference: nil,
+      preference: Reward.Shipping.Preference.none,
       summary: nil,
       type: nil
     ),
+    shippingRules: nil,
+    shippingRulesExpanded: nil,
     startsAt: nil,
-    title: nil
+    title: nil,
+    localPickup: nil,
+    isAvailable: nil
   )
 
   public static let otherReward = Reward(
@@ -53,30 +72,42 @@ extension Reward {
     description: "",
     endsAt: nil,
     estimatedDeliveryOn: nil,
+    hasAddOns: false,
     id: 9_999,
+    latePledgeAmount: 0,
     limit: nil,
+    limitPerBacker: nil,
     minimum: 0,
+    pledgeAmount: 0,
+    postCampaignPledgingEnabled: false,
     remaining: nil,
     rewardsItems: [],
     shipping: Reward.Shipping(
       enabled: false,
       location: nil,
-      preference: nil,
+      preference: Reward.Shipping.Preference.none,
       summary: nil,
       type: nil
     ),
+    shippingRules: nil,
+    shippingRulesExpanded: nil,
     startsAt: nil,
-    title: nil
+    title: nil,
+    localPickup: nil,
+    isAvailable: nil
   )
 
   public static let postcards = Reward.template
     |> Reward.lens.id .~ 20
     |> Reward.lens.minimum .~ 6.0
+    |> Reward.lens.pledgeAmount .~ 0.0 // Default value if missing from server.
+    |> Reward.lens.latePledgeAmount .~ 0.0 // Default value if missing from server.
     |> Reward.lens.limit .~ 100
     |> Reward.lens.remaining .~ 50
     |> Reward.lens.backersCount .~ 23
     |> Reward.lens.title .~ "Postcards"
     |> Reward.lens.description .~ "Pack of 5 postcards - images from the Cosmic Surgery series."
+    |> Reward.lens.localPickup .~ nil
     |> Reward.lens.rewardsItems .~ Array(1...5)
     .map { number in
       RewardsItem.template

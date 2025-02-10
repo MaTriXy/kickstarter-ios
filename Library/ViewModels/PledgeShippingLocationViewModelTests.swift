@@ -20,6 +20,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
   private let adaptableStackViewIsHidden = TestObserver<Bool, Never>()
   private let amountText = TestObserver<String, Never>()
+  private let amountLabelIsHidden = TestObserver<Bool, Never>()
   private let dismissShippingRules = TestObserver<Void, Never>()
   private let presentShippingRulesProject = TestObserver<Project, Never>()
   private let presentShippingRulesAllRules = TestObserver<[ShippingRule], Never>()
@@ -34,6 +35,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
 
     self.vm.outputs.adaptableStackViewIsHidden.observe(self.adaptableStackViewIsHidden.observer)
     self.vm.outputs.amountAttributedText.map { $0.string }.observe(self.amountText.observer)
+    self.vm.outputs.amountLabelIsHidden.observe(self.amountLabelIsHidden.observer)
     self.vm.outputs.dismissShippingRules.observe(self.dismissShippingRules.observer)
     self.vm.outputs.shimmerLoadingViewIsHidden.observe(self.shimmerLoadingViewIsHidden.observer)
     self.vm.outputs.presentShippingRules.map { $0.0 }.observe(self.presentShippingRulesProject.observer)
@@ -45,14 +47,22 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     self.vm.outputs.shippingRulesError.observe(self.shippingRulesError.observer)
   }
 
-  func testDefaultShippingRule() {
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US() {
     let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRules))
 
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
     withEnvironment(apiService: mockService, countryCode: "US") {
-      self.vm.inputs.configureWith(project: .template, reward: reward)
+      self.vm.inputs.configureWith(data: (
+        project: project,
+        reward: reward,
+        true,
+        nil
+      ))
       self.vm.inputs.viewDidLoad()
 
       self.amountText.assertValues(["+$0.00"])
@@ -60,6 +70,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.shimmerLoadingViewIsHidden.assertValues([false])
       self.notifyDelegateOfSelectedShippingRule.assertDidNotEmitValue()
       self.shippingLocationButtonTitle.assertValues([])
+      self.amountLabelIsHidden.assertValues([false])
 
       self.scheduler.advance()
 
@@ -74,6 +85,7 @@ final class PledgeShippingLocationViewModelTests: TestCase {
       self.notifyDelegateOfSelectedShippingRule.assertValues([defaultShippingRule])
       self.shippingLocationButtonTitle.assertValues(["Brooklyn, NY"])
       self.shippingRulesError.assertDidNotEmitValue()
+      self.amountLabelIsHidden.assertValues([false])
 
       self.scheduler.advance(by: .seconds(1))
 
@@ -82,13 +94,132 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
+  func testDefaultShippingRule_US_ProjectCountry_NonUSProjectCurrencyCountry_US_UserLocation() {
+    let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRules))
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let projectRewards = [reward]
+
+    let project = Project.template
+      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+      |> Project.lens.rewardData.rewards .~ projectRewards
+
+    withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: (project: project, reward: reward, true, nil))
+      self.vm.inputs.viewDidLoad()
+
+      self.amountText.assertValues(["+ MX$ 0.00"])
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingRule.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+      self.amountLabelIsHidden.assertValues([false])
+
+      self.scheduler.advance()
+
+      guard let defaultShippingRule = shippingRules.first(where: { $0.location == .brooklyn }) else {
+        XCTFail("Default shipping rule should exist")
+        return
+      }
+
+      self.amountText.assertValues(["+ MX$ 0.00", "+ MX$ 5.00"])
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingRule.assertValues([defaultShippingRule])
+      self.shippingLocationButtonTitle.assertValues(["Brooklyn, NY"])
+      self.shippingRulesError.assertDidNotEmitValue()
+      self.amountLabelIsHidden.assertValues([false])
+
+      self.scheduler.advance(by: .seconds(1))
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+    }
+  }
+
+  func testDefaultShippingRule_ProjectCountryEqualsProjectCurrencyCountry_US_DefaultsToPreselected() {
+    let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRules))
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
+    withEnvironment(apiService: mockService, countryCode: "US") {
+      self.vm.inputs.configureWith(data: (
+        project: project,
+        reward: reward,
+        true,
+        Location.australia.id
+      ))
+      self.vm.inputs.viewDidLoad()
+
+      self.amountText.assertValues(["+$0.00"])
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingRule.assertDidNotEmitValue()
+      self.shippingLocationButtonTitle.assertValues([])
+      self.amountLabelIsHidden.assertValues([false])
+
+      self.scheduler.advance()
+
+      guard let defaultShippingRule = shippingRules.first(where: { $0.location == .australia }) else {
+        XCTFail("Default shipping rule should exist")
+        return
+      }
+
+      self.amountText.assertValues(["+$0.00", "+$5.00"])
+      self.adaptableStackViewIsHidden.assertValues([true])
+      self.shimmerLoadingViewIsHidden.assertValues([false])
+      self.notifyDelegateOfSelectedShippingRule.assertValues([defaultShippingRule])
+      self.shippingLocationButtonTitle.assertValues(["Australia"])
+      self.shippingRulesError.assertDidNotEmitValue()
+      self.amountLabelIsHidden.assertValues([false])
+
+      self.scheduler.advance(by: .seconds(1))
+
+      self.adaptableStackViewIsHidden.assertValues([true, false])
+      self.shimmerLoadingViewIsHidden.assertValues([false, true])
+    }
+  }
+
+  func testAmountLabelIsHidden_IsHidden() {
+    self.amountLabelIsHidden.assertDidNotEmitValue()
+
+    self.vm.inputs.configureWith(data: (project: .template, reward: .template, showAmount: false, nil))
+    self.vm.inputs.viewDidLoad()
+
+    self.amountLabelIsHidden.assertValues([true])
+  }
+
+  func testAmountLabelIsHidden_IsNotHidden() {
+    self.amountLabelIsHidden.assertDidNotEmitValue()
+
+    self.vm.inputs.configureWith(data: (project: .template, reward: .template, showAmount: true, nil))
+    self.vm.inputs.viewDidLoad()
+
+    self.amountLabelIsHidden.assertValues([false])
+  }
+
   func testShippingRulesSelection() {
     let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRules))
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
     withEnvironment(apiService: mockService, countryCode: "US") {
-      self.vm.inputs.configureWith(project: .template, reward: reward)
+      self.vm.inputs.configureWith(data: (
+        project: project,
+        reward: reward,
+        false,
+        nil
+      ))
       self.vm.inputs.viewDidLoad()
 
       guard let defaultShippingRule = shippingRules.first(where: { $0.location == .brooklyn }) else {
@@ -128,8 +259,16 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
     withEnvironment(apiService: mockService, countryCode: "US") {
-      self.vm.inputs.configureWith(project: .template, reward: reward)
+      self.vm.inputs.configureWith(data: (
+        project: project,
+        reward: reward,
+        false,
+        nil
+      ))
       self.vm.inputs.viewDidLoad()
 
       guard let defaultShippingRule = shippingRules.first(where: { $0.location == .brooklyn }) else {
@@ -155,13 +294,21 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingRulesError() {
+  func testShippingRulesError_ProjectCountryEqualsProjectCurrencyCountry_US() {
     let error = ErrorEnvelope(errorMessages: [], ksrCode: nil, httpCode: 404, exception: nil)
     let reward = Reward.template
       |> Reward.lens.shipping.enabled .~ true
 
+    let project = Project.template
+      |> Project.lens.rewardData.rewards .~ [reward]
+
     withEnvironment(apiService: MockService(fetchShippingRulesResult: Result.failure(error))) {
-      self.vm.inputs.configureWith(project: .template, reward: reward)
+      self.vm.inputs.configureWith(data: (
+        project: project,
+        reward: reward,
+        false,
+        nil
+      ))
       self.vm.inputs.viewDidLoad()
 
       self.shippingRulesError.assertValues([])
@@ -182,8 +329,13 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingLocationFromBackingIsDefault() {
+  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US() {
     let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRules))
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let projectRewards = [reward]
 
     let project = Project.template
       |> Project.lens.personalization.isBacking .~ true
@@ -196,12 +348,10 @@ final class PledgeShippingLocationViewModelTests: TestCase {
           |> Backing.lens.locationId .~ Location.canada.id
           |> Backing.lens.locationName .~ Location.canada.name
       )
-
-    let reward = Reward.template
-      |> Reward.lens.shipping.enabled .~ true
+      |> Project.lens.rewardData.rewards .~ projectRewards
 
     withEnvironment(apiService: mockService, countryCode: "US") {
-      self.vm.inputs.configureWith(project: project, reward: reward)
+      self.vm.inputs.configureWith(data: (project: project, reward: reward, false, nil))
       self.vm.inputs.viewDidLoad()
 
       self.amountText.assertValues(["+$0.00"])
@@ -231,10 +381,16 @@ final class PledgeShippingLocationViewModelTests: TestCase {
     }
   }
 
-  func testShippingLocationFromBackingIsDefault_NewRewardDoesNotHaveSelectedRule() {
+  func testShippingLocationFromBackingIsDefault_ProjectCountryEqualsProjectCurrencyCountry_US_NewRewardDoesNotHaveSelectedRule(
+  ) {
     let shippingRulesWithoutCanada = shippingRules.filter { $0.location != .canada }
 
     let mockService = MockService(fetchShippingRulesResult: Result.success(shippingRulesWithoutCanada))
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+
+    let projectRewards = [reward]
 
     let project = Project.template
       |> Project.lens.personalization.isBacking .~ true
@@ -247,12 +403,10 @@ final class PledgeShippingLocationViewModelTests: TestCase {
           |> Backing.lens.locationId .~ Location.canada.id
           |> Backing.lens.locationName .~ Location.canada.name
       )
-
-    let reward = Reward.template
-      |> Reward.lens.shipping.enabled .~ true
+      |> Project.lens.rewardData.rewards .~ projectRewards
 
     withEnvironment(apiService: mockService, countryCode: "US") {
-      self.vm.inputs.configureWith(project: project, reward: reward)
+      self.vm.inputs.configureWith(data: (project: project, reward: reward, false, nil))
       self.vm.inputs.viewDidLoad()
 
       self.amountText.assertValues(["+$0.00"])

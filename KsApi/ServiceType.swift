@@ -1,6 +1,7 @@
-import Foundation
+import Combine
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public enum Mailbox: String {
   case inbox
@@ -19,6 +20,7 @@ public protocol ServiceType {
   var currency: String { get }
   var buildVersion: String { get }
   var deviceIdentifier: String { get }
+  var apolloClient: ApolloClientType? { get }
 
   init(
     appId: String,
@@ -27,7 +29,8 @@ public protocol ServiceType {
     language: String,
     currency: String,
     buildVersion: String,
-    deviceIdentifier: String
+    deviceIdentifier: String,
+    apolloClient: ApolloClientType?
   )
 
   /// Returns a new service with the oauth token replaced.
@@ -43,54 +46,82 @@ public protocol ServiceType {
   func addImage(file fileURL: URL, toDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
 
-  /// Uploads and attaches a video to the draft of a project update.
-  func addVideo(file fileURL: URL, toDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Video, ErrorEnvelope>
+  /// Sends facebook ad data and/or google analytics data relevant to the user
+  func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
+    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
+
+  /// Returns Pledge Over Time payment plan data.
+  func buildPaymentPlan(projectSlug: String, pledgeAmount: String)
+    -> SignalProducer<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope>
 
   /// Cancels a backing
   func cancelBacking(input: CancelBackingInput)
-    -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
+  /// Changes the email on a user account
   func changeEmail(input: ChangeEmailInput) ->
-    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
+  /// Changes the password on a user account
   func changePassword(input: ChangePasswordInput) ->
-    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
+  /// Changes the currency code on a user profile
   func changeCurrency(input: ChangeCurrencyInput) ->
-    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
   /// Clears the user's unseen activity count.
   func clearUserUnseenActivity(input: EmptyInput)
-    -> SignalProducer<ClearUserUnseenActivityEnvelope, GraphError>
+    -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope>
+
+  /// Let the server know to create/track an attribution event.
+  func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
   func createBacking(input: CreateBackingInput) ->
-    SignalProducer<CreateBackingEnvelope, GraphError>
+    SignalProducer<CreateBackingEnvelope, ErrorEnvelope>
 
+  func completeOnSessionCheckout(input: GraphAPI.CompleteOnSessionCheckoutInput) ->
+    SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope>
+
+  /// Create a checkout and returns it. Called before createBacking so that the backend can run some extra validations.
+  func createCheckout(input: CreateCheckoutInput) ->
+    SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope>
+
+  /// Sends report project data for a specific project
+  func createFlaggingInput(input: CreateFlaggingInput)
+    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
+
+  func createFlaggingInputCombine(input: CreateFlaggingInput)
+    -> AnyPublisher<EmptyResponseEnvelope, ErrorEnvelope>
+
+  /// Sends report project data for a specific project
+  func createPaymentIntentInput(input: CreatePaymentIntentInput)
+    -> SignalProducer<PaymentIntentEnvelope, ErrorEnvelope>
+
+  /// Creates the password on a user account
   func createPassword(input: CreatePasswordInput) ->
-    SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
+  /// Create Stripe setup intent for use with Stripe payment sheet
+  func createStripeSetupIntent(input: CreateSetupIntentInput) ->
+    SignalProducer<ClientSecretEnvelope, ErrorEnvelope>
+
+  /// Adds a new credit card to users' payment methods
   func addNewCreditCard(input: CreatePaymentSourceInput) ->
-    SignalProducer<CreatePaymentSourceEnvelope, GraphError>
+    SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope>
 
-  func changePaymentMethod(project: Project)
-    -> SignalProducer<ChangePaymentMethodEnvelope, ErrorEnvelope>
+  /// Adds a new Stripe payment source to users' payment methods
+  func addPaymentSheetPaymentSource(input: CreatePaymentSourceSetupIntentInput) ->
+    SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope>
 
   /// Deletes a payment method
   func deletePaymentMethod(input: PaymentSourceDeleteInput) ->
-    SignalProducer<DeletePaymentMethodEnvelope, GraphError>
+    SignalProducer<DeletePaymentMethodEnvelope, ErrorEnvelope>
 
   /// Removes an image from a project update draft.
   func delete(image: UpdateDraft.Image, fromDraft draft: UpdateDraft)
     -> SignalProducer<UpdateDraft.Image, ErrorEnvelope>
-
-  /// Removes a video from a project update draft.
-  func delete(video: UpdateDraft.Video, fromDraft draft: UpdateDraft)
-    -> SignalProducer<UpdateDraft.Video, ErrorEnvelope>
-
-  func exportData() -> SignalProducer<VoidEnvelope, ErrorEnvelope>
-
-  func exportDataState() -> SignalProducer<ExportDataEnvelope, ErrorEnvelope>
 
   /// Fetch a page of activities.
   func fetchActivities(count: Int?) -> SignalProducer<ActivityEnvelope, ErrorEnvelope>
@@ -102,14 +133,29 @@ public protocol ServiceType {
   func fetchBacking(forProject project: Project, forUser user: User)
     -> SignalProducer<Backing, ErrorEnvelope>
 
-  /// Fetch comments from a pagination url.
-  func fetchComments(paginationUrl url: String) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
+  /// Fetch comments for a project with a slug, cursor and limit.
+  func fetchProjectComments(
+    slug: String,
+    cursor: String?,
+    limit: Int?,
+    withStoredCards: Bool
+  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
 
-  /// Fetch comments for a project.
-  func fetchComments(project: Project) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
+  /// Fetch comments for an update with an id, cursor, limit and comments' users' stored cards.
+  func fetchUpdateComments(
+    id: String,
+    cursor: String?,
+    limit: Int?,
+    withStoredCards: Bool
+  ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
 
-  /// Fetch comments for an update.
-  func fetchComments(update: Update) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
+  /// Fetch comment replies for a comment with an id, limit, cursor and user information with stored cards.
+  func fetchCommentReplies(
+    id: String,
+    cursor: String?,
+    limit: Int,
+    withStoredCards: Bool
+  ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope>
 
   /// Fetch the config.
   func fetchConfig() -> SignalProducer<Config, ErrorEnvelope>
@@ -130,31 +176,41 @@ public protocol ServiceType {
   func fetchFriendStats() -> SignalProducer<FriendStatsEnvelope, ErrorEnvelope>
 
   /// Fetch Categories objects using graphQL.
-  func fetchGraphCategories(query: NonEmptySet<Query>) -> SignalProducer<RootCategoriesEnvelope, GraphError>
+  func fetchGraphCategories() -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope>
 
   /// Fetch Category objects using graphQL.
-  func fetchGraphCategory(query: NonEmptySet<Query>)
-    -> SignalProducer<CategoryEnvelope, GraphError>
+  func fetchGraphCategory(id: String)
+    -> SignalProducer<CategoryEnvelope, ErrorEnvelope>
 
-  /// Fetch User's stored cards.
-  func fetchGraphCreditCards(query: NonEmptySet<Query>)
-    -> SignalProducer<UserEnvelope<GraphUserCreditCard>, GraphError>
+  /// Fetches various fields of a given User using graphQL.
+  func fetchGraphUser(withStoredCards: Bool)
+    -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope>
 
-  /// Fetch a User's account fields
-  func fetchGraphUserAccountFields(query: NonEmptySet<Query>)
-    -> SignalProducer<UserEnvelope<GraphUser>, GraphError>
+  /// Fetches the email of the currently logged in User.
+  func fetchGraphUserEmail()
+    -> SignalProducer<UserEnvelope<GraphUserEmail>, ErrorEnvelope>
 
-  /// Fetch User's backings with a specific status.
-  func fetchGraphUserBackings(query: NonEmptySet<Query>)
-    -> SignalProducer<UserEnvelope<GraphBackingEnvelope>, GraphError>
+  func fetchGraphUserEmailCombine()
+    -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope>
 
-  /// Fetch User's email fields object using graphQL.
-  func fetchGraphUserEmailFields(query: NonEmptySet<Query>)
-    -> SignalProducer<UserEnvelope<UserEmailFields>, GraphError>
+  /// Fetches the email of the currently logged in User.
+  func fetchGraphUserSetup()
+    -> SignalProducer<UserEnvelope<GraphUserSetup>, ErrorEnvelope>
 
-  /// Fetch Backing data for ManagePledgeViewController
-  func fetchManagePledgeViewBacking(query: NonEmptySet<Query>)
-    -> SignalProducer<ManagePledgeViewBackingEnvelope, GraphError>
+  func fetchGraphUserSetupCombine()
+    -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope>
+
+  /// Fetches GraphQL user fragment and returns User instance.
+  func fetchGraphUserSelf()
+    -> SignalProducer<UserEnvelope<User>, ErrorEnvelope>
+
+  /// Fetch errored User's backings with a specific status.
+  func fetchErroredUserBackings(status: BackingState)
+    -> SignalProducer<ErroredBackingsEnvelope, ErrorEnvelope>
+
+  /// Fetch `Backing` data with a `Backing` ID and the backers' stored cards.
+  func fetchBacking(id: Int, withStoredCards: Bool)
+    -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
 
   /// Fetches all of the messages in a particular message thread.
   func fetchMessageThread(messageThreadId: Int)
@@ -171,14 +227,28 @@ public protocol ServiceType {
   func fetchMessageThreads(paginationUrl: String)
     -> SignalProducer<MessageThreadsEnvelope, ErrorEnvelope>
 
-  /// Fetch the newest data for a particular project from its id.
+  /// Fetch the newest data for a particular project from its id or slug. (v1)
   func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope>
+
+  /// Fetch the newest data for a particular project from its id or slug, including an optional backing id if current user is backing project
+  /// (currently only used on `ProjectPamphetViewModel`and `ProjectPageViewModel`  because it's a GQL query)
+  func fetchProject(projectParam: Param, configCurrency: String?)
+    -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope>
+
+  /// Fetch the project's rewards only, without shipping rules
+  func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope>
+
+  /// Fetch a project's friendly backers from its id or slug.
+  func fetchProjectFriends(param: Param) -> SignalProducer<[User], ErrorEnvelope>
 
   /// Fetch a single project with the specified discovery params.
   func fetchProject(_ params: DiscoveryParams) -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope>
 
   /// Fetch the newest data for a particular project from its project value.
   func fetchProject(project: Project) -> SignalProducer<Project, ErrorEnvelope>
+
+  /// Fetch the newest data for a particular project from its project value.
+  func fetchProject_combine(project: Project) -> AnyPublisher<Project, ErrorEnvelope>
 
   /// Fetch a page of activities for a project.
   func fetchProjectActivities(forProject project: Project) ->
@@ -187,10 +257,6 @@ public protocol ServiceType {
   /// Fetch a page of activities for a project from a pagination url.
   func fetchProjectActivities(paginationUrl: String) ->
     SignalProducer<ProjectActivityEnvelope, ErrorEnvelope>
-
-  /// Fetch the project creator details for a project with a given query.
-  func fetchProjectCreatorDetails(query: NonEmptySet<Query>)
-    -> SignalProducer<ProjectCreatorDetailsEnvelope, GraphError>
 
   /// Fetch the user's project notifications.
   func fetchProjectNotifications() -> SignalProducer<[ProjectNotification], ErrorEnvelope>
@@ -204,11 +270,11 @@ public protocol ServiceType {
   /// Fetches the stats for a particular project.
   func fetchProjectStats(projectId: Int) -> SignalProducer<ProjectStatsEnvelope, ErrorEnvelope>
 
-  /// Fetch the project summary for a project with a given query.
-  func fetchProjectSummary(query: NonEmptySet<Query>)
-    -> SignalProducer<ProjectSummaryEnvelope, GraphError>
+  /// Fetch the add-on rewards for the add-on selection view with a `Project` slug and optional `Location` ID.
+  func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
+    -> SignalProducer<Project, ErrorEnvelope>
 
-  /// Fetches a reward for a project and reward id.
+  /// Fetches a reward's shipping rules for a project and reward id.
   func fetchRewardShippingRules(projectId: Int, rewardId: Int)
     -> SignalProducer<ShippingRulesEnvelope, ErrorEnvelope>
 
@@ -225,12 +291,6 @@ public protocol ServiceType {
   /// Fetches a project update draft.
   func fetchUpdateDraft(forProject project: Project) -> SignalProducer<UpdateDraft, ErrorEnvelope>
 
-  /// Fetches the current user's backed projects.
-  func fetchUserProjectsBacked() -> SignalProducer<ProjectsEnvelope, ErrorEnvelope>
-
-  /// Fetches more user backed projects.
-  func fetchUserProjectsBacked(paginationUrl url: String) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope>
-
   /// Fetch the newest data for a particular user.
   func fetchUser(_ user: User) -> SignalProducer<User, ErrorEnvelope>
 
@@ -239,6 +299,9 @@ public protocol ServiceType {
 
   /// Fetch the logged-in user's data.
   func fetchUserSelf() -> SignalProducer<User, ErrorEnvelope>
+
+  /// Fetch the logged-in user's data.
+  func fetchUserSelf_combine(withOAuthToken: String) -> AnyPublisher<User, ErrorEnvelope>
 
   /// Mark reward received.
   func backingUpdate(forProject project: Project, forUser user: User, received: Bool)
@@ -267,11 +330,9 @@ public protocol ServiceType {
   /// Marks all the messages in a particular thread as read.
   func markAsRead(messageThread: MessageThread) -> SignalProducer<MessageThread, ErrorEnvelope>
 
-  /// Posts a comment to a project.
-  func postComment(_ body: String, toProject project: Project) -> SignalProducer<Comment, ErrorEnvelope>
-
-  /// Posts a comment to an update.
-  func postComment(_ body: String, toUpdate update: Update) -> SignalProducer<Comment, ErrorEnvelope>
+  /// Posts a comment to a project or replies in a thread
+  func postComment(input: PostCommentInput)
+    -> SignalProducer<Comment, ErrorEnvelope>
 
   /// Returns a project update preview URL.
   func previewUrl(forDraft draft: UpdateDraft) -> URL?
@@ -295,17 +356,11 @@ public protocol ServiceType {
 
   /// Sends a verification email (after updating the email from account settings).
   func sendVerificationEmail(input: EmptyInput)
-    -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError>
+    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
 
   /// Signin with Apple
   func signInWithApple(input: SignInWithAppleInput)
-    -> SignalProducer<SignInWithAppleEnvelope, GraphError>
-
-  /// Signup with email.
-  func signup(
-    name: String, email: String, password: String, passwordConfirmation: String,
-    sendNewsletters: Bool
-  ) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope>
+    -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope>
 
   /// Signup with Facebook access token and newsletter bool.
   func signup(facebookAccessToken: String, sendNewsletters: Bool) ->
@@ -315,16 +370,7 @@ public protocol ServiceType {
   func unfollowFriend(userId id: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
   /// Updates a backing
-  func updateBacking(input: UpdateBackingInput) -> SignalProducer<UpdateBackingEnvelope, GraphError>
-
-  /// Performs the first step of checkout by creating a pledge on the server.
-  func updatePledge(
-    project: Project,
-    amount: Double,
-    reward: Reward?,
-    shippingLocation: Location?,
-    tappedReward: Bool
-  ) -> SignalProducer<UpdatePledgeEnvelope, ErrorEnvelope>
+  func updateBacking(input: UpdateBackingInput) -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope>
 
   /// Update the project notification setting.
   func updateProjectNotification(_ notification: ProjectNotification)
@@ -337,11 +383,48 @@ public protocol ServiceType {
   func update(draft: UpdateDraft, title: String, body: String, isPublic: Bool)
     -> SignalProducer<UpdateDraft, ErrorEnvelope>
 
+  /// Unwatches a project.
   func unwatchProject(input: WatchProjectInput) ->
-    SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError>
+    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
 
+  /// Validates a Post Campaign Pledge
+  func validateCheckout(
+    checkoutId: String,
+    paymentSourceId: String,
+    paymentIntentClientSecret: String
+  ) -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope>
+
+  /// Verifies an email address with a given access token.
+  func verifyEmail(withToken token: String)
+    -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope>
+
+  /// Watches (also known as favoriting) a project.
   func watchProject(input: WatchProjectInput) ->
-    SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError>
+    SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope>
+
+  func fetchSavedProjects(cursor: String?, limit: Int?)
+    -> SignalProducer<FetchProjectsEnvelope, ErrorEnvelope>
+
+  func fetchBackedProjects(cursor: String?, limit: Int?)
+    -> SignalProducer<FetchProjectsEnvelope, ErrorEnvelope>
+
+  func blockUser(input: BlockUserInput) -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
+
+  func fetchDiscovery_combine(paginationUrl: String)
+    -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope>
+
+  func fetchDiscovery_combine(params: DiscoveryParams)
+    -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope>
+
+  func exchangeTokenForOAuthToken(params: OAuthTokenExchangeParams)
+    -> AnyPublisher<OAuthTokenExchangeResponse, ErrorEnvelope>
+
+  /// Confirms a backer's address for a given backing. Returns a success boolean.
+  func confirmBackingAddress(backingId: String, addressId: String) -> AnyPublisher<Bool, ErrorEnvelope>
+
+  /// Fetch data for the pledged projects overview.
+  func fetchPledgedProjects(cursor: String?, limit: Int?)
+    -> AnyPublisher<GraphAPI.FetchPledgedProjectsQuery.Data, ErrorEnvelope>
 }
 
 extension ServiceType {
@@ -425,37 +508,6 @@ extension ServiceType {
   }
 
   /**
-   Prepares a URL request to be sent to the server.
-
-   - parameter originalRequest: The request that should be prepared.
-   - parameter queryString:     The GraphQL query string for the request.
-
-   - returns: A new URL request that is properly configured for the server.
-   */
-  public func preparedRequest(forRequest originalRequest: URLRequest, queryString: String)
-    -> URLRequest {
-    var request = originalRequest
-    guard let URL = request.url else {
-      return originalRequest
-    }
-
-    request.httpBody = "query=\(queryString)".data(using: .utf8)
-
-    let components = URLComponents(url: URL, resolvingAgainstBaseURL: false)!
-    request.url = components.url
-    request.allHTTPHeaderFields = self.defaultHeaders
-
-    return request
-  }
-
-  public func preparedRequest(forURL url: URL, queryString: String)
-    -> URLRequest {
-    var request = URLRequest(url: url)
-    request.httpMethod = Method.POST.rawValue
-    return self.preparedRequest(forRequest: request, queryString: queryString)
-  }
-
-  /**
      Prepares a URL request to be sent to the server.
      - parameter originalRequest: The request that should be prepared
      - parameter queryString: The GraphQL mutation string description
@@ -495,15 +547,32 @@ extension ServiceType {
       && request.value(forHTTPHeaderField: "Kickstarter-iOS-App") != nil
   }
 
-  fileprivate var defaultHeaders: [String: String] {
+  public func addV1AuthenticationToRequest(_ request: inout URLRequest, oauthToken: String) {
+    var headers = request.allHTTPHeaderFields ?? [:]
+    headers["X-Auth"] = "token \(oauthToken)"
+    request.allHTTPHeaderFields = headers
+  }
+
+  internal var defaultHeaders: [String: String] {
     var headers: [String: String] = [:]
     headers["Accept-Language"] = self.language
-    headers["Authorization"] = self.authorizationHeader
     headers["Kickstarter-App-Id"] = self.appId
     headers["Kickstarter-iOS-App"] = self.buildVersion
     headers["User-Agent"] = Self.userAgent
     headers["X-KICKSTARTER-CLIENT"] = self.serverConfig.apiClientAuth.clientId
     headers["Kickstarter-iOS-App-UUID"] = self.deviceIdentifier
+
+    /*
+     GraphQL - Reads OAuth token from Authorization header
+     GraphQL - Ignores X-Auth header
+     V1 - Reads basic auth from Authorization header
+     V1 - Reads OAuth token from X-Auth header or (deprecated) from oauth_token parameter
+     */
+
+    headers["Authorization"] = self.authorizationHeader
+    if let oAuthHeader = self.oAuthAuthorizationHeader {
+      headers["X-Auth"] = oAuthHeader
+    }
 
     return headers
   }
@@ -527,23 +596,30 @@ extension ServiceType {
     return "\(app)/\(bundleVersion) (\(model); iOS \(systemVersion) Scale/\(scale))"
   }
 
-  fileprivate var authorizationHeader: String? {
-    if let token = self.oauthToken?.token {
-      return "token \(token)"
+  private var oAuthAuthorizationHeader: String? {
+    guard let token = self.oauthToken?.token else {
+      return nil
+    }
+
+    return "token \(token)"
+  }
+
+  private var authorizationHeader: String? {
+    if let header = oAuthAuthorizationHeader {
+      return header
     } else {
       return self.serverConfig.basicHTTPAuth?.authorizationHeader
     }
   }
 
-  fileprivate var defaultQueryParams: [String: String] {
+  private var defaultQueryParams: [String: String] {
     var query: [String: String] = [:]
     query["client_id"] = self.serverConfig.apiClientAuth.clientId
     query["currency"] = self.currency
-    query["oauth_token"] = self.oauthToken?.token
     return query
   }
 
-  fileprivate func queryComponents(_ key: String, _ value: Any) -> [(String, String)] {
+  private func queryComponents(_ key: String, _ value: Any) -> [(String, String)] {
     var components: [(String, String)] = []
 
     if let dictionary = value as? [String: Any] {

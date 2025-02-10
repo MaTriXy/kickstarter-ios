@@ -10,7 +10,7 @@ public protocol MessageDialogViewModelInputs {
   func cancelButtonPressed()
 
   /// Call with the backing/message-thread/project that was given to the view.
-  func configureWith(messageSubject: MessageSubject, context: Koala.MessageDialogContext)
+  func configureWith(messageSubject: MessageSubject, context: KSRAnalytics.MessageDialogContext)
 
   /// Call when the post button is pressed.
   func postButtonPressed()
@@ -53,19 +53,6 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
     let messageSubject = self.messageSubjectProperty.signal.skipNil()
       .takeWhen(self.viewDidLoadProperty.signal)
 
-    let projectFromBacking = messageSubject
-      .map { $0.backing }
-      .skipNil()
-      .flatMap {
-        AppEnvironment.current.apiService.fetchProject(param: .id($0.projectId)).demoteErrors()
-      }
-
-    let project = Signal.merge(
-      projectFromBacking,
-      messageSubject.map { $0.messageThread?.project }.skipNil(),
-      messageSubject.map { $0.project }.skipNil()
-    )
-
     let body = self.bodyTextChangedProperty.signal.skipNil()
 
     let bodyIsPresent = body
@@ -83,7 +70,6 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
     )
     .takeWhen(self.postButtonPressedProperty.signal)
     .switchMap { body, messageSubject in
-
       AppEnvironment.current.apiService.sendMessage(body: body, toSubject: messageSubject)
         .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
         .materialize()
@@ -109,13 +95,10 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
       .take(first: 1)
       .flatMap { messageSubject -> SignalProducer<String, Never> in
         switch messageSubject {
-        case let .backing(backing):
-          guard let name = backing.backer?.name else { return fetchBackerName(backing: backing) }
-          return .init(value: name)
         case let .messageThread(messageThread):
           return .init(value: messageThread.participant.name)
-        case let .project(project):
-          return .init(value: project.creator.name)
+        case let .project(_, name):
+          return .init(value: name)
         }
       }
 
@@ -123,13 +106,6 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
       self.viewDidLoadProperty.signal.mapConst(true),
       self.notifyPresenterDialogWantsDismissal.mapConst(false)
     )
-
-    Signal.combineLatest(project, self.contextProperty.signal.skipNil())
-      .observeValues { AppEnvironment.current.koala.trackViewedMessageEditor(project: $0, context: $1) }
-
-    Signal.combineLatest(project, self.contextProperty.signal.skipNil())
-      .takeWhen(self.notifyPresenterCommentWasPostedSuccesfully)
-      .observeValues { AppEnvironment.current.koala.trackMessageSent(project: $0, context: $1) }
   }
 
   fileprivate let bodyTextChangedProperty = MutableProperty<String?>(nil)
@@ -143,13 +119,12 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
   }
 
   fileprivate let messageSubjectProperty = MutableProperty<MessageSubject?>(nil)
-  fileprivate let contextProperty = MutableProperty<Koala.MessageDialogContext?>(nil)
+  fileprivate let contextProperty = MutableProperty<KSRAnalytics.MessageDialogContext?>(nil)
   public func configureWith(
     messageSubject: MessageSubject,
-    context: Koala.MessageDialogContext
+    context _: KSRAnalytics.MessageDialogContext
   ) {
     self.messageSubjectProperty.value = messageSubject
-    self.contextProperty.value = context
   }
 
   fileprivate let postButtonPressedProperty = MutableProperty(())
@@ -172,11 +147,4 @@ public final class MessageDialogViewModel: MessageDialogViewModelType, MessageDi
 
   public var inputs: MessageDialogViewModelInputs { return self }
   public var outputs: MessageDialogViewModelOutputs { return self }
-}
-
-func fetchBackerName(backing: Backing) -> SignalProducer<String, Never> {
-  return AppEnvironment.current.apiService.fetchUser(userId: backing.backerId)
-    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-    .demoteErrors()
-    .map { $0.name }
 }

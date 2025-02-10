@@ -1,9 +1,11 @@
 #if DEBUG
+  import Combine
   import Foundation
   import Prelude
   import ReactiveSwift
 
   internal struct MockService: ServiceType {
+    internal let apolloClient: ApolloClientType?
     internal let appId: String
     internal let serverConfig: ServerConfigType
     internal let oauthToken: OauthTokenAuthType?
@@ -12,27 +14,50 @@
     internal let buildVersion: String
     internal let deviceIdentifier: String
 
-    fileprivate let addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, GraphError>?
+    fileprivate let addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>?
 
-    fileprivate let cancelBackingResult: Result<GraphMutationEmptyResponseEnvelope, GraphError>?
+    fileprivate let addPaymentSheetPaymentSourceResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>?
 
-    fileprivate let changeCurrencyResponse: GraphMutationEmptyResponseEnvelope?
-    fileprivate let changeCurrencyError: GraphError?
+    fileprivate let blockUserResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
-    fileprivate let changeEmailError: GraphError?
-    fileprivate let changeEmailResponse: UserEnvelope<UserEmailFields>?
+    fileprivate let buildPaymentPlanResult: Result<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope>?
 
-    fileprivate let changePasswordError: GraphError?
+    fileprivate let cancelBackingResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
-    fileprivate let createBackingResult: Result<CreateBackingEnvelope, GraphError>?
+    fileprivate let changeCurrencyResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
-    fileprivate let createPasswordError: GraphError?
+    fileprivate let changeEmailResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let changePasswordResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let createAttributionEventResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let createBackingResult: Result<CreateBackingEnvelope, ErrorEnvelope>?
+
+    fileprivate let completeOnSessionCheckoutResult: Result<
+      GraphAPI.CompleteOnSessionCheckoutMutation.Data,
+      ErrorEnvelope
+    >?
+
+    fileprivate let createCheckoutResult: Result<CreateCheckoutEnvelope, ErrorEnvelope>?
+
+    fileprivate let createFlaggingResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let createPaymentIntentResult: Result<PaymentIntentEnvelope, ErrorEnvelope>?
+
+    fileprivate let createPasswordResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let createStripeSetupIntentResult: Result<ClientSecretEnvelope, ErrorEnvelope>?
 
     fileprivate let changePaymentMethodResult: Result<ChangePaymentMethodEnvelope, ErrorEnvelope>?
 
-    fileprivate let clearUserUnseenActivityResult: Result<ClearUserUnseenActivityEnvelope, GraphError>?
+    fileprivate let clearUserUnseenActivityResult: Result<ClearUserUnseenActivityEnvelope, ErrorEnvelope>?
 
-    fileprivate let deletePaymentMethodResult: Result<DeletePaymentMethodEnvelope, GraphError>?
+    fileprivate let confirmBackingAddressResult: Result<Bool, ErrorEnvelope>?
+
+    fileprivate let deletePaymentMethodResult: Result<DeletePaymentMethodEnvelope, ErrorEnvelope>?
+
+    fileprivate let triggerThirdPartyEventResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
     fileprivate let facebookConnectResponse: User?
     fileprivate let facebookConnectError: ErrorEnvelope?
@@ -43,11 +68,14 @@
     fileprivate let fetchBackingResponse: Backing
     fileprivate let backingUpdate: Backing
 
-    fileprivate let fetchGraphCategoriesResponse: RootCategoriesEnvelope?
-    fileprivate let fetchGraphCategoriesError: GraphError?
+    fileprivate let fetchGraphCategoryResult: Result<CategoryEnvelope, ErrorEnvelope>?
 
-    fileprivate let fetchCommentsResponse: [Comment]?
-    fileprivate let fetchCommentsError: ErrorEnvelope?
+    fileprivate let fetchGraphCategoriesResult: Result<RootCategoriesEnvelope, ErrorEnvelope>?
+
+    fileprivate let fetchProjectCommentsEnvelopeResult: Result<CommentsEnvelope, ErrorEnvelope>?
+    fileprivate let fetchUpdateCommentsEnvelopeResult: Result<CommentsEnvelope, ErrorEnvelope>?
+
+    fileprivate let fetchCommentRepliesEnvelopeResult: Result<CommentRepliesEnvelope, ErrorEnvelope>?
 
     fileprivate let fetchConfigResponse: Config?
 
@@ -60,24 +88,14 @@
     fileprivate let fetchFriendStatsResponse: FriendStatsEnvelope?
     fileprivate let fetchFriendStatsError: ErrorEnvelope?
 
-    fileprivate let fetchExportStateResponse: ExportDataEnvelope?
-    fileprivate let fetchExportStateError: ErrorEnvelope?
-
-    fileprivate let exportDataError: ErrorEnvelope?
-
     fileprivate let fetchDraftResponse: UpdateDraft?
     fileprivate let fetchDraftError: ErrorEnvelope?
 
-    fileprivate let fetchGraphUserEmailFieldsResponse: UserEmailFields?
-
-    fileprivate let fetchGraphCreditCardsResponse: UserEnvelope<GraphUserCreditCard>?
-    fileprivate let fetchGraphCreditCardsError: GraphError?
-
-    fileprivate let fetchGraphUserAccountFieldsResponse: UserEnvelope<GraphUser>?
-    fileprivate let fetchGraphUserAccountFieldsError: GraphError?
-
-    fileprivate let fetchGraphUserBackingsResponse: UserEnvelope<GraphBackingEnvelope>?
-    fileprivate let fetchGraphUserBackingsError: GraphError?
+    fileprivate let fetchGraphUserResult: Result<UserEnvelope<GraphUser>, ErrorEnvelope>?
+    fileprivate let fetchGraphUserSelfResult: Result<UserEnvelope<User>, ErrorEnvelope>?
+    fileprivate let fetchGraphUserEmailResult: Result<UserEnvelope<GraphUserEmail>, ErrorEnvelope>?
+    fileprivate let fetchGraphUserSetupResult: Result<UserEnvelope<GraphUserSetup>, ErrorEnvelope>?
+    fileprivate let fetchErroredUserBackingsResult: Result<ErroredBackingsEnvelope, ErrorEnvelope>?
 
     fileprivate let addAttachmentResponse: UpdateDraft.Image?
     fileprivate let addAttachmentError: ErrorEnvelope?
@@ -86,25 +104,35 @@
 
     fileprivate let publishUpdateError: ErrorEnvelope?
 
-    fileprivate let fetchManagePledgeViewBackingResult: Result<ManagePledgeViewBackingEnvelope, GraphError>?
+    fileprivate let fetchBackerSavedProjectsResponse: FetchProjectsEnvelope?
+    fileprivate let fetchBackerBackedProjectsResponse: FetchProjectsEnvelope?
+
+    fileprivate let fetchManagePledgeViewBackingResult:
+      Result<ProjectAndBackingEnvelope, ErrorEnvelope>?
 
     fileprivate let fetchMessageThreadResult: Result<MessageThread?, ErrorEnvelope>?
     fileprivate let fetchMessageThreadsResponse: [MessageThread]
 
-    fileprivate let fetchProjectResponse: Project?
-    fileprivate let fetchProjectError: ErrorEnvelope?
+    fileprivate let fetchPledgedProjectsResult:
+      Result<GraphAPI.FetchPledgedProjectsQuery.Data, ErrorEnvelope>?
 
+    /**
+     FIXME: Eventually combine `fetchProjectEnvelopeResult` and `fetchProjectPamphletEnvelopeResult` once all calls returning `Project` are using GQL. https://kickstarter.atlassian.net/browse/NTV-219
+     */
+    fileprivate let fetchProjectEnvelopeResult: Result<Project, ErrorEnvelope>?
+    fileprivate let fetchProjectPamphletEnvelopeResult: Result<Project.ProjectPamphletData, ErrorEnvelope>?
+    fileprivate let fetchProjectFriendsEnvelopeResult: Result<[User], ErrorEnvelope>?
+    fileprivate let fetchProjectRewardsEnvelopeResult: Result<[Reward], ErrorEnvelope>?
     fileprivate let fetchProjectsResponse: [Project]?
     fileprivate let fetchProjectsError: ErrorEnvelope?
-
-    fileprivate let fetchProjectCreatorDetailsResult: Result<ProjectCreatorDetailsEnvelope, GraphError>?
 
     fileprivate let fetchProjectNotificationsResponse: [ProjectNotification]
 
     fileprivate let fetchProjectStatsResponse: ProjectStatsEnvelope?
     fileprivate let fetchProjectStatsError: ErrorEnvelope?
 
-    fileprivate let fetchProjectSummaryResult: Result<ProjectSummaryEnvelope, GraphError>?
+    fileprivate let fetchRewardAddOnsSelectionViewRewardsResult:
+      Result<Project, ErrorEnvelope>?
 
     fileprivate let fetchShippingRulesResult: Result<[ShippingRule], ErrorEnvelope>?
 
@@ -113,15 +141,9 @@
 
     fileprivate let fetchUnansweredSurveyResponsesResponse: [SurveyResponse]
 
-    fileprivate let fetchUpdateCommentsResponse: Result<CommentsEnvelope, ErrorEnvelope>?
-
     fileprivate let fetchUpdateResponse: Update
 
-    fileprivate let fetchUserProjectsBackedResponse: [Project]?
-    fileprivate let fetchUserProjectsBackedError: ErrorEnvelope?
-
-    fileprivate let fetchUserResponse: User?
-    fileprivate let fetchUserError: ErrorEnvelope?
+    fileprivate let fetchUserResult: Result<User, ErrorEnvelope>?
 
     fileprivate let fetchUserSelfResponse: User?
     fileprivate let fetchUserSelfError: ErrorEnvelope?
@@ -132,8 +154,7 @@
 
     fileprivate let incrementVideoStartError: ErrorEnvelope?
 
-    fileprivate let postCommentResponse: Comment?
-    fileprivate let postCommentError: ErrorEnvelope?
+    fileprivate let postCommentResult: Result<Comment, ErrorEnvelope>?
 
     fileprivate let fetchProjectActivitiesResponse: [Activity]?
     fileprivate let fetchProjectActivitiesError: ErrorEnvelope?
@@ -146,17 +167,17 @@
     fileprivate let resetPasswordResponse: User?
     fileprivate let resetPasswordError: ErrorEnvelope?
 
-    fileprivate let sendEmailVerificationResponse: GraphMutationEmptyResponseEnvelope?
-    fileprivate let sendEmailVerificationError: GraphError?
+    fileprivate let sendEmailVerificationResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
-    fileprivate let signInWithAppleResult: Result<SignInWithAppleEnvelope, GraphError>?
+    fileprivate let signInWithAppleResult: Result<SignInWithAppleEnvelope, ErrorEnvelope>?
 
     fileprivate let signupResponse: AccessTokenEnvelope?
     fileprivate let signupError: ErrorEnvelope?
+    fileprivate let tokenExchangeResponse: OAuthTokenExchangeResponse?
 
     fileprivate let unfollowFriendError: ErrorEnvelope?
 
-    fileprivate let updateBackingResult: Result<UpdateBackingEnvelope, GraphError>?
+    fileprivate let updateBackingResult: Result<UpdateBackingEnvelope, ErrorEnvelope>?
 
     fileprivate let updateDraftError: ErrorEnvelope?
 
@@ -168,11 +189,18 @@
     fileprivate let updateUserSelfError: ErrorEnvelope?
 
     fileprivate let unwatchProjectMutationResult: Result<
-      GraphMutationWatchProjectResponseEnvelope,
-      GraphError
+      WatchProjectResponseEnvelope,
+      ErrorEnvelope
     >?
 
-    fileprivate let watchProjectMutationResult: Result<GraphMutationWatchProjectResponseEnvelope, GraphError>?
+    fileprivate let validateCheckoutResult: Result<ValidateCheckoutEnvelope, ErrorEnvelope>?
+
+    fileprivate let verifyEmailResult: Result<EmailVerificationResponseEnvelope, ErrorEnvelope>?
+
+    fileprivate let watchProjectMutationResult: Result<
+      WatchProjectResponseEnvelope,
+      ErrorEnvelope
+    >?
 
     internal init(
       appId: String = "com.kickstarter.kickstarter.mock",
@@ -181,7 +209,8 @@
       language: String,
       currency: String,
       buildVersion: String = "1",
-      deviceIdentifier: String = "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF"
+      deviceIdentifier: String = "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
+      apolloClient: ApolloClientType? = nil
     ) {
       self.init(
         appId: appId,
@@ -191,7 +220,7 @@
         currency: currency,
         buildVersion: buildVersion,
         deviceIdentifier: deviceIdentifier,
-        fetchActivitiesResponse: nil
+        apolloClient: apolloClient
       )
     }
 
@@ -203,30 +232,46 @@
       currency: String = "USD",
       buildVersion: String = "1",
       deviceIdentifier: String = "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
-      addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, GraphError>? = nil,
-      cancelBackingResult: Result<GraphMutationEmptyResponseEnvelope, GraphError>? = nil,
-      changeEmailError: GraphError? = nil,
-      changeEmailResponse: UserEnvelope<UserEmailFields>? = UserEnvelope<UserEmailFields>(
-        me: .template
-      ),
-      changePasswordError: GraphError? = nil,
-      createBackingResult: Result<CreateBackingEnvelope, GraphError>? = nil,
-      createPasswordError: GraphError? = nil,
-      changeCurrencyResponse: GraphMutationEmptyResponseEnvelope? = nil,
-      changeCurrencyError: GraphError? = nil,
+      addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>? = nil,
+      addPaymentSheetPaymentSourceResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>? = nil,
+      apolloClient: ApolloClientType? = nil,
+      blockUserResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      buildPaymentPlanResult: Result<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope>? = nil,
+      cancelBackingResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      changeEmailResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      changePasswordResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      createAttributionEventResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      createBackingResult: Result<CreateBackingEnvelope, ErrorEnvelope>? = nil,
+      completeOnSessionCheckoutResult: Result<
+        GraphAPI.CompleteOnSessionCheckoutMutation.Data,
+        ErrorEnvelope
+      >? = nil,
+      createCheckoutResult: Result<CreateCheckoutEnvelope, ErrorEnvelope>? = nil,
+      createFlaggingResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      createPaymentIntentResult: Result<PaymentIntentEnvelope, ErrorEnvelope>? = nil,
+      createPasswordResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      createStripeSetupIntentResult: Result<ClientSecretEnvelope, ErrorEnvelope>? = nil,
+      changeCurrencyResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
       changePaymentMethodResult: Result<ChangePaymentMethodEnvelope, ErrorEnvelope>? = nil,
-      clearUserUnseenActivityResult: Result<ClearUserUnseenActivityEnvelope, GraphError>? = nil,
-      deletePaymentMethodResult: Result<DeletePaymentMethodEnvelope, GraphError>? = nil,
+      confirmBackingAddressResult: Result<Bool, ErrorEnvelope>? = nil,
+      deletePaymentMethodResult: Result<DeletePaymentMethodEnvelope, ErrorEnvelope>? = nil,
+      triggerThirdPartyEventResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      clearUserUnseenActivityResult: Result<ClearUserUnseenActivityEnvelope, ErrorEnvelope>? = nil,
       facebookConnectResponse: User? = nil,
       facebookConnectError: ErrorEnvelope? = nil,
       fetchActivitiesResponse: [Activity]? = nil,
       fetchActivitiesError: ErrorEnvelope? = nil,
       fetchBackingResponse: Backing = .template,
       backingUpdate: Backing = .template,
-      fetchGraphCategoriesResponse: RootCategoriesEnvelope? = nil,
-      fetchGraphCategoriesError: GraphError? = nil,
-      fetchCommentsResponse: [Comment]? = nil,
-      fetchCommentsError: ErrorEnvelope? = nil,
+      fetchBackerSavedProjectsResponse: FetchProjectsEnvelope? = nil,
+      fetchBackerBackedProjectsResponse: FetchProjectsEnvelope? = nil,
+      fetchGraphCategoryResult: Result<CategoryEnvelope, ErrorEnvelope>? = nil,
+      fetchGraphCategoriesResult: Result<RootCategoriesEnvelope, ErrorEnvelope>? = nil,
+      fetchCommentsResponse _: [ActivityComment]? = nil,
+      fetchCommentsError _: ErrorEnvelope? = nil,
+      fetchProjectCommentsEnvelopeResult: Result<CommentsEnvelope, ErrorEnvelope>? = nil,
+      fetchUpdateCommentsEnvelopeResult: Result<CommentsEnvelope, ErrorEnvelope>? = nil,
+      fetchCommentRepliesEnvelopeResult: Result<CommentRepliesEnvelope, ErrorEnvelope>? = nil,
       fetchConfigResponse: Config? = nil,
       fetchDiscoveryResponse: DiscoveryEnvelope? = nil,
       fetchDiscoveryError: ErrorEnvelope? = nil,
@@ -234,74 +279,70 @@
       fetchFriendsError: ErrorEnvelope? = nil,
       fetchFriendStatsResponse: FriendStatsEnvelope? = nil,
       fetchFriendStatsError: ErrorEnvelope? = nil,
-      fetchExportStateResponse: ExportDataEnvelope? = nil,
-      fetchExportStateError: ErrorEnvelope? = nil,
-      fetchGraphCreditCardsResponse: UserEnvelope<GraphUserCreditCard>? = nil,
-      fetchGraphCreditCardsError: GraphError? = nil,
-      exportDataError: ErrorEnvelope? = nil,
       fetchDraftResponse: UpdateDraft? = nil,
       fetchDraftError: ErrorEnvelope? = nil,
-      fetchGraphUserEmailFieldsResponse: UserEmailFields? = nil,
-      fetchGraphUserAccountFieldsResponse: UserEnvelope<GraphUser>? = nil,
-      fetchGraphUserAccountFieldsError: GraphError? = nil,
-      fetchGraphUserBackingsResponse: UserEnvelope<GraphBackingEnvelope>? = nil,
-      fetchGraphUserBackingsError: GraphError? = nil,
+      fetchGraphUserResult: Result<UserEnvelope<GraphUser>, ErrorEnvelope>? = nil,
+      fetchGraphUserSelfResult: Result<UserEnvelope<User>, ErrorEnvelope>? = nil,
+      fetchGraphUserEmailResult: Result<UserEnvelope<GraphUserEmail>, ErrorEnvelope>? = nil,
+      fetchGraphUserSetupResult: Result<UserEnvelope<GraphUserSetup>, ErrorEnvelope>? = nil,
+      fetchErroredUserBackingsResult: Result<ErroredBackingsEnvelope, ErrorEnvelope>? = nil,
       addAttachmentResponse: UpdateDraft.Image? = nil,
       addAttachmentError: ErrorEnvelope? = nil,
       removeAttachmentResponse: UpdateDraft.Image? = nil,
       removeAttachmentError: ErrorEnvelope? = nil,
       publishUpdateError: ErrorEnvelope? = nil,
-      fetchManagePledgeViewBackingResult: Result<ManagePledgeViewBackingEnvelope, GraphError>? = nil,
+      fetchManagePledgeViewBackingResult: Result<ProjectAndBackingEnvelope, ErrorEnvelope>? = nil,
       fetchMessageThreadResult: Result<MessageThread?, ErrorEnvelope>? = nil,
       fetchMessageThreadsResponse: [MessageThread]? = nil,
-      fetchProjectResponse: Project? = nil,
-      fetchProjectError: ErrorEnvelope? = nil,
+      fetchPledgedProjectsResult: Result<GraphAPI.FetchPledgedProjectsQuery.Data, ErrorEnvelope>? = nil,
+      fetchProjectResult: Result<Project, ErrorEnvelope>? = nil,
+      fetchProjectPamphletResult: Result<Project.ProjectPamphletData, ErrorEnvelope>? = nil,
+      fetchProjectFriendsResult: Result<[User], ErrorEnvelope>? = nil,
+      fetchProjectRewardsResult: Result<[Reward], ErrorEnvelope>? = nil,
       fetchProjectActivitiesResponse: [Activity]? = nil,
       fetchProjectActivitiesError: ErrorEnvelope? = nil,
-      fetchProjectCreatorDetailsResult: Result<ProjectCreatorDetailsEnvelope, GraphError>? = nil,
       fetchProjectNotificationsResponse: [ProjectNotification]? = nil,
       fetchProjectsResponse: [Project]? = nil,
       fetchProjectsError: ErrorEnvelope? = nil,
       fetchProjectStatsResponse: ProjectStatsEnvelope? = nil,
       fetchProjectStatsError: ErrorEnvelope? = nil,
-      fetchProjectSummaryResult: Result<ProjectSummaryEnvelope, GraphError>? = nil,
       fetchShippingRulesResult: Result<[ShippingRule], ErrorEnvelope>? = nil,
-      fetchUserProjectsBackedResponse: [Project]? = nil,
-      fetchUserProjectsBackedError: ErrorEnvelope? = nil,
-      fetchUserResponse: User? = nil,
-      fetchUserError: ErrorEnvelope? = nil,
+      fetchUserProjectsBackedError _: ErrorEnvelope? = nil,
+      fetchUserResult: Result<User, ErrorEnvelope>? = nil,
       fetchUserSelfResponse: User? = nil,
       followFriendError: ErrorEnvelope? = nil,
       incrementVideoCompletionError: ErrorEnvelope? = nil,
       incrementVideoStartError: ErrorEnvelope? = nil,
+      fetchRewardAddOnsSelectionViewRewardsResult: Result<Project, ErrorEnvelope>? =
+        nil,
       fetchSurveyResponseResponse: SurveyResponse? = nil,
       fetchSurveyResponseError: ErrorEnvelope? = nil,
       fetchUnansweredSurveyResponsesResponse: [SurveyResponse] = [],
-      fetchUpdateCommentsResponse: Result<CommentsEnvelope, ErrorEnvelope>? = nil,
       fetchUpdateResponse: Update = .template,
       fetchUserSelfError: ErrorEnvelope? = nil,
-      postCommentResponse: Comment? = nil,
-      postCommentError: ErrorEnvelope? = nil,
+      postCommentResult: Result<Comment, ErrorEnvelope>? = nil,
       loginResponse: AccessTokenEnvelope? = nil,
       loginError: ErrorEnvelope? = nil,
+      tokenExchangeResponse: OAuthTokenExchangeResponse? = nil,
       resendCodeResponse: ErrorEnvelope? = nil,
       resendCodeError: ErrorEnvelope? = nil,
       resetPasswordResponse: User? = nil,
       resetPasswordError: ErrorEnvelope? = nil,
-      sendEmailVerificationResponse: GraphMutationEmptyResponseEnvelope? = nil,
-      sendEmailVerificationError: GraphError? = nil,
-      signInWithAppleResult: Result<SignInWithAppleEnvelope, GraphError>? = nil,
+      sendEmailVerificationResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
+      signInWithAppleResult: Result<SignInWithAppleEnvelope, ErrorEnvelope>? = nil,
       signupResponse: AccessTokenEnvelope? = nil,
       signupError: ErrorEnvelope? = nil,
       unfollowFriendError: ErrorEnvelope? = nil,
-      updateBackingResult: Result<UpdateBackingEnvelope, GraphError>? = nil,
+      updateBackingResult: Result<UpdateBackingEnvelope, ErrorEnvelope>? = nil,
       updateDraftError: ErrorEnvelope? = nil,
       updatePledgeResult: Result<UpdatePledgeEnvelope, ErrorEnvelope>? = nil,
       updateProjectNotificationResponse: ProjectNotification? = nil,
       updateProjectNotificationError: ErrorEnvelope? = nil,
       updateUserSelfError: ErrorEnvelope? = nil,
-      unwatchProjectMutationResult: Result<GraphMutationWatchProjectResponseEnvelope, GraphError>? = nil,
-      watchProjectMutationResult: Result<GraphMutationWatchProjectResponseEnvelope, GraphError>? = nil
+      unwatchProjectMutationResult: Result<WatchProjectResponseEnvelope, ErrorEnvelope>? = nil,
+      validateCheckoutResult: Result<ValidateCheckoutEnvelope, ErrorEnvelope>? = nil,
+      verifyEmailResult: Result<EmailVerificationResponseEnvelope, ErrorEnvelope>? = nil,
+      watchProjectMutationResult: Result<WatchProjectResponseEnvelope, ErrorEnvelope>? = nil
     ) {
       self.appId = appId
       self.serverConfig = serverConfig
@@ -313,24 +354,47 @@
 
       self.addNewCreditCardResult = addNewCreditCardResult
 
+      self.addPaymentSheetPaymentSourceResult = addPaymentSheetPaymentSourceResult
+
+      self.apolloClient = apolloClient ?? MockGraphQLClient.shared.client
+
+      self.blockUserResult = blockUserResult
+
+      self.buildPaymentPlanResult = buildPaymentPlanResult
+
       self.cancelBackingResult = cancelBackingResult
 
-      self.changeCurrencyResponse = changeCurrencyResponse
-      self.changeCurrencyError = changeCurrencyError
+      self.changeEmailResult = changeEmailResult
 
-      self.changeEmailResponse = changeEmailResponse
-      self.changeEmailError = changeEmailError
+      self.changeCurrencyResult = changeCurrencyResult
 
-      self.changePasswordError = changePasswordError
+      self.changePasswordResult = changePasswordResult
 
       self.clearUserUnseenActivityResult = clearUserUnseenActivityResult
 
+      self.createAttributionEventResult = createAttributionEventResult
+
       self.createBackingResult = createBackingResult
 
-      self.createPasswordError = createPasswordError
+      self.completeOnSessionCheckoutResult = completeOnSessionCheckoutResult
+
+      self.createCheckoutResult = createCheckoutResult
+
+      self.createFlaggingResult = createFlaggingResult
+
+      self.createPaymentIntentResult = createPaymentIntentResult
+
+      self.createPasswordResult = createPasswordResult
+
+      self.createStripeSetupIntentResult = createStripeSetupIntentResult
 
       self.changePaymentMethodResult = changePaymentMethodResult
+
+      self.confirmBackingAddressResult = confirmBackingAddressResult
+
       self.deletePaymentMethodResult = deletePaymentMethodResult
+
+      self.triggerThirdPartyEventResult = triggerThirdPartyEventResult
 
       self.facebookConnectResponse = facebookConnectResponse
       self.facebookConnectError = facebookConnectError
@@ -345,34 +409,28 @@
 
       self.fetchBackingResponse = fetchBackingResponse
 
+      self.fetchBackerSavedProjectsResponse = fetchBackerSavedProjectsResponse
+      self.fetchBackerBackedProjectsResponse = fetchBackerBackedProjectsResponse
+
       self.backingUpdate = backingUpdate
 
-      self.fetchGraphCategoriesResponse = fetchGraphCategoriesResponse ?? (RootCategoriesEnvelope.template
-        |> RootCategoriesEnvelope.lens.categories .~ [
-          .art,
-          .filmAndVideo,
-          .illustration,
-          .documentary
-        ]
-      )
+      self.fetchGraphCategoryResult = fetchGraphCategoryResult
 
-      self.fetchGraphCategoriesError = fetchGraphCategoriesError
+      self.fetchGraphCategoriesResult = fetchGraphCategoriesResult
 
-      self.fetchGraphUserAccountFieldsResponse = fetchGraphUserAccountFieldsResponse
-        ?? UserEnvelope(me: GraphUser.template)
-      self.fetchGraphUserAccountFieldsError = fetchGraphUserAccountFieldsError
+      self.fetchGraphUserResult = fetchGraphUserResult
+      self.fetchGraphUserSelfResult = fetchGraphUserSelfResult
+      self.fetchGraphUserEmailResult = fetchGraphUserEmailResult
+      self.fetchGraphUserSetupResult = fetchGraphUserSetupResult
 
-      self.fetchGraphUserEmailFieldsResponse = fetchGraphUserEmailFieldsResponse
+      self.fetchErroredUserBackingsResult = fetchErroredUserBackingsResult
 
-      self.fetchGraphUserBackingsResponse = fetchGraphUserBackingsResponse
-      self.fetchGraphUserBackingsError = fetchGraphUserBackingsError
+      self.fetchPledgedProjectsResult = fetchPledgedProjectsResult
 
-      self.fetchCommentsResponse = fetchCommentsResponse ?? [
-        .template |> Comment.lens.id .~ 2,
-        .template |> Comment.lens.id .~ 1
-      ]
+      self.fetchProjectCommentsEnvelopeResult = fetchProjectCommentsEnvelopeResult
+      self.fetchUpdateCommentsEnvelopeResult = fetchUpdateCommentsEnvelopeResult
 
-      self.fetchCommentsError = fetchCommentsError
+      self.fetchCommentRepliesEnvelopeResult = fetchCommentRepliesEnvelopeResult
 
       self.fetchConfigResponse = fetchConfigResponse ?? .template
 
@@ -385,11 +443,6 @@
       self.fetchFriendStatsResponse = fetchFriendStatsResponse
       self.fetchFriendStatsError = fetchFriendStatsError
 
-      self.fetchExportStateResponse = fetchExportStateResponse
-      self.fetchExportStateError = fetchExportStateError
-
-      self.exportDataError = exportDataError
-
       self.fetchDraftResponse = fetchDraftResponse
       self.fetchDraftError = fetchDraftError
 
@@ -401,6 +454,8 @@
       self.publishUpdateError = publishUpdateError
 
       self.fetchManagePledgeViewBackingResult = fetchManagePledgeViewBackingResult
+
+      self.fetchRewardAddOnsSelectionViewRewardsResult = fetchRewardAddOnsSelectionViewRewardsResult
 
       self.fetchMessageThreadResult = fetchMessageThreadResult
 
@@ -420,9 +475,6 @@
 
       self.fetchProjectActivitiesError = fetchProjectActivitiesError
 
-      self.fetchProjectResponse = fetchProjectResponse
-      self.fetchProjectError = fetchProjectError
-
       self.fetchProjectNotificationsResponse = fetchProjectNotificationsResponse ?? [
         .template |> ProjectNotification.lens.id .~ 1,
         .template |> ProjectNotification.lens.id .~ 2,
@@ -431,14 +483,15 @@
 
       self.fetchProjectsResponse = fetchProjectsResponse ?? []
 
-      self.fetchProjectCreatorDetailsResult = fetchProjectCreatorDetailsResult
-
       self.fetchProjectsError = fetchProjectsError
+
+      self.fetchProjectEnvelopeResult = fetchProjectResult
+      self.fetchProjectPamphletEnvelopeResult = fetchProjectPamphletResult
+      self.fetchProjectFriendsEnvelopeResult = fetchProjectFriendsResult
+      self.fetchProjectRewardsEnvelopeResult = fetchProjectRewardsResult
 
       self.fetchProjectStatsResponse = fetchProjectStatsResponse
       self.fetchProjectStatsError = fetchProjectStatsError
-
-      self.fetchProjectSummaryResult = fetchProjectSummaryResult
 
       self.fetchShippingRulesResult = fetchShippingRulesResult
 
@@ -447,18 +500,9 @@
 
       self.fetchUnansweredSurveyResponsesResponse = fetchUnansweredSurveyResponsesResponse
 
-      self.fetchUpdateCommentsResponse = fetchUpdateCommentsResponse
-
       self.fetchUpdateResponse = fetchUpdateResponse
 
-      self.fetchUserProjectsBackedResponse = fetchUserProjectsBackedResponse
-      self.fetchUserProjectsBackedError = fetchUserProjectsBackedError
-
-      self.fetchUserResponse = fetchUserResponse
-      self.fetchUserError = fetchUserError
-      self.fetchGraphCreditCardsError = fetchGraphCreditCardsError
-
-      self.fetchGraphCreditCardsResponse = fetchGraphCreditCardsResponse
+      self.fetchUserResult = fetchUserResult
 
       self.fetchUserSelfResponse = fetchUserSelfResponse ?? .template
       self.fetchUserSelfError = fetchUserSelfError
@@ -469,9 +513,7 @@
 
       self.incrementVideoStartError = incrementVideoStartError
 
-      self.postCommentResponse = postCommentResponse ?? .template
-
-      self.postCommentError = postCommentError
+      self.postCommentResult = postCommentResult
 
       self.loginResponse = loginResponse
 
@@ -485,9 +527,7 @@
 
       self.resetPasswordError = resetPasswordError
 
-      self.sendEmailVerificationResponse = sendEmailVerificationResponse
-
-      self.sendEmailVerificationError = sendEmailVerificationError
+      self.sendEmailVerificationResult = sendEmailVerificationResult
 
       self.signInWithAppleResult = signInWithAppleResult
 
@@ -511,26 +551,86 @@
 
       self.unwatchProjectMutationResult = unwatchProjectMutationResult
 
+      self.validateCheckoutResult = validateCheckoutResult
+
+      self.verifyEmailResult = verifyEmailResult
+
       self.watchProjectMutationResult = watchProjectMutationResult
+
+      self.tokenExchangeResponse = tokenExchangeResponse
     }
 
-    public func addNewCreditCard(input _: CreatePaymentSourceInput)
-      -> SignalProducer<CreatePaymentSourceEnvelope, GraphError> {
-      return producer(for: self.addNewCreditCardResult)
-    }
-
-    public func cancelBacking(input _: CancelBackingInput)
-      -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      return producer(for: self.cancelBackingResult)
-    }
-
-    internal func changeEmail(input _: ChangeEmailInput) ->
-      SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      if let error = self.changeEmailError {
-        return SignalProducer(error: error)
+    public func addNewCreditCard(input: CreatePaymentSourceInput)
+      -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
 
-      return SignalProducer(value: GraphMutationEmptyResponseEnvelope())
+      let mutation = GraphAPI
+        .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.addNewCreditCardResult)
+    }
+
+    public func addPaymentSheetPaymentSource(input: CreatePaymentSourceSetupIntentInput)
+      -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.addPaymentSheetPaymentSourceResult)
+    }
+
+    public func blockUser(input: BlockUserInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .BlockUserMutation(input: GraphAPI.BlockUserInput(blockUserId: input.blockUserId))
+
+      return client.performWithResult(mutation: mutation, result: self.blockUserResult)
+    }
+
+    func buildPaymentPlan(
+      projectSlug: String,
+      pledgeAmount: String
+    ) -> SignalProducer<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let query = GraphAPI.BuildPaymentPlanQuery(slug: projectSlug, amount: pledgeAmount)
+
+      return client.fetchWithResult(query: query, result: self.buildPaymentPlanResult)
+    }
+
+    public func cancelBacking(input: CancelBackingInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .CancelBackingMutation(input: GraphAPI.CancelBackingInput(id: input.backingId))
+
+      return client.performWithResult(mutation: mutation, result: self.cancelBackingResult)
+    }
+
+    internal func changeEmail(input: ChangeEmailInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.changeEmailResult)
     }
 
     internal func facebookConnect(facebookAccessToken _: String)
@@ -549,87 +649,219 @@
       )
     }
 
-    internal func changePassword(input _: ChangePasswordInput) ->
-      SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      if let error = self.changePasswordError {
-        return SignalProducer(error: error)
-      } else {
-        return SignalProducer(value: GraphMutationEmptyResponseEnvelope())
+    internal func changePassword(input: ChangePasswordInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
+
+      let mutation = GraphAPI
+        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.changePasswordResult)
     }
 
-    internal func createBacking(input _: CreateBackingInput)
-      -> SignalProducer<CreateBackingEnvelope, GraphError> {
-      return producer(for: self.createBackingResult)
+    public func createAttributionEvent(input: GraphAPI.CreateAttributionEventInput) ->
+      SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI.CreateAttributionEventMutation(input: input)
+
+      return client.performWithResult(mutation: mutation, result: self.createAttributionEventResult)
     }
 
-    internal func createPassword(input _: CreatePasswordInput) ->
-      SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      if let error = self.createPasswordError {
-        return SignalProducer(error: error)
-      } else {
-        return SignalProducer(value: GraphMutationEmptyResponseEnvelope())
+    internal func createBacking(input: CreateBackingInput)
+      -> SignalProducer<CreateBackingEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
+
+      let mutation = GraphAPI.CreateBackingMutation(input: GraphAPI.CreateBackingInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.createBackingResult)
     }
 
-    internal func changeCurrency(input _: ChangeCurrencyInput) ->
-      SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      if let response = self.changeCurrencyResponse {
-        return SignalProducer(value: response)
-      } else if let error = self.changeCurrencyError {
-        return SignalProducer(error: error)
+    internal func completeOnSessionCheckout(input: GraphAPI.CompleteOnSessionCheckoutInput) ->
+      SignalProducer<GraphAPI.CompleteOnSessionCheckoutMutation.Data, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return SignalProducer(value: GraphMutationEmptyResponseEnvelope())
+
+      let mutation = GraphAPI.CompleteOnSessionCheckoutMutation(input: input)
+      return client.performWithResult(mutation: mutation, result: self.completeOnSessionCheckoutResult)
+    }
+
+    internal func createCheckout(input: CreateCheckoutInput)
+      -> SignalProducer<CreateCheckoutEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI.CreateCheckoutMutation(
+        input: GraphAPI
+          .CreateCheckoutInput(
+            projectId: input.projectId,
+            amount: input.amount,
+            locationId: input.locationId,
+            rewardIds: input.rewardIds,
+            refParam: input.refParam
+          )
+      )
+
+      return client.performWithResult(mutation: mutation, result: self.createCheckoutResult)
+    }
+
+    internal func createFlaggingInput(input: CreateFlaggingInput) -> ReactiveSwift
+      .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .CreateFlaggingMutation(input: GraphAPI.CreateFlaggingInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
+    }
+
+    internal func createFlaggingInputCombine(input: CreateFlaggingInput)
+      -> AnyPublisher<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return Empty(completeImmediately: false).eraseToAnyPublisher()
+      }
+
+      let mutation = GraphAPI
+        .CreateFlaggingMutation(input: GraphAPI.CreateFlaggingInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.createFlaggingResult)
+    }
+
+    internal func createPaymentIntentInput(input: CreatePaymentIntentInput) -> ReactiveSwift
+      .SignalProducer<PaymentIntentEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .CreatePaymentIntentMutation(input: GraphAPI.CreatePaymentIntentInput(
+          projectId: input.projectId,
+          amount: input.amountDollars,
+          digitalMarketingAttributed: input.digitalMarketingAttributed
+        ))
+
+      return client.performWithResult(mutation: mutation, result: self.createPaymentIntentResult)
+    }
+
+    internal func createPassword(input: CreatePasswordInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .UpdateUserAccountMutation(input: GraphAPI.UpdateUserAccountInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.createPasswordResult)
+    }
+
+    internal func createStripeSetupIntent(input: CreateSetupIntentInput)
+      -> SignalProducer<ClientSecretEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .CreateSetupIntentMutation(input: GraphAPI.CreateSetupIntentInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.createStripeSetupIntentResult)
+    }
+
+    internal func changeCurrency(input: ChangeCurrencyInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .UpdateUserProfileMutation(input: GraphAPI.UpdateUserProfileInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.changeCurrencyResult)
     }
 
     internal func clearUserUnseenActivity(input _: EmptyInput)
-      -> SignalProducer<ClearUserUnseenActivityEnvelope, GraphError> {
-      return producer(for: self.clearUserUnseenActivityResult)
+      -> SignalProducer<ClearUserUnseenActivityEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .ClearUserUnseenActivityMutation(input: GraphAPI.ClearUserUnseenActivityInput())
+
+      return client.performWithResult(mutation: mutation, result: self.clearUserUnseenActivityResult)
     }
 
-    internal func fetchComments(project _: Project) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-      if let error = fetchCommentsError {
-        return SignalProducer(error: error)
-      } else if let comments = fetchCommentsResponse {
-        return SignalProducer(
-          value: CommentsEnvelope(
-            comments: comments,
-            urls: CommentsEnvelope.UrlsEnvelope(
-              api: CommentsEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreComments: ""
-              )
-            )
-          )
-        )
+    func fetchProjectComments(
+      slug: String,
+      cursor: String?,
+      limit: Int?,
+      withStoredCards: Bool
+    ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return .empty
+
+      let fetchProjectCommentsQuery = GraphAPI.FetchProjectCommentsQuery(
+        slug: slug,
+        cursor: cursor,
+        limit: limit,
+        withStoredCards: withStoredCards
+      )
+
+      return client
+        .fetchWithResult(query: fetchProjectCommentsQuery, result: self.fetchProjectCommentsEnvelopeResult)
     }
 
-    internal func fetchComments(paginationUrl _: String) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-      if let error = fetchCommentsError {
-        return SignalProducer(error: error)
-      } else if let comments = fetchCommentsResponse {
-        return SignalProducer(
-          value: CommentsEnvelope(
-            comments: comments,
-            urls: CommentsEnvelope.UrlsEnvelope(
-              api: CommentsEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreComments: ""
-              )
-            )
-          )
-        )
+    func fetchUpdateComments(
+      id: String,
+      cursor: String?,
+      limit: Int?,
+      withStoredCards: Bool
+    ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return .empty
+
+      let fetchUpdateCommentsQuery = GraphAPI.FetchUpdateCommentsQuery(
+        postId: id,
+        cursor: cursor,
+        limit: limit,
+        withStoredCards: withStoredCards
+      )
+
+      return client
+        .fetchWithResult(query: fetchUpdateCommentsQuery, result: self.fetchUpdateCommentsEnvelopeResult)
     }
 
-    internal func fetchComments(update _: Update) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
-      if let error = fetchUpdateCommentsResponse?.error {
-        return SignalProducer(error: error)
-      } else if let comments = fetchUpdateCommentsResponse {
-        return SignalProducer(value: comments.value ?? .template)
+    func fetchCommentReplies(
+      id: String,
+      cursor: String?,
+      limit: Int,
+      withStoredCards: Bool
+    ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return .empty
+
+      let fetchCommentRepliesQuery = GraphAPI.FetchCommentRepliesQuery(
+        commentId: id,
+        cursor: cursor,
+        limit: limit,
+        withStoredCards: withStoredCards
+      )
+
+      return client
+        .fetchWithResult(query: fetchCommentRepliesQuery, result: self.fetchCommentRepliesEnvelopeResult)
     }
 
     internal func fetchConfig() -> SignalProducer<Config, ErrorEnvelope> {
@@ -665,13 +897,6 @@
       return SignalProducer(value: VoidEnvelope())
     }
 
-    internal func exportData() -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
-      if let error = exportDataError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: VoidEnvelope())
-    }
-
     internal func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope> {
       if let error = followFriendError {
         return SignalProducer(error: error)
@@ -685,69 +910,92 @@
       )
     }
 
-    internal func fetchGraphCategories(query _: NonEmptySet<Query>)
-      -> SignalProducer<RootCategoriesEnvelope, GraphError> {
-      if let error = self.fetchGraphCategoriesError {
-        return SignalProducer(error: error)
-      } else if let response = self.fetchGraphCategoriesResponse {
-        return SignalProducer(value: response)
-      }
-      return SignalProducer(value: RootCategoriesEnvelope.template)
-    }
-
-    internal func fetchGraphCategory(query: NonEmptySet<Query>)
-      -> SignalProducer<CategoryEnvelope, GraphError> {
-      return SignalProducer(value: CategoryEnvelope(node: .template |> Category.lens.id .~ "\(query.head)"))
-    }
-
-    internal func fetchGraphCreditCards(query _: NonEmptySet<Query>)
-      -> SignalProducer<UserEnvelope<GraphUserCreditCard>, GraphError> {
-      if let error = fetchGraphCreditCardsError {
-        return SignalProducer(error: error)
-      }
-
-      return SignalProducer(
-        value: self.fetchGraphCreditCardsResponse ??
-          UserEnvelope<GraphUserCreditCard>(me: GraphUserCreditCard.template)
-      )
-    }
-
-    internal func fetchGraphUserEmailFields(query _: NonEmptySet<Query>)
-      -> SignalProducer<UserEnvelope<UserEmailFields>, GraphError> {
-      let response = self.fetchGraphUserEmailFieldsResponse ?? .template
-
-      return SignalProducer(value: UserEnvelope(me: response))
-    }
-
-    internal func fetchGraphUserAccountFields(query _: NonEmptySet<Query>)
-      -> SignalProducer<UserEnvelope<GraphUser>, GraphError> {
-      if let error = self.fetchGraphUserAccountFieldsError {
-        return SignalProducer(error: error)
-      } else if let response = self.fetchGraphUserAccountFieldsResponse {
-        return SignalProducer(value: response)
-      } else {
+    internal func fetchGraphCategories()
+      -> SignalProducer<RootCategoriesEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
         return .empty
       }
+
+      let fetchGraphCategoriesQuery = GraphAPI.FetchRootCategoriesQuery()
+
+      return client.fetchWithResult(query: fetchGraphCategoriesQuery, result: self.fetchGraphCategoriesResult)
     }
 
-    internal func fetchGraphUserBackings(query _: NonEmptySet<Query>)
-      -> SignalProducer<UserEnvelope<GraphBackingEnvelope>, GraphError> {
-      if let error = fetchGraphUserBackingsError {
-        return SignalProducer(error: error)
+    internal func fetchGraphCategory(id: String)
+      -> SignalProducer<CategoryEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      let backings = GraphBackingEnvelope.GraphBackingConnection(nodes: [])
-      let emptyEnvelope = GraphBackingEnvelope.template
-        |> \.backings .~ backings
-      let emptyResponse = UserEnvelope<GraphBackingEnvelope>(me: emptyEnvelope)
 
-      let response = self.fetchGraphUserBackingsResponse ?? emptyResponse
-      return SignalProducer(value: response)
+      let fetchGraphCategoryQuery = GraphAPI.FetchCategoryQuery(id: id)
+
+      return client.fetchWithResult(query: fetchGraphCategoryQuery, result: self.fetchGraphCategoryResult)
     }
 
-    internal func fetchGraph<A>(
-      query _: NonEmptySet<Query>
-    ) -> SignalProducer<A, GraphError> where A: Decodable {
-      return .empty
+    internal func fetchGraphUserSelf()
+      -> SignalProducer<UserEnvelope<User>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchGraphUserQuery = GraphAPI.FetchUserQuery(withStoredCards: false)
+
+      return client.fetchWithResult(query: fetchGraphUserQuery, result: self.fetchGraphUserSelfResult)
+    }
+
+    internal func fetchGraphUser(withStoredCards: Bool)
+      -> SignalProducer<UserEnvelope<GraphUser>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchGraphUserQuery = GraphAPI.FetchUserQuery(withStoredCards: withStoredCards)
+
+      return client.fetchWithResult(query: fetchGraphUserQuery, result: self.fetchGraphUserResult)
+    }
+
+    internal func fetchGraphUserEmail() -> SignalProducer<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchGraphUserEmailQuery = GraphAPI.FetchUserEmailQuery()
+
+      return client.fetchWithResult(query: fetchGraphUserEmailQuery, result: self.fetchGraphUserEmailResult)
+    }
+
+    func fetchGraphUserEmailCombine() -> AnyPublisher<UserEnvelope<GraphUserEmail>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return Empty(completeImmediately: false).eraseToAnyPublisher()
+      }
+
+      let fetchGraphUserEmailQuery = GraphAPI.FetchUserEmailQuery()
+      return client.fetchWithResult(query: fetchGraphUserEmailQuery, result: self.fetchGraphUserEmailResult)
+    }
+
+    internal func fetchGraphUserSetup() -> SignalProducer<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchGraphUserSetupQuery = GraphAPI.FetchUserSetupQuery()
+
+      return client.fetchWithResult(query: fetchGraphUserSetupQuery, result: self.fetchGraphUserSetupResult)
+    }
+
+    func fetchGraphUserSetupCombine() -> AnyPublisher<UserEnvelope<GraphUserSetup>, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return Empty(completeImmediately: false).eraseToAnyPublisher()
+      }
+
+      let fetchGraphUserSetupQuery = GraphAPI.FetchUserSetupQuery()
+      return client.fetchWithResult(query: fetchGraphUserSetupQuery, result: self.fetchGraphUserSetupResult)
+    }
+
+    // TODO: Refactor this test to use `self.apolloClient`, `ErroredBackingsEnvelope` needs to be `Decodable` and tested in-app.
+    internal func fetchErroredUserBackings(status _: BackingState)
+      -> SignalProducer<ErroredBackingsEnvelope, ErrorEnvelope> {
+      return producer(for: self.fetchErroredUserBackingsResult)
     }
 
     internal func unfollowFriend(userId _: Int) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
@@ -819,9 +1067,10 @@
       let project: (Int) -> Project = {
         .template |> Project.lens.id .~ ($0 + paginationUrl.hashValue)
       }
-      let envelope = self.fetchDiscoveryResponse ?? (.template
-        |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
-        |> DiscoveryEnvelope.lens.urls.api.moreProjects .~ (paginationUrl + "+1")
+      let envelope = self.fetchDiscoveryResponse ?? (
+        .template
+          |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
+          |> DiscoveryEnvelope.lens.urls.api.moreProjects .~ (paginationUrl + "+1")
       )
 
       return SignalProducer(value: envelope)
@@ -836,16 +1085,40 @@
       let project: (Int) -> Project = {
         .template |> Project.lens.id %~ const($0 + params.hashValue)
       }
-      let envelope = self.fetchDiscoveryResponse ?? (.template
-        |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
+      let envelope = self.fetchDiscoveryResponse ?? (
+        .template
+          |> DiscoveryEnvelope.lens.projects .~ (1...4).map(project)
       )
 
       return SignalProducer(value: envelope)
     }
 
-    func fetchManagePledgeViewBacking(query _: NonEmptySet<Query>)
-      -> SignalProducer<ManagePledgeViewBackingEnvelope, GraphError> {
+    // TODO: Refactor this test to use `self.apolloClient`, `ProjectAndBackingEnvelope` needs to be `Decodable` and tested in-app.
+    func fetchBacking(id _: Int, withStoredCards _: Bool)
+      -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
       return producer(for: self.fetchManagePledgeViewBackingResult)
+    }
+
+    func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
+      -> SignalProducer<Project, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchRewardAddOnsSelectionViewRewardsQuery = GraphAPI.FetchAddOnsQuery(
+        projectSlug: slug,
+        shippingEnabled: shippingEnabled,
+        locationId: locationId,
+        withStoredCards: false,
+        includeShippingRules: true,
+        includeLocalPickup: true
+      )
+
+      return client
+        .fetchWithResult(
+          query: fetchRewardAddOnsSelectionViewRewardsQuery,
+          result: self.fetchRewardAddOnsSelectionViewRewardsResult
+        )
     }
 
     internal func fetchMessageThread(messageThreadId _: Int)
@@ -924,23 +1197,170 @@
       return SignalProducer(value: self.fetchProjectNotificationsResponse)
     }
 
-    internal func fetchProject(param: Param) -> SignalProducer<Project, ErrorEnvelope> {
-      if let error = self.fetchProjectError {
+    public func fetchSavedProjects(
+      cursor _: String? = nil,
+      limit _: Int? = nil
+    ) -> SignalProducer<FetchProjectsEnvelope, ErrorEnvelope> {
+      guard let result = self.fetchBackerSavedProjectsResponse else {
+        return .empty
+      }
+      return SignalProducer(value: result)
+    }
+
+    public func fetchBackedProjects(
+      cursor _: String? = nil,
+      limit _: Int? = nil
+    ) -> SignalProducer<
+      FetchProjectsEnvelope,
+      ErrorEnvelope
+    > {
+      guard let result = self.fetchBackerBackedProjectsResponse else {
+        return .empty
+      }
+      return SignalProducer(value: result)
+    }
+
+    internal func fetchProject(param _: Param) -> SignalProducer<Project, ErrorEnvelope> {
+      guard let result = self.fetchProjectEnvelopeResult else {
+        return .empty
+      }
+
+      switch result {
+      case let .success(project):
+        return SignalProducer(value: project)
+      case let .failure(error):
         return SignalProducer(error: error)
       }
-      if let project = self.fetchProjectResponse {
-        return SignalProducer(value: project)
+    }
+
+    internal func fetchProject(projectParam: Param, configCurrency _: String?)
+      -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
 
-      let projectWithId = Project.template
-        |> Project.lens.id %~ { param.id ?? $0 }
+      switch (projectParam.id, projectParam.slug) {
+      case let (.some(paramId), _):
+        let fetchProjectQuery = GraphAPI
+          .FetchProjectByIdQuery(projectId: paramId, withStoredCards: false)
 
-      let projectWithSlugAndId = projectWithId
-        |> Project.lens.slug %~ { param.slug ?? $0 }
+        let projectOrErrorOnlyResult: Result<Project, ErrorEnvelope>
 
-      return SignalProducer(
-        value: projectWithSlugAndId
-      )
+        switch self.fetchProjectPamphletEnvelopeResult {
+        case let .success(projectPamphletData):
+          projectOrErrorOnlyResult = .success(projectPamphletData.project)
+        case let .failure(errorEnvelope):
+          projectOrErrorOnlyResult = .failure(errorEnvelope)
+        case .none:
+          return .empty
+        }
+
+        /**
+         FIXME: Separately attaching passed in `backingId` from `Project.ProjectPamphletData` and not calling the mock client directly with `Project.ProjectPamphletData` because it is not `Decodable` (error, unsure how to correct at this time, because `Project` which is not decodable can be passed in on its' own)
+         */
+        let producer = client
+          .fetchWithResult(query: fetchProjectQuery, result: projectOrErrorOnlyResult)
+          .switchMap { project -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope> in
+            let pamphletData = Project
+              .ProjectPamphletData(
+                project: project,
+                backingId: self.fetchProjectPamphletEnvelopeResult?.value?.backingId
+              )
+
+            return SignalProducer(value: pamphletData)
+          }
+
+        return producer
+      case let (_, .some(paramSlug)):
+        let fetchProjectQuery = GraphAPI
+          .FetchProjectBySlugQuery(slug: paramSlug, withStoredCards: false)
+
+        let projectOrErrorOnlyResult: Result<Project, ErrorEnvelope>
+
+        switch self.fetchProjectPamphletEnvelopeResult {
+        case let .success(projectPamphletData):
+          projectOrErrorOnlyResult = .success(projectPamphletData.project)
+        case let .failure(errorEnvelope):
+          projectOrErrorOnlyResult = .failure(errorEnvelope)
+        case .none:
+          return .empty
+        }
+
+        var producer: SignalProducer<Project.ProjectPamphletData, ErrorEnvelope> =
+          SignalProducer(error: .couldNotParseJSON)
+
+        /**
+         FIXME: Separately attaching passed in `backingId` from `Project.ProjectPamphletData` and not calling the mock client directly with `Project.ProjectPamphletData` because it is not `Decodable` (error, unsure how to correct at this time, because `Project` which is not decodable can be passed in on its' own)
+         */
+        _ = client
+          .fetchWithResult(query: fetchProjectQuery, result: projectOrErrorOnlyResult)
+          .on(
+            failed: { errorEnvelope in
+              producer = SignalProducer(error: errorEnvelope)
+            },
+            value: { project in
+              let pamphletData = Project
+                .ProjectPamphletData(
+                  project: project,
+                  backingId: self.fetchProjectPamphletEnvelopeResult?.value?.backingId
+                )
+
+              producer = SignalProducer(value: pamphletData)
+            }
+          )
+
+        return producer
+      default:
+        return .empty
+      }
+    }
+
+    internal func fetchProjectFriends(param: Param) -> SignalProducer<[User], ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      switch (param.id, param.slug) {
+      case let (.some(paramId), _):
+        let fetchProjectWithFriendsQuery = GraphAPI
+          .FetchProjectFriendsByIdQuery(projectId: paramId, withStoredCards: false)
+
+        return client
+          .fetchWithResult(
+            query: fetchProjectWithFriendsQuery,
+            result: self.fetchProjectFriendsEnvelopeResult
+          )
+      case let (_, .some(paramSlug)):
+        let fetchProjectWithFriendsQuery = GraphAPI
+          .FetchProjectFriendsBySlugQuery(slug: paramSlug, withStoredCards: false)
+
+        return client
+          .fetchWithResult(
+            query: fetchProjectWithFriendsQuery,
+            result: self.fetchProjectFriendsEnvelopeResult
+          )
+      default:
+        return .empty
+      }
+    }
+
+    internal func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let fetchProjectRewardsQuery = GraphAPI
+        .FetchProjectRewardsByIdQuery(
+          projectId: projectId,
+          includeShippingRules: false,
+          includeLocalPickup: true
+        )
+
+      return client
+        .fetchWithResult(
+          query: fetchProjectRewardsQuery,
+          result: self.fetchProjectRewardsEnvelopeResult
+        )
     }
 
     internal func fetchProject(
@@ -957,10 +1377,30 @@
     }
 
     internal func fetchProject(project: Project) -> SignalProducer<Project, ErrorEnvelope> {
-      if let project = self.fetchProjectResponse {
-        return SignalProducer(value: project)
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return SignalProducer(value: project)
+
+      let fetchProjectCommentsQuery = GraphAPI
+        .FetchProjectByIdQuery(projectId: project.id, withStoredCards: false)
+
+      let projectOnlyResult: Result<Project, ErrorEnvelope>
+
+      switch self.fetchProjectEnvelopeResult {
+      case let .success(project):
+        projectOnlyResult = .success(project)
+      case let .failure(errorEnvelope):
+        projectOnlyResult = .failure(errorEnvelope)
+      case .none:
+        return .empty
+      }
+
+      return client
+        .fetchWithResult(query: fetchProjectCommentsQuery, result: projectOnlyResult)
+    }
+
+    internal func fetchProject_combine(project _: Project) -> AnyPublisher<Project, ErrorEnvelope> {
+      fatalError("Sorry, this is unimplemented!")
     }
 
     internal func fetchProjectActivities(forProject _: Project) ->
@@ -1001,11 +1441,6 @@
       return .empty
     }
 
-    func fetchProjectCreatorDetails(query _: NonEmptySet<Query>)
-      -> SignalProducer<ProjectCreatorDetailsEnvelope, GraphError> {
-      return producer(for: self.fetchProjectCreatorDetailsResult)
-    }
-
     internal func fetchProjects(member _: Bool) -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
       if let error = fetchProjectsError {
         return SignalProducer(error: error)
@@ -1040,11 +1475,6 @@
       return SignalProducer(value: .template)
     }
 
-    internal func fetchProjectSummary(query _: NonEmptySet<Query>)
-      -> SignalProducer<ProjectSummaryEnvelope, GraphError> {
-      return producer(for: self.fetchProjectSummaryResult)
-    }
-
     internal func fetchRewardShippingRules(projectId _: Int, rewardId _: Int)
       -> SignalProducer<ShippingRulesEnvelope, ErrorEnvelope> {
       if let error = self.fetchShippingRulesResult?.error {
@@ -1054,49 +1484,21 @@
       return SignalProducer(value: .init(shippingRules: self.fetchShippingRulesResult?.value ?? [.template]))
     }
 
-    internal func fetchUserProjectsBacked() -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-      if let error = fetchUserProjectsBackedError {
-        return SignalProducer(error: error)
-      } else if let projects = fetchUserProjectsBackedResponse {
-        return SignalProducer(
-          value: ProjectsEnvelope(
-            projects: projects,
-            urls: ProjectsEnvelope.UrlsEnvelope(
-              api: ProjectsEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreProjects: ""
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
-    internal func fetchUserProjectsBacked(paginationUrl _: String)
-      -> SignalProducer<ProjectsEnvelope, ErrorEnvelope> {
-      if let error = fetchUserProjectsBackedError {
-        return SignalProducer(error: error)
-      } else if let projects = fetchUserProjectsBackedResponse {
-        return SignalProducer(
-          value: ProjectsEnvelope(
-            projects: projects,
-            urls: ProjectsEnvelope.UrlsEnvelope(
-              api: ProjectsEnvelope.UrlsEnvelope.ApiEnvelope(
-                moreProjects: ""
-              )
-            )
-          )
-        )
-      }
-      return .empty
-    }
-
     internal func fetchUserSelf() -> SignalProducer<User, ErrorEnvelope> {
       if let error = fetchUserSelfError {
         return SignalProducer(error: error)
       }
 
       return SignalProducer(value: self.fetchUserSelfResponse ?? .template)
+    }
+
+    func fetchUserSelf_combine(withOAuthToken _: String) -> AnyPublisher<User, ErrorEnvelope> {
+      if let error = fetchUserSelfError {
+        return Fail(outputType: User.self, failure: self.fetchUserSelfError!).eraseToAnyPublisher()
+      }
+
+      return Just(self.fetchUserSelfResponse ?? .template).setFailureType(to: ErrorEnvelope.self)
+        .eraseToAnyPublisher()
     }
 
     internal func fetchSurveyResponse(surveyResponseId id: Int)
@@ -1113,28 +1515,12 @@
       return SignalProducer(value: self.fetchUnansweredSurveyResponsesResponse)
     }
 
-    internal func fetchUser(userId: Int) -> SignalProducer<User, ErrorEnvelope> {
-      if let error = self.fetchUserError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: self.fetchUserResponse ?? (.template |> \.id .~ userId))
+    internal func fetchUser(userId _: Int) -> SignalProducer<User, ErrorEnvelope> {
+      return producer(for: self.fetchUserResult)
     }
 
-    internal func fetchUser(_ user: User) -> SignalProducer<User, ErrorEnvelope> {
-      if let error = self.fetchUserError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: self.fetchUserResponse ?? user)
-    }
-
-    internal func fetchCategory(param: Param)
-      -> SignalProducer<KsApi.Category, GraphError> {
-      switch param {
-      case let .id(id):
-        return SignalProducer(value: .template |> Category.lens.id .~ "\(id)")
-      default:
-        return .empty
-      }
+    internal func fetchUser(_: User) -> SignalProducer<User, ErrorEnvelope> {
+      return producer(for: self.fetchUserResult)
     }
 
     internal func incrementVideoCompletion(forProject _: Project) ->
@@ -1190,23 +1576,16 @@
       return SignalProducer(value: messageThread)
     }
 
-    internal func postComment(_: String, toProject _: Project) ->
-      SignalProducer<Comment, ErrorEnvelope> {
-      if let error = self.postCommentError {
-        return SignalProducer(error: error)
-      } else if let comment = self.postCommentResponse {
-        return SignalProducer(value: comment)
+    func postComment(input: PostCommentInput)
+      -> SignalProducer<Comment, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return .empty
-    }
 
-    func postComment(_: String, toUpdate _: Update) -> SignalProducer<Comment, ErrorEnvelope> {
-      if let error = self.postCommentError {
-        return SignalProducer(error: error)
-      } else if let comment = self.postCommentResponse {
-        return SignalProducer(value: comment)
-      }
-      return .empty
+      let mutation = GraphAPI
+        .PostCommentMutation(input: GraphAPI.PostCommentInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.postCommentResult)
     }
 
     func resetPassword(email _: String) -> SignalProducer<User, ErrorEnvelope> {
@@ -1220,15 +1599,6 @@
 
     func register(pushToken _: String) -> SignalProducer<VoidEnvelope, ErrorEnvelope> {
       return SignalProducer(value: VoidEnvelope())
-    }
-
-    func exportDataState() -> SignalProducer<ExportDataEnvelope, ErrorEnvelope> {
-      if let response = fetchExportStateResponse {
-        return SignalProducer(value: response)
-      } else if let error = fetchExportStateError {
-        return SignalProducer(error: error)
-      }
-      return SignalProducer(value: .template)
     }
 
     internal func searchMessages(query _: String, project _: Project?)
@@ -1256,42 +1626,29 @@
     }
 
     internal func sendVerificationEmail(input _: EmptyInput)
-      -> SignalProducer<GraphMutationEmptyResponseEnvelope, GraphError> {
-      if let error = sendEmailVerificationError {
-        return SignalProducer(error: error)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return SignalProducer(value: GraphMutationEmptyResponseEnvelope())
+
+      let mutationSendVerificationEmail = GraphAPI
+        .UserSendEmailVerificationMutation(input: GraphAPI.UserSendEmailVerificationInput())
+
+      return client
+        .performWithResult(mutation: mutationSendVerificationEmail, result: self.sendEmailVerificationResult)
     }
 
-    internal func signInWithApple(input _: SignInWithAppleInput)
-      -> SignalProducer<SignInWithAppleEnvelope, GraphError> {
-      if let error = self.signInWithAppleResult?.error {
-        return SignalProducer(error: error)
+    internal func signInWithApple(input: SignInWithAppleInput)
+      -> SignalProducer<SignInWithAppleEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
-      return SignalProducer(value: self.signInWithAppleResult?.value ?? SignInWithAppleEnvelope.template)
-    }
 
-    internal func signup(
-      name: String,
-      email _: String,
-      password _: String,
-      passwordConfirmation _: String,
-      sendNewsletters: Bool
-    ) -> SignalProducer<AccessTokenEnvelope, ErrorEnvelope> {
-      if let error = signupError {
-        return SignalProducer(error: error)
-      } else if let accessTokenEnvelope = signupResponse {
-        return SignalProducer(value: accessTokenEnvelope)
-      }
-      return SignalProducer(
-        value:
-        AccessTokenEnvelope(
-          accessToken: "deadbeef",
-          user: .template
-            |> \.name .~ name
-            |> \.newsletters.weekly .~ sendNewsletters
-        )
-      )
+      let mutationSignInWithApple = GraphAPI
+        .SignInWithAppleMutation(input: GraphAPI.SignInWithAppleInput.from(input))
+
+      return client
+        .performWithResult(mutation: mutationSignInWithApple, result: self.signInWithAppleResult)
     }
 
     internal func signup(facebookAccessToken _: String, sendNewsletters _: Bool) ->
@@ -1350,33 +1707,55 @@
       return SignalProducer(value: updatedDraft)
     }
 
-    internal func updateBacking(input _: UpdateBackingInput)
-      -> SignalProducer<UpdateBackingEnvelope, GraphError> {
-      return producer(for: self.updateBackingResult)
-    }
-
-    internal func updatePledge(
-      project _: Project,
-      amount _: Double,
-      reward _: Reward?,
-      shippingLocation _: Location?,
-      tappedReward _: Bool
-    ) -> SignalProducer<UpdatePledgeEnvelope, ErrorEnvelope> {
-      if let error = self.updatePledgeResult?.error {
-        return SignalProducer(error: error)
+    internal func updateBacking(input: UpdateBackingInput)
+      -> SignalProducer<UpdateBackingEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
       }
 
-      return SignalProducer(value: self.updatePledgeResult?.value ?? .template)
+      let mutationUpdateBacking = GraphAPI
+        .UpdateBackingMutation(input: GraphAPI.UpdateBackingInput.from(input))
+
+      return client
+        .performWithResult(mutation: mutationUpdateBacking, result: self.updateBackingResult)
     }
 
-    internal func unwatchProject(input _: WatchProjectInput)
-      -> SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError> {
-      return producer(for: self.unwatchProjectMutationResult)
+    internal func unwatchProject(input: WatchProjectInput)
+      -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutationUnwatchProject = GraphAPI
+        .UnwatchProjectMutation(input: GraphAPI.UnwatchProjectInput.from(input))
+
+      return client
+        .performWithResult(mutation: mutationUnwatchProject, result: self.unwatchProjectMutationResult)
     }
 
-    internal func watchProject(input _: WatchProjectInput)
-      -> SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError> {
-      return producer(for: self.watchProjectMutationResult)
+    internal func validateCheckout(
+      checkoutId _: String,
+      paymentSourceId _: String,
+      paymentIntentClientSecret _: String
+    ) -> SignalProducer<ValidateCheckoutEnvelope, ErrorEnvelope> {
+      return producer(for: self.validateCheckoutResult)
+    }
+
+    internal func verifyEmail(withToken _: String)
+      -> SignalProducer<EmailVerificationResponseEnvelope, ErrorEnvelope> {
+      return producer(for: self.verifyEmailResult)
+    }
+
+    internal func watchProject(input: WatchProjectInput)
+      -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutationWatchProject = GraphAPI.WatchProjectMutation(input: GraphAPI.WatchProjectInput.from(input))
+
+      return client
+        .performWithResult(mutation: mutationWatchProject, result: self.watchProjectMutationResult)
     }
 
     internal func addImage(file _: URL, toDraft _: UpdateDraft)
@@ -1397,29 +1776,29 @@
       return SignalProducer(value: self.removeAttachmentResponse ?? .template)
     }
 
-    internal func addVideo(file _: URL, toDraft _: UpdateDraft)
-      -> SignalProducer<UpdateDraft.Video, ErrorEnvelope> {
-      return .empty
-    }
-
-    internal func changePaymentMethod(project _: Project)
-      -> SignalProducer<ChangePaymentMethodEnvelope, ErrorEnvelope> {
-      if let error = self.changePaymentMethodResult?.error {
-        return SignalProducer(error: error)
+    internal func deletePaymentMethod(input: PaymentSourceDeleteInput) -> SignalProducer<
+      DeletePaymentMethodEnvelope, ErrorEnvelope
+    > {
+      guard let client = self.apolloClient else {
+        return .empty
       }
 
-      return SignalProducer(value: self.changePaymentMethodResult?.value ?? .template)
+      let mutation = GraphAPI
+        .DeletePaymentSourceMutation(input: GraphAPI.PaymentSourceDeleteInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.deletePaymentMethodResult)
     }
 
-    internal func deletePaymentMethod(input _: PaymentSourceDeleteInput) -> SignalProducer<
-      DeletePaymentMethodEnvelope, GraphError
-    > {
-      return producer(for: self.deletePaymentMethodResult)
-    }
+    internal func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput) -> ReactiveSwift
+      .SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
 
-    internal func delete(video _: UpdateDraft.Video, fromDraft _: UpdateDraft)
-      -> SignalProducer<UpdateDraft.Video, ErrorEnvelope> {
-      return .empty
+      let mutation = GraphAPI
+        .TriggerThirdPartyEventMutation(input: GraphAPI.TriggerThirdPartyEventInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.triggerThirdPartyEventResult)
     }
 
     internal func publish(draft _: UpdateDraft) -> SignalProducer<Update, ErrorEnvelope> {
@@ -1436,6 +1815,68 @@
           + "\(draft.update.id)/preview"
       )
     }
+
+    func fetchDiscovery_combine(params _: DiscoveryParams) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
+      return Empty(completeImmediately: false).eraseToAnyPublisher()
+    }
+
+    func fetchDiscovery_combine(paginationUrl _: String) -> AnyPublisher<DiscoveryEnvelope, ErrorEnvelope> {
+      Empty(completeImmediately: false).eraseToAnyPublisher()
+    }
+
+    func exchangeTokenForOAuthToken(params _: OAuthTokenExchangeParams)
+      -> AnyPublisher<OAuthTokenExchangeResponse, ErrorEnvelope> {
+      if let tokenExchangeResponse = self.tokenExchangeResponse {
+        return Just(tokenExchangeResponse).setFailureType(to: ErrorEnvelope.self).eraseToAnyPublisher()
+      } else if let loginError = self.loginError {
+        return Fail(outputType: OAuthTokenExchangeResponse.self, failure: loginError).eraseToAnyPublisher()
+      } else {
+        return Empty(completeImmediately: false).eraseToAnyPublisher()
+      }
+    }
+
+    func confirmBackingAddress(
+      backingId _: String,
+      addressId _: String
+    ) -> AnyPublisher<Bool, ErrorEnvelope> {
+      guard let confirmResponse = self.confirmBackingAddressResult else {
+        return Fail(outputType: Bool.self, failure: ErrorEnvelope.couldNotParseErrorEnvelopeJSON)
+          .eraseToAnyPublisher()
+      }
+
+      switch confirmResponse {
+      case let .success(didMutationSucceed):
+        return Just(didMutationSucceed).setFailureType(to: ErrorEnvelope.self).eraseToAnyPublisher()
+
+      case let .failure(envelope):
+        return Fail(outputType: Bool.self, failure: envelope).eraseToAnyPublisher()
+      }
+    }
+
+    func fetchPledgedProjects(
+      cursor _: String?,
+      limit _: Int?
+    ) -> AnyPublisher<GraphAPI.FetchPledgedProjectsQuery.Data, ErrorEnvelope> {
+      guard let response = self.fetchPledgedProjectsResult else {
+        return Fail(
+          outputType: GraphAPI.FetchPledgedProjectsQuery.Data.self,
+          failure: ErrorEnvelope.couldNotParseErrorEnvelopeJSON
+        )
+        .eraseToAnyPublisher()
+      }
+
+      switch response {
+      case let .success(pledgedProjectsData):
+        return Just(pledgedProjectsData).setFailureType(to: ErrorEnvelope.self).delay(
+          for: 0.01,
+          scheduler: DispatchQueue.main
+        ).eraseToAnyPublisher()
+
+      case let .failure(envelope):
+        return Fail(outputType: GraphAPI.FetchPledgedProjectsQuery.Data.self, failure: envelope)
+          .eraseToAnyPublisher()
+      }
+    }
   }
 
   private extension MockService {
@@ -1451,16 +1892,16 @@
             buildVersion: $1.buildVersion,
             addNewCreditCardResult: $1.addNewCreditCardResult,
             changePaymentMethodResult: $1.changePaymentMethodResult,
-            clearUserUnseenActivityResult: $1.clearUserUnseenActivityResult,
             deletePaymentMethodResult: $1.deletePaymentMethodResult,
+            clearUserUnseenActivityResult: $1.clearUserUnseenActivityResult,
             facebookConnectResponse: $1.facebookConnectResponse,
             facebookConnectError: $1.facebookConnectError,
             fetchActivitiesResponse: $1.fetchActivitiesResponse,
             fetchActivitiesError: $1.fetchActivitiesError,
             fetchBackingResponse: $1.fetchBackingResponse,
-            fetchGraphCategoriesResponse: $1.fetchGraphCategoriesResponse,
-            fetchCommentsResponse: $1.fetchCommentsResponse,
-            fetchCommentsError: $1.fetchCommentsError,
+            fetchGraphCategoryResult: $1.fetchGraphCategoryResult,
+            fetchGraphCategoriesResult: $1.fetchGraphCategoriesResult,
+            fetchProjectCommentsEnvelopeResult: $1.fetchProjectCommentsEnvelopeResult,
             fetchConfigResponse: $1.fetchConfigResponse,
             fetchDiscoveryResponse: $1.fetchDiscoveryResponse,
             fetchDiscoveryError: $1.fetchDiscoveryError,
@@ -1468,11 +1909,11 @@
             fetchFriendsError: $1.fetchFriendsError,
             fetchFriendStatsResponse: $1.fetchFriendStatsResponse,
             fetchFriendStatsError: $1.fetchFriendStatsError,
-            fetchExportStateResponse: $1.fetchExportStateResponse,
-            fetchExportStateError: $1.fetchExportStateError,
-            exportDataError: $1.exportDataError,
             fetchDraftResponse: $1.fetchDraftResponse,
             fetchDraftError: $1.fetchDraftError,
+            fetchGraphUserResult: $1.fetchGraphUserResult,
+            fetchGraphUserSelfResult: $1.fetchGraphUserSelfResult,
+            fetchGraphUserEmailResult: $1.fetchGraphUserEmailResult,
             addAttachmentResponse: $1.addAttachmentResponse,
             addAttachmentError: $1.addAttachmentError,
             removeAttachmentResponse: $1.removeAttachmentResponse,
@@ -1481,21 +1922,18 @@
             fetchManagePledgeViewBackingResult: $1.fetchManagePledgeViewBackingResult,
             fetchMessageThreadResult: $1.fetchMessageThreadResult,
             fetchMessageThreadsResponse: $1.fetchMessageThreadsResponse,
-            fetchProjectResponse: $1.fetchProjectResponse,
+            fetchProjectResult: $1.fetchProjectEnvelopeResult,
+            fetchProjectFriendsResult: $1.fetchProjectFriendsEnvelopeResult,
+            fetchProjectRewardsResult: $1.fetchProjectRewardsEnvelopeResult,
             fetchProjectActivitiesResponse: $1.fetchProjectActivitiesResponse,
             fetchProjectActivitiesError: $1.fetchProjectActivitiesError,
-            fetchProjectCreatorDetailsResult: $1.fetchProjectCreatorDetailsResult,
             fetchProjectNotificationsResponse: $1.fetchProjectNotificationsResponse,
             fetchProjectsResponse: $1.fetchProjectsResponse,
             fetchProjectsError: $1.fetchProjectsError,
             fetchProjectStatsResponse: $1.fetchProjectStatsResponse,
             fetchProjectStatsError: $1.fetchProjectStatsError,
-            fetchProjectSummaryResult: $1.fetchProjectSummaryResult,
             fetchShippingRulesResult: $1.fetchShippingRulesResult,
-            fetchUserProjectsBackedResponse: $1.fetchUserProjectsBackedResponse,
-            fetchUserProjectsBackedError: $1.fetchUserProjectsBackedError,
-            fetchUserResponse: $1.fetchUserResponse,
-            fetchUserError: $1.fetchUserError,
+            fetchUserResult: $1.fetchUserResult,
             fetchUserSelfResponse: $1.fetchUserSelfResponse,
             followFriendError: $1.followFriendError,
             incrementVideoCompletionError: $1.incrementVideoCompletionError,
@@ -1503,11 +1941,9 @@
             fetchSurveyResponseResponse: $1.fetchSurveyResponseResponse,
             fetchSurveyResponseError: $1.fetchSurveyResponseError,
             fetchUnansweredSurveyResponsesResponse: $1.fetchUnansweredSurveyResponsesResponse,
-            fetchUpdateCommentsResponse: $1.fetchUpdateCommentsResponse,
             fetchUpdateResponse: $1.fetchUpdateResponse,
             fetchUserSelfError: $1.fetchUserSelfError,
-            postCommentResponse: $1.postCommentResponse,
-            postCommentError: $1.postCommentError,
+            postCommentResult: $1.postCommentResult,
             loginResponse: $1.loginResponse,
             loginError: $1.loginError,
             resendCodeResponse: $1.resendCodeResponse,
@@ -1553,5 +1989,17 @@ private extension Result {
     case .success: return nil
     case let .failure(error): return error
     }
+  }
+}
+
+extension GraphAPI.CompleteOnSessionCheckoutMutation.Data: Decodable {
+  public init(from _: Decoder) throws {
+    fatalError("The test code should not actually be decoding this object.")
+  }
+}
+
+extension GraphAPI.BuildPaymentPlanQuery.Data: Decodable {
+  public init(from _: Decoder) throws {
+    fatalError("The test code should not actually be decoding this object.")
   }
 }

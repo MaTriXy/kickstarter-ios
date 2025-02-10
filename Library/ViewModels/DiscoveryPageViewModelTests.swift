@@ -16,7 +16,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   fileprivate let goToActivityProject = TestObserver<Project, Never>()
   fileprivate let goToActivityProjectRefTag = TestObserver<RefTag, Never>()
   fileprivate let goToCuratedProjects = TestObserver<[KsApi.Category], Never>()
-  fileprivate let goToEditorialProjectList = TestObserver<DiscoveryParams.TagID, Never>()
   fileprivate let goToPlaylist = TestObserver<[Project], Never>()
   fileprivate let goToPlaylistProject = TestObserver<Project, Never>()
   fileprivate let goToPlaylistRefTag = TestObserver<RefTag, Never>()
@@ -29,14 +28,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
   fileprivate let projectsAreLoading = TestObserver<Bool, Never>()
   fileprivate let projectsAreLoadingAnimated = TestObserver<(Bool, Bool), Never>()
   fileprivate let projectsLoadedDiscoveryParams = TestObserver<DiscoveryParams?, Never>()
-  fileprivate let projectsLoadedVariant = TestObserver<OptimizelyExperiment.Variant, Never>()
   fileprivate let setScrollsToTop = TestObserver<Bool, Never>()
-  private let scrollToProjectRow = TestObserver<Int, Never>()
-  fileprivate let showEditorialHeader = TestObserver<DiscoveryEditorialCellValue?, Never>()
-  fileprivate let showEditorialHeaderImageName = TestObserver<String?, Never>()
-  fileprivate let showEditorialHeaderSubtitle = TestObserver<String?, Never>()
-  fileprivate let showEditorialHeaderTagId = TestObserver<DiscoveryParams.TagID?, Never>()
-  fileprivate let showEditorialHeaderTitle = TestObserver<String?, Never>()
   fileprivate let showEmptyState = TestObserver<EmptyState, Never>()
   fileprivate let showOnboarding = TestObserver<Bool, Never>()
   fileprivate let showPersonalization = TestObserver<Bool, Never>()
@@ -52,7 +44,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.goToActivityProject.map(first).observe(self.goToActivityProject.observer)
     self.vm.outputs.goToActivityProject.map(second).observe(self.goToActivityProjectRefTag.observer)
     self.vm.outputs.goToCuratedProjects.observe(self.goToCuratedProjects.observer)
-    self.vm.outputs.goToEditorialProjectList.observe(self.goToEditorialProjectList.observer)
     self.vm.outputs.goToProjectPlaylist.map(first).observe(self.goToPlaylistProject.observer)
     self.vm.outputs.goToProjectPlaylist.map(second).observe(self.goToPlaylist.observer)
     self.vm.outputs.goToProjectPlaylist.map(third).observe(self.goToPlaylistRefTag.observer)
@@ -62,16 +53,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.outputs.projectsAreLoadingAnimated.observe(self.projectsAreLoadingAnimated.observer)
     self.vm.outputs.projectsLoaded.ignoreValues().observe(self.hasLoadedProjects.observer)
     self.vm.outputs.projectsLoaded.map(second).observe(self.projectsLoadedDiscoveryParams.observer)
-    self.vm.outputs.projectsLoaded.map(third).observe(self.projectsLoadedVariant.observer)
-    self.vm.outputs.scrollToProjectRow.observe(self.scrollToProjectRow.observer)
     self.vm.outputs.setScrollsToTop.observe(self.setScrollsToTop.observer)
-    self.vm.outputs.showEditorialHeader.observe(self.showEditorialHeader.observer)
-    self.vm.outputs.showEditorialHeader.map { $0?.title }.observe(self.showEditorialHeaderTitle.observer)
-    self.vm.outputs.showEditorialHeader.map { $0?.subtitle }
-      .observe(self.showEditorialHeaderSubtitle.observer)
-    self.vm.outputs.showEditorialHeader.map { $0?.imageName }
-      .observe(self.showEditorialHeaderImageName.observer)
-    self.vm.outputs.showEditorialHeader.map { $0?.tagId }.observe(self.showEditorialHeaderTagId.observer)
     self.vm.outputs.showEmptyState.observe(self.showEmptyState.observer)
     self.vm.outputs.showOnboarding.observe(self.showOnboarding.observer)
     self.vm.outputs.showPersonalization.observe(self.showPersonalization.observer)
@@ -99,7 +81,7 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.projectsLoadedDiscoveryParams.assertDidNotEmitValue()
     self.hasAddedProjects.assertDidNotEmitValue("No projects load at first.")
     self.hasRemovedProjects.assertDidNotEmitValue("No projects load at first.")
-    XCTAssertEqual([], self.trackingClient.events, "No events tracked at first.")
+    XCTAssertEqual([], self.segmentTrackingClient.events, "No events tracked at first.")
 
     self.vm.inputs.selectedFilter(.defaults)
 
@@ -116,17 +98,18 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.hasAddedProjects.assertValues([true], "Projects are added.")
     self.hasRemovedProjects.assertValues([false], "Projects are not removed.")
     self.projectsAreLoading.assertValues([true, false], "Loading indicator toggles on/off.")
+
     XCTAssertEqual(
-      ["Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed"],
+      self.segmentTrackingClient.events,
       "Impression is tracked."
     )
 
-    let props = self.trackingClient.properties.last
+    let segmentClientProps = self.segmentTrackingClient.properties.last
 
-    XCTAssertNotNil(props?["optimizely_api_key"], "Event includes Optimizely properties")
-    XCTAssertNotNil(props?["optimizely_environment"], "Event includes Optimizely properties")
-    XCTAssertNotNil(props?["optimizely_experiments"], "Event includes Optimizely properties")
+    XCTAssertEqual("discover", segmentClientProps?["context_page"] as? String)
+
+    XCTAssertEqual("magic", segmentClientProps?["discover_sort"] as? String)
 
     // Scroll down a bit and advance scheduler
     self.vm.inputs.willDisplayRow(2, outOf: 10)
@@ -134,9 +117,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     self.hasAddedProjects.assertValues([true], "No projects are added.")
     self.hasRemovedProjects.assertValues([false], "No projects are removed.")
+
     XCTAssertEqual(
-      ["Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed"],
+      self.segmentTrackingClient.events,
       "No new events are tracked."
     )
 
@@ -150,9 +134,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.projectsAreLoading.assertValues(
       [true, false, true, false], "Loading indicator toggles on/off."
     )
+
     XCTAssertEqual(
-      ["Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed"],
+      self.segmentTrackingClient.events,
       "No new events are tracked"
     )
 
@@ -163,9 +148,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.projectsLoadedDiscoveryParams.assertValues([params, params])
     self.hasAddedProjects.assertValues([true, true], "No projects are added.")
     self.hasRemovedProjects.assertValues([false, false], "No projects are removed.")
+
     XCTAssertEqual(
-      ["Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed"],
+      self.segmentTrackingClient.events,
       "No new events are tracked."
     )
 
@@ -192,14 +178,15 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       [true, false, true, false, true, false],
       "Loading indicator toggles on/off."
     )
+
     XCTAssertEqual(
-      ["Explore Page Viewed", "Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed", "Page Viewed"],
+      self.segmentTrackingClient.events,
       "Another event is tracked when the filters are updated."
     )
     XCTAssertEqual(
       [nil, 1],
-      self.trackingClient.properties(forKey: "discover_subcategory_id", as: Int.self),
+      self.segmentTrackingClient.properties(forKey: "discover_subcategory_id", as: Int.self),
       "The updated category is tracked."
     )
 
@@ -224,9 +211,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       [true, false, true, false, true, false, true, false],
       "Loading indicator toggles on/off."
     )
+
     XCTAssertEqual(
-      ["Explore Page Viewed", "Explore Page Viewed"],
-      self.trackingClient.events,
+      ["Page Viewed", "Page Viewed"],
+      self.segmentTrackingClient.events,
       "No new events are tracked."
     )
   }
@@ -292,104 +280,32 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     )
   }
 
-  func testProjectsLoaded_IsNativeProjectCardsControl() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.nativeProjectCards.rawValue:
-          OptimizelyExperiment.Variant.control.rawValue
-      ]
-
+  func testProjectsLoaded_Success() {
     let params = DiscoveryParams.defaults
       |> \.sort .~ .magic
 
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
+    self.vm.inputs.configureWith(sort: .magic)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+    self.scheduler.advance()
 
-      self.hasAddedProjects.assertValues([])
-      self.projectsLoadedDiscoveryParams.assertValues([])
-      self.projectsLoadedVariant.assertValues([])
+    self.hasAddedProjects.assertValues([])
+    self.projectsLoadedDiscoveryParams.assertValues([])
 
-      self.vm.inputs.selectedFilter(.defaults)
-      self.scheduler.advance()
+    self.vm.inputs.selectedFilter(.defaults)
+    self.scheduler.advance()
 
-      self.hasAddedProjects.assertValues([true], "Projects load after the filter is changed.")
-      self.projectsLoadedDiscoveryParams.assertValues([params])
-      self.projectsLoadedVariant.assertValues([.control])
-
-      XCTAssertTrue(mockOptimizelyClient.getVariantPathCalled)
-    }
+    self.hasAddedProjects.assertValues([true], "Projects load after the filter is changed.")
+    self.projectsLoadedDiscoveryParams.assertValues([params])
   }
 
-  func testProjectsLoaded_IsNativeProjectCardsVariant1() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.nativeProjectCards.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
+  func testContentInset_Success() {
+    self.vm.inputs.configureWith(sort: .magic)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+    self.scheduler.advance()
 
-    let params = DiscoveryParams.defaults
-      |> \.sort .~ .magic
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
-
-      self.hasAddedProjects.assertValues([])
-      self.projectsLoadedDiscoveryParams.assertValues([])
-      self.projectsLoadedVariant.assertValues([])
-
-      self.vm.inputs.selectedFilter(.defaults)
-      self.scheduler.advance()
-
-      self.hasAddedProjects.assertValues([true], "Projects load after the filter is changed.")
-      self.projectsLoadedDiscoveryParams.assertValues([params])
-      self.projectsLoadedVariant.assertValues([.variant1])
-
-      XCTAssertTrue(mockOptimizelyClient.getVariantPathCalled)
-    }
-  }
-
-  func testContentInset_IsNativeProjectCardsControl() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.nativeProjectCards.rawValue:
-          OptimizelyExperiment.Variant.control.rawValue
-      ]
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
-
-      self.contentInset.assertValues([UIEdgeInsets.zero])
-
-      XCTAssertTrue(mockOptimizelyClient.getVariantPathCalled)
-    }
-  }
-
-  func testContentInset_IsNativeProjectCardsVariant1() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.nativeProjectCards.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.scheduler.advance()
-
-      self.contentInset.assertValues([UIEdgeInsets.init(topBottom: Styles.grid(1))])
-
-      XCTAssertTrue(mockOptimizelyClient.getVariantPathCalled)
-    }
+    self.contentInset.assertValues([UIEdgeInsets.zero])
   }
 
   func testGoToProject() {
@@ -398,11 +314,9 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> DiscoveryEnvelope.lens.projects .~ (
         (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
       )
-    let mockOptimizelyClient = MockOptimizelyClient()
 
     withEnvironment(
-      apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope),
-      optimizelyClient: mockOptimizelyClient
+      apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope)
     ) {
       self.vm.inputs.configureWith(sort: .magic)
       self.vm.inputs.viewWillAppear()
@@ -419,11 +333,12 @@ internal final class DiscoveryPageViewModelTests: TestCase {
         "Go to the project with discovery ref tag."
       )
 
-      XCTAssertEqual(["Explore Page Viewed", "Project Card Clicked"], self.trackingClient.events)
-      XCTAssertEqual("Project Card Clicked", mockOptimizelyClient.trackedEventKey)
+      XCTAssertEqual(["Page Viewed", "CTA Clicked"], self.segmentTrackingClient.events)
 
-      self.vm.inputs.selectedFilter(.defaults
-        |> DiscoveryParams.lens.category .~ Category.art)
+      self.vm.inputs.selectedFilter(
+        .defaults
+          |> DiscoveryParams.lens.category .~ Category.art
+      )
       self.vm.inputs.tapped(project: project)
 
       self.goToPlaylist.assertValueCount(2, "New playlist for project emits.")
@@ -434,23 +349,23 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       )
 
       XCTAssertEqual([
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked"
-      ], self.trackingClient.events)
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked"
+      ], self.segmentTrackingClient.events)
 
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.staffPicks .~ true)
       self.vm.inputs.tapped(project: project)
 
       XCTAssertEqual([
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked"
-      ], self.trackingClient.events)
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked"
+      ], self.segmentTrackingClient.events)
 
       self.goToPlaylist.assertValueCount(3, "New playlist for project emits.")
       self.goToPlaylistProject.assertValues([project, project, project])
@@ -463,15 +378,15 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.tapped(project: project)
 
       XCTAssertEqual([
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked"
-      ], self.trackingClient.events)
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked"
+      ], self.segmentTrackingClient.events)
 
       self.goToPlaylist.assertValueCount(4, "New playlist for project emits.")
       self.goToPlaylistProject.assertValues([project, project, project, project])
@@ -495,17 +410,17 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.tapped(project: project)
 
       XCTAssertEqual([
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked",
-        "Explore Page Viewed",
-        "Project Card Clicked"
-      ], self.trackingClient.events)
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked",
+        "Page Viewed",
+        "CTA Clicked"
+      ], self.segmentTrackingClient.events)
 
       self.goToPlaylistProject.assertValues([project, project, project, project, project])
       self.goToPlaylistRefTag.assertValues(
@@ -547,8 +462,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.activitiesForSample.assertValues([[activity1]], "Activity sample is shown.")
 
       // Change the filter.
-      self.vm.inputs.selectedFilter(.defaults
-        |> DiscoveryParams.lens.category .~ Category.art)
+      self.vm.inputs.selectedFilter(
+        .defaults
+          |> DiscoveryParams.lens.category .~ Category.art
+      )
       self.vm.inputs.viewDidDisappear(animated: true)
       self.vm.inputs.viewWillAppear()
       self.vm.inputs.viewDidAppear()
@@ -697,67 +614,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  // MARK: - Editorial Header
-
-  func testShowLightsOnEditorialHeader_LoggedOut() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [OptimizelyFeature.Key.lightsOn.rawValue: true]
-
-    withEnvironment(optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(.defaults)
-
-      self.scheduler.advance(by: .seconds(1))
-
-      self.showEditorialHeader.assertValueCount(1)
-      self.showEditorialHeaderTitle.assertValues(["Introducing Lights On"])
-      self.showEditorialHeaderSubtitle
-        .assertValues(["Support creative spaces and businesses affected by COVID-19."])
-      self.showEditorialHeaderImageName.assertValues(["lights-on"])
-      self.showEditorialHeaderTagId.assertValues([.lightsOn])
-    }
-  }
-
-  func testShowLightsOnEditorialHeader_PopularSort_LoggedIn() {
-    withEnvironment(currentUser: .template) {
-      self.vm.inputs.configureWith(sort: .popular)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(DiscoveryParams.recommendedDefaults)
-
-      self.scheduler.advance(by: .seconds(1))
-
-      self.showEditorialHeader.assertDidNotEmitValue()
-      self.showEditorialHeaderTitle.assertDidNotEmitValue()
-      self.showEditorialHeaderSubtitle.assertDidNotEmitValue()
-      self.showEditorialHeaderImageName.assertDidNotEmitValue()
-      self.showEditorialHeaderTagId.assertDidNotEmitValue()
-    }
-  }
-
-  func testShowLightsOnEditorialHeader_LoggedIn() {
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [OptimizelyFeature.Key.lightsOn.rawValue: true]
-
-    withEnvironment(currentUser: .template, optimizelyClient: mockOptimizelyClient) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(DiscoveryParams.recommendedDefaults)
-
-      self.scheduler.advance(by: .seconds(1))
-
-      self.showEditorialHeader.assertValueCount(1)
-      self.showEditorialHeaderTitle.assertValues(["Introducing Lights On"])
-      self.showEditorialHeaderSubtitle
-        .assertValues(["Support creative spaces and businesses affected by COVID-19."])
-      self.showEditorialHeaderImageName.assertValues(["lights-on"])
-      self.showEditorialHeaderTagId.assertValues([.lightsOn])
-    }
-  }
-
   // MARK: - Onboarding
 
   func testShowOnboarding_LoggedOutOnMagic() {
@@ -795,11 +651,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     self.vm.inputs.viewDidAppear()
 
     let params = DiscoveryParams.defaults
-      |> \.tagId .~ .lightsOn
 
     self.vm.inputs.selectedFilter(params)
 
-    self.showOnboarding.assertValues([false])
+    self.showOnboarding.assertValues([true])
   }
 
   // MARK: - Scroll to top
@@ -940,54 +795,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testScrollAndUpdateProjects_ViaProjectNavigator() {
-    let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
-    let projectEnv = .template
-      |> DiscoveryEnvelope.lens.projects .~ playlist
-
-    let playlist2 = (0...20).map { idx in .template |> Project.lens.id .~ (idx + 72) }
-    let projectEnv2 = .template
-      |> DiscoveryEnvelope.lens.projects .~ playlist2
-
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(.defaults)
-
-      self.scheduler.advance()
-
-      self.hasAddedProjects.assertValues([true], "Projects are loaded.")
-
-      self.vm.inputs.tapped(project: playlist[4])
-      self.vm.inputs.viewDidDisappear(animated: true)
-      self.vm.inputs.transitionedToProject(at: 5, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5])
-
-      self.vm.inputs.transitionedToProject(at: 6, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5, 6])
-
-      self.vm.inputs.transitionedToProject(at: 7, outOf: playlist.count)
-
-      self.scrollToProjectRow.assertValues([5, 6, 7])
-
-      withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv2)) {
-        self.vm.inputs.transitionedToProject(at: 8, outOf: playlist.count)
-
-        self.scheduler.advance()
-
-        self.scrollToProjectRow.assertValues([5, 6, 7, 8])
-        self.hasAddedProjects.assertValues([true, true], "More projects are loaded.")
-
-        self.vm.inputs.transitionedToProject(at: 7, outOf: playlist2.count)
-
-        self.scrollToProjectRow.assertValues([5, 6, 7, 8, 7])
-      }
-    }
-  }
-
   func testProjectsLoad_IfPulledToRefresh() {
     let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
     let projectEnv = .template
@@ -1094,115 +901,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
     }
   }
 
-  func testGoToEditorialProjectList() {
-    let discoveryEnvelope = .template
-      |> DiscoveryEnvelope.lens.projects .~ (
-        (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
-      )
-
-    let loggedOutFilters = DiscoveryParams.defaults
-      |> \.includePOTD .~ true
-
-    self.showEditorialHeader.assertDidNotEmitValue()
-    self.showEditorialHeaderTitle.assertDidNotEmitValue()
-    self.showEditorialHeaderSubtitle.assertDidNotEmitValue()
-    self.showEditorialHeaderImageName.assertDidNotEmitValue()
-    self.showEditorialHeaderTagId.assertDidNotEmitValue()
-    self.goToEditorialProjectList.assertDidNotEmitValue()
-
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.features .~ [OptimizelyFeature.Key.lightsOn.rawValue: true]
-
-    withEnvironment(
-      apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope),
-      optimizelyClient: mockOptimizelyClient
-    ) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(loggedOutFilters)
-
-      self.scheduler.advance()
-
-      self.scheduler.advance(by: .seconds(1))
-
-      self.showEditorialHeader.assertValueCount(1)
-      self.showEditorialHeaderTitle.assertValues(["Introducing Lights On"])
-      self.showEditorialHeaderSubtitle
-        .assertValues(["Support creative spaces and businesses affected by COVID-19."])
-      self.showEditorialHeaderImageName.assertValues(["lights-on"])
-      self.showEditorialHeaderTagId.assertValues([.lightsOn])
-      self.goToEditorialProjectList.assertDidNotEmitValue()
-
-      self.vm.inputs.discoveryEditorialCellTapped(with: .lightsOn)
-
-      self.goToEditorialProjectList.assertValues([.lightsOn])
-    }
-  }
-
-  func testGoToEditorialProject() {
-    let project = Project.template
-    let discoveryEnvelope = .template
-      |> DiscoveryEnvelope.lens.projects .~ (
-        (0...2).map { id in .template |> Project.lens.id .~ (100 + id) }
-      )
-
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: discoveryEnvelope)) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.tagId .~ .lightsOn)
-      self.scheduler.advance()
-
-      self.vm.inputs.tapped(project: project)
-
-      self.goToPlaylist.assertValues([discoveryEnvelope.projects], "Project playlist emits.")
-      self.goToPlaylistProject.assertValues([project])
-      self.goToPlaylistRefTag.assertValues(
-        [.projectCollection(DiscoveryParams.TagID.lightsOn)],
-        "Go to the project with Editorial ref tag."
-      )
-    }
-  }
-
-  func testTrackEditorialHeaderTapped() {
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: .template)) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(.defaults)
-      self.scheduler.advance()
-
-      self.vm.inputs.discoveryEditorialCellTapped(with: .lightsOn)
-
-      XCTAssertEqual(["Explore Page Viewed", "Editorial Card Clicked"], self.trackingClient.events)
-      XCTAssertEqual(
-        [nil, "ios_project_collection_tag_557"],
-        self.trackingClient.properties(forKey: "session_ref_tag", as: String.self)
-      )
-
-      let props = self.trackingClient.properties.last
-
-      XCTAssertEqual(true, props?["discover_everything"] as? Bool)
-      XCTAssertEqual("discovery_home", props?["discover_ref_tag"] as? String)
-      XCTAssertEqual("magic", props?["discover_sort"] as? String)
-
-      XCTAssertNil(props?["discover_recommended"] as? Bool)
-      XCTAssertNil(props?["discover_pwl"] as? Bool)
-      XCTAssertNil(props?["discover_social"] as? Bool)
-      XCTAssertNil(props?["discover_watched"] as? Bool)
-      XCTAssertNil(props?["discover_subcategory_id"] as? Int)
-      XCTAssertNil(props?["discover_subcategory_name"] as? String)
-      XCTAssertNil(props?["discover_category_id"] as? Int)
-      XCTAssertNil(props?["discover_category_name"] as? String)
-      XCTAssertNil(props?["discover_search_term"] as? String)
-
-      XCTAssertNil(props?["optimizely_api_key"], "Event does not include Optimizely properties")
-      XCTAssertNil(props?["optimizely_environment"], "Event does not include Optimizely properties")
-      XCTAssertNil(props?["optimizely_experiments"], "Event does not include Optimizely properties")
-    }
-  }
-
   func testNotifyDelegateContentOffsetChanged() {
     self.notifyDelegateContentOffsetChanged.assertDidNotEmitValue()
 
@@ -1244,18 +942,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.defaults
       |> DiscoveryParams.lens.includePOTD .~ true
 
     withEnvironment(
       currentUser: nil,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1263,11 +954,9 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.selectedFilter(defaultFilter)
 
-      self.showPersonalization.assertValues([true])
-
       // Change the filter
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.category .~ Category.art)
-      self.showPersonalization.assertValues([true, false], "Section hides on non-default filters")
+      self.showPersonalization.assertValues([false, false], "Section does not hide on default filters")
     }
   }
 
@@ -1276,17 +965,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
     withEnvironment(
       currentUser: User.template,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1294,13 +976,31 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.viewDidAppear()
       self.vm.inputs.selectedFilter(defaultFilter)
 
-      self.showPersonalization.assertValues([true])
-
-      XCTAssertTrue(mockOpClient.getVariantPathCalled)
+      self.showPersonalization.assertValues([false])
 
       // Change the filter
       self.vm.inputs.selectedFilter(.defaults |> DiscoveryParams.lens.category .~ Category.art)
-      self.showPersonalization.assertValues([true, false], "Section hides on non-default filters")
+      self.showPersonalization.assertValues([false, false], "Section does not hide on default filters")
+    }
+  }
+
+  func testShowPersonalization() {
+    let mockKeyValueStore = MockKeyValueStore()
+      |> \.hasCompletedCategoryPersonalizationFlow .~ true
+      |> \.hasDismissedPersonalizationCard .~ false
+
+    let defaultFilter = DiscoveryParams.recommendedDefaults
+
+    withEnvironment(
+      currentUser: User.template,
+      userDefaults: mockKeyValueStore
+    ) {
+      self.vm.inputs.configureWith(sort: .magic)
+      self.vm.inputs.viewWillAppear()
+      self.vm.inputs.viewDidAppear()
+      self.vm.inputs.selectedFilter(defaultFilter)
+
+      self.showPersonalization.assertValues([false], "Does not show personalization section")
     }
   }
 
@@ -1309,17 +1009,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ false
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
     withEnvironment(
       currentUser: User.template,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1336,71 +1029,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ true
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
     withEnvironment(
       currentUser: User.template,
-      optimizelyClient: mockOpClient,
-      userDefaults: mockKeyValueStore
-    ) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(defaultFilter)
-
-      self.showPersonalization.assertValues([false], "Does not show personalization section")
-    }
-  }
-
-  func testShowPersonalization_Variant2() {
-    let mockKeyValueStore = MockKeyValueStore()
-      |> \.hasCompletedCategoryPersonalizationFlow .~ true
-      |> \.hasDismissedPersonalizationCard .~ false
-
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant2.rawValue
-      ]
-
-    let defaultFilter = DiscoveryParams.recommendedDefaults
-
-    withEnvironment(
-      currentUser: User.template,
-      optimizelyClient: mockOpClient,
-      userDefaults: mockKeyValueStore
-    ) {
-      self.vm.inputs.configureWith(sort: .magic)
-      self.vm.inputs.viewWillAppear()
-      self.vm.inputs.viewDidAppear()
-      self.vm.inputs.selectedFilter(defaultFilter)
-
-      self.showPersonalization.assertValues([false], "Does not show personalization section")
-    }
-  }
-
-  func testShowPersonalization_Control() {
-    let mockKeyValueStore = MockKeyValueStore()
-      |> \.hasCompletedCategoryPersonalizationFlow .~ true
-      |> \.hasDismissedPersonalizationCard .~ false
-
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.control.rawValue
-      ]
-
-    let defaultFilter = DiscoveryParams.recommendedDefaults
-
-    withEnvironment(
-      currentUser: User.template,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1417,17 +1049,10 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.recommendedDefaults
 
     withEnvironment(
       currentUser: User.template,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1450,12 +1075,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ true
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let categories = [KsApi.Category.art, KsApi.Category.illustration]
     mockKeyValueStore.onboardingCategories = try? JSONEncoder().encode(categories)
 
@@ -1463,7 +1082,6 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
     withEnvironment(
       currentUser: User.template,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1472,24 +1090,22 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       self.vm.inputs.selectedFilter(defaultFilter)
 
       self.goToCuratedProjects.assertDidNotEmitValue()
-      XCTAssertEqual(["Explore Page Viewed"], self.trackingClient.events)
+
+      XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
       self.vm.inputs.personalizationCellTapped()
 
-      XCTAssertEqual(["Explore Page Viewed", "Editorial Card Clicked"], self.trackingClient.events)
-      XCTAssertEqual("Editorial Card Clicked", mockOpClient.trackedEventKey)
+      XCTAssertEqual(["Page Viewed"], self.segmentTrackingClient.events)
 
       XCTAssertEqual(
-        [nil, "ios_experiment_onboarding_1"],
-        self.trackingClient.properties(forKey: "session_ref_tag")
+        [nil],
+        self.segmentTrackingClient.properties(forKey: "session_ref_tag")
       )
       self.goToCuratedProjects.assertValues([[.art, .illustration]])
 
-      let properties = self.trackingClient.properties.last
+      let segmentTrackingClientProperties = self.segmentTrackingClient.properties.last
 
-      XCTAssertNotNil(properties?["optimizely_api_key"], "Event includes Optimizely properties")
-      XCTAssertNotNil(properties?["optimizely_environment"], "Event includes Optimizely properties")
-      XCTAssertNotNil(properties?["optimizely_experiments"], "Event includes Optimizely properties")
+      XCTAssertEqual("discover", segmentTrackingClientProperties?["context_page"] as? String)
     }
   }
 
@@ -1498,18 +1114,11 @@ internal final class DiscoveryPageViewModelTests: TestCase {
       |> \.hasCompletedCategoryPersonalizationFlow .~ false // Hasn't completed personalization flow yet
       |> \.hasDismissedPersonalizationCard .~ false
 
-    let mockOpClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.onboardingCategoryPersonalizationFlow.rawValue:
-          OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
     let defaultFilter = DiscoveryParams.defaults
       |> DiscoveryParams.lens.includePOTD .~ true
 
     withEnvironment(
       currentUser: nil,
-      optimizelyClient: mockOpClient,
       userDefaults: mockKeyValueStore
     ) {
       self.vm.inputs.configureWith(sort: .magic)
@@ -1523,7 +1132,76 @@ internal final class DiscoveryPageViewModelTests: TestCase {
 
       self.vm.inputs.onboardingCompleted()
 
-      self.showPersonalization.assertValues([false, true])
+      self.showPersonalization.assertValues([false, false])
+    }
+  }
+
+  func testDiscoverySort_Magic() {
+    self.vm.inputs.configureWith(sort: .magic)
+    self.vm.inputs.selectedFilter(.recommendedDefaults)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+
+    let segmentClientProps = self.segmentTrackingClient.properties.last
+
+    XCTAssertEqual("magic", segmentClientProps?["discover_sort"] as? String)
+  }
+
+  func testDiscoverySort_Popular() {
+    self.vm.inputs.configureWith(sort: .popular)
+    self.vm.inputs.selectedFilter(.recommendedDefaults)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+
+    let segmentClientProps = self.segmentTrackingClient.properties.last
+
+    XCTAssertEqual("popular", segmentClientProps?["discover_sort"] as? String)
+  }
+
+  func testDiscoverySort_Newest() {
+    self.vm.inputs.configureWith(sort: .newest)
+    self.vm.inputs.selectedFilter(.recommendedDefaults)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+
+    let segmentClientProps = self.segmentTrackingClient.properties.last
+
+    XCTAssertEqual("newest", segmentClientProps?["discover_sort"] as? String)
+  }
+
+  func testDiscoverySort_EndingSoon() {
+    self.vm.inputs.configureWith(sort: .endingSoon)
+    self.vm.inputs.selectedFilter(.recommendedDefaults)
+    self.vm.inputs.viewWillAppear()
+    self.vm.inputs.viewDidAppear()
+
+    let segmentClientProps = self.segmentTrackingClient.properties.last
+
+    XCTAssertEqual("ending_soon", segmentClientProps?["discover_sort"] as? String)
+  }
+
+  func testBlockedUserNotification_RefreshesProjects() {
+    let playlist = (0...10).map { idx in .template |> Project.lens.id .~ (idx + 42) }
+    let projectEnv = .template
+      |> DiscoveryEnvelope.lens.projects .~ playlist
+
+    withEnvironment(apiService: MockService(fetchDiscoveryResponse: projectEnv)) {
+      self.vm.inputs.configureWith(sort: .magic)
+      self.vm.inputs.viewWillAppear()
+      self.vm.inputs.viewDidAppear()
+      self.vm.inputs.selectedFilter(.defaults)
+
+      self.projectsAreLoading.assertValueCount(1)
+
+      self.scheduler.advance()
+
+      self.projectsAreLoading.assertValueCount(2)
+
+      self.vm.inputs.blockedUser()
+
+      self.scheduler.advance()
+
+      self.projectsAreLoading.assertValueCount(4)
     }
   }
 }

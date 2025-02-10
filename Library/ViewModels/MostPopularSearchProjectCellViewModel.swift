@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public protocol MostPopularSearchProjectCellViewModelInputs {
   func configureWith(project: Project)
@@ -24,6 +25,9 @@ public protocol MostPopularSearchProjectCellViewModelOutputs {
 
   /// Emits project name to be displayed.
   var projectName: Signal<NSAttributedString, Never> { get }
+
+  /// Emits to hide information about pledging when project is prelaunch
+  var prelaunchProject: Signal<Bool, Never> { get }
 }
 
 public protocol MostPopularSearchProjectCellViewModelType {
@@ -47,6 +51,8 @@ public final class MostPopularSearchProjectCellViewModel: MostPopularSearchProje
     self.percentFundedText = project.map(percentFundedString(for:))
 
     self.metadataText = project.map(metadataString(for:))
+
+    self.prelaunchProject = project.map(isProjectPrelaunch)
   }
 
   fileprivate let projectProperty = MutableProperty<Project?>(nil)
@@ -60,15 +66,35 @@ public final class MostPopularSearchProjectCellViewModel: MostPopularSearchProje
   public let progressBarColor: Signal<UIColor, Never>
   public let projectImageUrl: Signal<URL?, Never>
   public let projectName: Signal<NSAttributedString, Never>
+  public let prelaunchProject: Signal<Bool, Never>
 
   public var inputs: MostPopularSearchProjectCellViewModelInputs { return self }
   public var outputs: MostPopularSearchProjectCellViewModelOutputs { return self }
 }
 
+private func isProjectPrelaunch(_ project: Project) -> Bool {
+  switch (project.displayPrelaunch, project.dates.launchedAt, project.prelaunchActivated) {
+  case (.some(true), _, _),
+       (_, _, .some(true)):
+    return true
+  case let (_, .some(timeValue), _):
+    return timeValue <= 0
+  default:
+    return false
+  }
+}
+
 private func metadataString(for project: Project) -> String {
+  guard !isProjectPrelaunch(project) else { return Strings.Coming_soon() }
+
   switch project.state {
   case .live:
-    let duration = Format.duration(secondsInUTC: project.dates.deadline, abbreviate: true, useToGo: false)
+    guard let deadline = project.dates.deadline else {
+      return ""
+    }
+
+    let duration = Format.duration(secondsInUTC: deadline, abbreviate: true, useToGo: false)
+
     return "\(duration.time) \(duration.unit)"
   default:
     return stateString(for: project)
@@ -82,22 +108,24 @@ private func percentFundedString(for project: Project) -> NSAttributedString {
   case .live, .successful:
     return NSAttributedString(string: percentage, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1().bolded,
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_green_700
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_create_700
     ])
   default:
     return NSAttributedString(string: percentage, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1().bolded,
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_400
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_400
     ])
   }
 }
 
 private func progressBarColorForProject(_ project: Project) -> UIColor {
+  guard !isProjectPrelaunch(project) else { return .ksr_create_700 }
+
   switch project.state {
   case .live, .successful:
-    return .ksr_green_500
+    return .ksr_create_700
   default:
-    return .ksr_dark_grey_400
+    return .ksr_support_400
   }
 }
 
@@ -106,12 +134,12 @@ private func titleString(for project: Project) -> NSAttributedString {
   case .live, .successful:
     return NSAttributedString(string: project.name, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 13),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
     ])
   default:
     return NSAttributedString(string: project.name, attributes: [
       NSAttributedString.Key.font: UIFont.ksr_caption1(size: 13),
-      NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_400
+      NSAttributedString.Key.foregroundColor: UIColor.ksr_support_400
     ])
   }
 }

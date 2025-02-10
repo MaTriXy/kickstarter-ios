@@ -2,6 +2,7 @@ import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
+import UIKit
 
 public protocol DiscoveryNavigationHeaderViewModelInputs {
   /// Call to configure with Discovery params.
@@ -102,7 +103,7 @@ public final class DiscoveryNavigationHeaderViewModel: DiscoveryNavigationHeader
       currentParams.map { ($0, false) },
       currentParams.takeWhen(self.titleButtonTappedProperty.signal).map { ($0, true) }
     )
-    .scan(nil) { (data, paramsAndFiltersHidden) -> (params: DiscoveryParams, filtersAreHidden: Bool)? in
+    .scan(nil) { data, paramsAndFiltersHidden -> (params: DiscoveryParams, filtersAreHidden: Bool)? in
       let (params, filtersAreHidden) = paramsAndFiltersHidden
       return (
         params: params,

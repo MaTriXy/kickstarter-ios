@@ -41,7 +41,7 @@ final class ResetPasswordViewModelTests: TestCase {
 
     self.formIsValid.assertValues([false])
 
-    self.vm.inputs.emailChanged("gina@kickstarter.com")
+    self.vm.inputs.emailChanged("user@example.com")
 
     self.formIsValid.assertValues([false, true])
   }
@@ -63,17 +63,17 @@ final class ResetPasswordViewModelTests: TestCase {
   }
 
   func testEmailSetOnce_WithInitialValue() {
-    self.vm.inputs.emailChanged("nativesquad@kickstarter.com")
+    self.vm.inputs.emailChanged("user@example.com")
 
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
 
     self.vm.inputs.viewDidLoad()
 
-    self.setEmailInitial.assertValues(["nativesquad@kickstarter.com"])
+    self.setEmailInitial.assertValues(["user@example.com"])
 
     self.vm.inputs.viewDidLoad()
 
-    self.setEmailInitial.assertValues(["nativesquad@kickstarter.com"])
+    self.setEmailInitial.assertValues(["user@example.com"])
   }
 
   func testEmailNotSet_WithoutInitialValue() {
@@ -83,20 +83,20 @@ final class ResetPasswordViewModelTests: TestCase {
 
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
 
-    self.vm.inputs.emailChanged("nativesquad@kickstarter.com")
+    self.vm.inputs.emailChanged("user@example.com")
 
     self.setEmailInitial.assertValueCount(0, "Initial email does not emit")
   }
 
   func testResetSuccess() {
     self.vm.inputs.viewDidLoad()
-    self.vm.inputs.emailChanged("lisa@kickstarter.com")
+    self.vm.inputs.emailChanged("user@example.com")
     self.vm.inputs.resetButtonPressed()
 
     self.showResetSuccess.assertValues(
       [
         Strings.forgot_password_we_sent_an_email_to_email_address_with_instructions_to_reset_your_password(
-          email: "lisa@kickstarter.com"
+          email: "user@example.com"
         )
       ]
     )
@@ -144,11 +144,5 @@ final class ResetPasswordViewModelTests: TestCase {
 
       self.showError.assertValues(["Something went wrong."], "Error alert is shown on bad request")
     }
-  }
-
-  func testTracking() {
-    self.vm.inputs.viewDidLoad()
-
-    XCTAssertEqual(["Forgot Password Viewed"], self.trackingClient.events)
   }
 }

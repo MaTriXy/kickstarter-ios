@@ -1,4 +1,6 @@
 import AlamofireImage
+import Kingfisher
+import KingfisherWebP
 import ReactiveExtensions
 import ReactiveSwift
 import UIKit
@@ -31,6 +33,57 @@ extension UIImageView {
       runImageTransitionIfCached: false,
       completion: nil
     )
+  }
+
+  public static func ksr_cacheImageWith(
+    _ url: URL,
+    completionHandler: @escaping (UIImage?) -> Void
+  ) {
+    /* WebPProcessor and WebPSerializer fall back to
+     DefaultImageProcessor and DefaultCacheSerializer, respectively,
+     for non-webp images */
+
+    let options: KingfisherOptionsInfo = [
+      .processor(WebPProcessor.default),
+      .cacheSerializer(WebPSerializer.default)
+    ]
+
+    let prefetcher = ImagePrefetcher(
+      resources: [url],
+      options: options
+    ) { cachedImages, failedImages, downloadedImages in
+      var crossPlatformImage: UIImage?
+
+      guard failedImages.isEmpty,
+            let image = (cachedImages + downloadedImages).first else {
+        completionHandler(crossPlatformImage)
+
+        return
+      }
+
+      ImageCache.default.retrieveImage(
+        forKey: image.cacheKey,
+        options: options
+      ) { result in
+
+        switch result {
+        case let .success(imageResult):
+          if let imageResultImage = imageResult.image {
+            crossPlatformImage = imageResultImage
+          }
+
+          completionHandler(crossPlatformImage)
+        case .failure:
+          completionHandler(crossPlatformImage)
+        }
+      }
+    }
+
+    prefetcher.start()
+  }
+
+  public static func ksr_stopFetchingImages() {
+    ImageDownloader.default.cancelAll()
   }
 }
 

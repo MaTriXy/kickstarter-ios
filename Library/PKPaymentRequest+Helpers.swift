@@ -3,53 +3,87 @@ import KsApi
 import PassKit
 
 extension PKPaymentRequest {
+  private static func paymentRequest(for project: Project, merchantIdentifier: String) -> PKPaymentRequest {
+    let request = PKPaymentRequest()
+    request.merchantIdentifier = merchantIdentifier
+    request.supportedNetworks = AppEnvironment.current.applePayCapabilities.supportedNetworks(for: project)
+    request.merchantCapabilities = .capability3DS
+    request.countryCode = project.country.countryCode
+    request.currencyCode = projectCountry(forCurrency: project.stats.currency)?.currencyCode ?? project
+      .country.currencyCode
+    request.shippingType = .shipping
+    return request
+  }
+
   public static func paymentRequest(
     for project: Project,
     reward: Reward,
-    pledgeAmount: Double,
-    selectedShippingRule: ShippingRule?,
-    merchantIdentifier: String,
-    env: Environment = AppEnvironment.current
+    allRewardsTotal: Double,
+    additionalPledgeAmount: Double,
+    allRewardsShippingTotal: Double,
+    merchantIdentifier: String
   ) -> PKPaymentRequest {
-    let request = PKPaymentRequest()
-    request.merchantIdentifier = merchantIdentifier
-    request.supportedNetworks = env.applePayCapabilities.supportedNetworks(for: project)
-    request.merchantCapabilities = .capability3DS
-    request.countryCode = project.country.countryCode
-    request.currencyCode = project.country.currencyCode
-    request.shippingType = .shipping
+    let request = self.paymentRequest(for: project, merchantIdentifier: merchantIdentifier)
 
     request.paymentSummaryItems = self.paymentSummaryItems(
-      forProject: project,
       reward: reward,
-      pledgeAmount: pledgeAmount,
-      selectedShippingRule: selectedShippingRule
+      allRewardsTotal: allRewardsTotal,
+      additionalPledgeAmount: additionalPledgeAmount,
+      allRewardsShippingTotal: allRewardsShippingTotal
     )
 
     return request
   }
 
+  public static func paymentRequest(
+    for data: PostCampaignPaymentAuthorizationData
+  ) -> PKPaymentRequest {
+    let request = self.paymentRequest(for: data.project, merchantIdentifier: data.merchantIdentifier)
+    request.paymentSummaryItems = self.paymentSummaryItems(for: data)
+    return request
+  }
+
   private static func paymentSummaryItems(
-    forProject project: Project,
     reward: Reward,
-    pledgeAmount: Double,
-    selectedShippingRule: ShippingRule?
+    allRewardsTotal: Double,
+    additionalPledgeAmount: Double,
+    allRewardsShippingTotal: Double
   ) -> [PKPaymentSummaryItem] {
     var paymentSummaryItems: [PKPaymentSummaryItem] = []
 
-    paymentSummaryItems.append(
-      PKPaymentSummaryItem(
-        label: reward.title ?? project.name,
-        amount: NSDecimalNumber(value: pledgeAmount),
-        type: .final
+    if !reward.isNoReward {
+      paymentSummaryItems.append(
+        PKPaymentSummaryItem(
+          label: Strings.activity_creator_reward(),
+          amount: NSDecimalNumber(value: allRewardsTotal),
+          type: .final
+        )
       )
-    )
 
-    if let selectedShippingRule = selectedShippingRule {
+      let title = Strings.Bonus()
+
+      paymentSummaryItems.append(
+        PKPaymentSummaryItem(
+          label: title,
+          amount: NSDecimalNumber(value: additionalPledgeAmount),
+          type: .final
+        )
+      )
+    } else {
+      paymentSummaryItems.append(
+        PKPaymentSummaryItem(
+          label: Strings.Total(),
+          amount: NSDecimalNumber(value: additionalPledgeAmount),
+          type: .final
+        )
+      )
+    }
+
+    if reward.shipping.enabled {
       paymentSummaryItems.append(
         PKPaymentSummaryItem(
           label: Strings.Shipping(),
-          amount: NSDecimalNumber(value: selectedShippingRule.cost),
+          amount: NSDecimalNumber(value: allRewardsShippingTotal),
           type: .final
         )
       )
@@ -63,6 +97,50 @@ extension PKPaymentRequest {
       PKPaymentSummaryItem(
         label: Strings.Kickstarter_if_funded(),
         amount: total,
+        type: .final
+      )
+    )
+
+    return paymentSummaryItems
+  }
+
+  private static func paymentSummaryItems(
+    for data: PostCampaignPaymentAuthorizationData
+  ) -> [PKPaymentSummaryItem] {
+    var paymentSummaryItems: [PKPaymentSummaryItem] = []
+
+    paymentSummaryItems.append(
+      PKPaymentSummaryItem(
+        label: data.hasNoReward ? Strings.Total() : Strings.activity_creator_reward(),
+        amount: NSDecimalNumber(value: data.subtotal),
+        type: .final
+      )
+    )
+
+    if data.bonus > 0 {
+      paymentSummaryItems.append(
+        PKPaymentSummaryItem(
+          label: Strings.Bonus(),
+          amount: NSDecimalNumber(value: data.bonus),
+          type: .final
+        )
+      )
+    }
+
+    if data.shipping > 0 {
+      paymentSummaryItems.append(
+        PKPaymentSummaryItem(
+          label: Strings.Shipping(),
+          amount: NSDecimalNumber(value: data.shipping),
+          type: .final
+        )
+      )
+    }
+
+    paymentSummaryItems.append(
+      PKPaymentSummaryItem(
+        label: Strings.Kickstarter_payment_summary(),
+        amount: NSDecimalNumber(value: data.total),
         type: .final
       )
     )

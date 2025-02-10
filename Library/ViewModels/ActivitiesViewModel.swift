@@ -11,22 +11,7 @@ public protocol ActitiviesViewModelInputs {
   func currentUserUpdated()
 
   /// Called when the user tapped to fix an errored pledge.
-  func erroredBackingViewDidTapManage(with backing: GraphBacking)
-
-  /// Call when the Find Friends section is dismissed.
-  func findFriendsHeaderCellDismissHeader()
-
-  /// Call when controller should transition to Friends view.
-  func findFriendsHeaderCellGoToFriends()
-
-  /// Call when user updates to be Facebook Connected.
-  func findFriendsFacebookConnectCellDidFacebookConnectUser()
-
-  /// Call when the Facebook Connect section is dismissed.
-  func findFriendsFacebookConnectCellDidDismissHeader()
-
-  /// Call when an alert should be shown.
-  func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError)
+  func erroredBackingViewDidTapManage(with backing: ProjectAndBackingEnvelope)
 
   /// Call when the ManagePledgeViewController made changes.
   func managePledgeViewControllerDidFinish()
@@ -71,20 +56,11 @@ public protocol ActivitiesViewModelOutputs {
   /// Emits when the tab bar item's badge value should be cleared.
   var clearBadgeValue: Signal<(), Never> { get }
 
-  /// Emits when should remove Facebook Connect section
-  var deleteFacebookConnectSection: Signal<(), Never> { get }
-
-  /// Emits when should remove Find Friends section.
-  var deleteFindFriendsSection: Signal<(), Never> { get }
-
   /// Emits an array of errored backings to be displayed on the top of the list of projects.
-  var erroredBackings: Signal<[GraphBacking], Never> { get }
+  var erroredBackings: Signal<[ProjectAndBackingEnvelope], Never> { get }
 
   /// Emits when we should dismiss the empty state controller.
   var hideEmptyState: Signal<(), Never> { get }
-
-  /// Emits when should transition to Friends view with source (.Activity).
-  var goToFriends: Signal<FriendsSource, Never> { get }
 
   /// Emits a project and backing Param to navigate to ManagePledgeViewController.
   var goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never> { get }
@@ -103,15 +79,6 @@ public protocol ActivitiesViewModelOutputs {
 
   /// Emits `true` when logged-in, `false` when logged-out, when we should show the empty state controller.
   var showEmptyStateIsLoggedIn: Signal<Bool, Never> { get }
-
-  /// Emits an AlertError to be displayed.
-  var showFacebookConnectErrorAlert: Signal<AlertError, Never> { get }
-
-  /// Emits whether Facebook Connect header cell should show with the .Activity source.
-  var showFacebookConnectSection: Signal<(FriendsSource, Bool), Never> { get }
-
-  /// Emits whether Find Friends header cell should show with the .Activity source.
-  var showFindFriendsSection: Signal<(FriendsSource, Bool), Never> { get }
 
   /// Emits a non-`nil` survey response if there is an unanswered one available, and `nil` otherwise.
   var unansweredSurveys: Signal<[SurveyResponse], Never> { get }
@@ -142,7 +109,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
       )
       .filter { AppEnvironment.current.currentUser != nil }
 
-    let (paginatedActivities, isLoading, pageCount) = paginate(
+    let (paginatedActivities, isLoading, _, _) = paginate(
       requestFirstPageWith: requestFirstPage,
       requestNextPageWhen: isCloseToBottom,
       clearOnNewRequest: false,
@@ -209,22 +176,19 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         self.userSessionStartedProperty.signal,
         self.userSessionEndedProperty.signal
       )
-      .map { AppEnvironment.current.currentUser }
+      .map { _ in AppEnvironment.current.currentUser }
 
     let erroredBackingsEvent = currentUser
+      // Only fetch/show errored backings in activity if PPO is not available.
+      .filter { _ in !featurePledgedProjectsOverviewEnabled() }
       .skipNil()
       .switchMap { _ in
-        AppEnvironment.current.apiService.fetchGraphUserBackings(
-          query: UserQueries.backings(GraphBacking.Status.errored.rawValue).query
-        )
-        .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-        .map { envelope in
-          envelope.me.backings.nodes
-        }
-        .materialize()
+        AppEnvironment.current.apiService.fetchErroredUserBackings(status: .errored)
+          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+          .materialize()
       }
 
-    self.erroredBackings = erroredBackingsEvent.values()
+    self.erroredBackings = erroredBackingsEvent.values().map(\.projectsAndBackings)
 
     let loggedInForEmptyState = self.activities
       .filter { AppEnvironment.current.currentUser != nil && $0.isEmpty }
@@ -265,10 +229,11 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
       .map { ($0, .activity) }
 
     let surveyEvents = currentUser
-      .takeWhen(Signal.merge(
-        self.viewWillAppearProperty.signal.skipNil().filter(isFalse).ignoreValues(),
-        self.surveyResponseViewControllerDismissedProperty.signal
-      )
+      .takeWhen(
+        Signal.merge(
+          self.viewWillAppearProperty.signal.skipNil().ignoreValues(),
+          self.surveyResponseViewControllerDismissedProperty.signal
+        )
       )
       .filter { $0 != nil }
       .switchMap { _ in
@@ -278,55 +243,12 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
 
     self.unansweredSurveys = surveyEvents.values()
 
-    let surveyValuesOrErrors = Signal.merge(
-      surveyEvents.values().ignoreValues(),
-      surveyEvents.errors().ignoreValues()
-    )
-
-    self.showFindFriendsSection = surveyValuesOrErrors
-      .map {
-        (
-          .activity,
-          !FindFriendsFacebookConnectCellViewModel
-            .showFacebookConnectionSection(for: AppEnvironment.current.currentUser)
-            && !AppEnvironment.current.userDefaults.hasClosedFindFriendsInActivity
-        )
-      }
-
-    self.showFacebookConnectSection = surveyValuesOrErrors
-      .map {
-        (
-          .activity,
-          FindFriendsFacebookConnectCellViewModel
-            .showFacebookConnectionSection(for: AppEnvironment.current.currentUser) &&
-            !AppEnvironment.current.userDefaults.hasClosedFacebookConnectInActivity
-        )
-      }
-
-    self.deleteFacebookConnectSection = self.dismissFacebookConnectSectionProperty.signal
-
-    self.showFacebookConnectErrorAlert = self.showFacebookConnectErrorAlertProperty.signal.skipNil()
-
-    self.deleteFindFriendsSection = self.dismissFindFriendsSectionProperty.signal
-
-    self.goToFriends = Signal.merge(
-      self.goToFriendsProperty.signal,
-      self.userFacebookConnectedProperty.signal
-    )
-    .mapConst(.activity)
-
-    self.dismissFacebookConnectSectionProperty.signal
-      .observeValues { AppEnvironment.current.userDefaults.hasClosedFacebookConnectInActivity = true }
-
-    self.dismissFindFriendsSectionProperty.signal
-      .observeValues { AppEnvironment.current.userDefaults.hasClosedFindFriendsInActivity = true }
-
     self.goToSurveyResponse = self.tappedSurveyResponseProperty.signal.skipNil()
 
     self.goToUpdate = self.tappedActivityProperty.signal.skipNil()
       .filter { $0.category == .update }
       .map { ($0.project, $0.update) }
-      .flatMap { (project, update) -> SignalProducer<(Project, Update), Never> in
+      .flatMap { project, update -> SignalProducer<(Project, Update), Never> in
         guard let project = project, let update = update else { return .empty }
         return SignalProducer(value: (project, update))
       }
@@ -335,29 +257,19 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
       .skipNil()
 
     self.goToManagePledge = goToManagePledgeWithBacking
-      .map { backing -> ManagePledgeViewParamConfigData? in
-        guard let pid = backing.project?.pid, let backingId = decompose(id: backing.id) else { return nil }
-
-        return (projectParam: Param.id(pid), backingParam: Param.id(backingId))
+      .map { env -> ManagePledgeViewParamConfigData? in
+        (projectParam: Param.id(env.project.id), backingParam: Param.id(env.backing.id))
       }
       .skipNil()
 
-    self.activities.takePairWhen(goToManagePledgeWithBacking)
-      .observeValues { activities, backing in
-        let activity = activities.first { $0.project?.id == backing.project?.pid }
+    // Tracking
 
-        guard let project = activity?.project else { return }
-
-        AppEnvironment.current.koala.trackActivitiesManagePledgeButtonClicked(project: project)
-      }
-
-    Signal.zip(pageCount, paginatedActivities)
-      .filter { pageCount, _ in
-        pageCount == 1
-      } // Track first page only
-      .map(second)
-      .map { $0.count }
-      .observeValues { AppEnvironment.current.koala.trackActivities(count: $0) }
+    self.goToProject.signal.map(first).observeValues { project in
+      AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+        page: .activities,
+        project: project
+      )
+    }
   }
 
   fileprivate let currentUserUpdatedProperty = MutableProperty(())
@@ -365,34 +277,15 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     self.currentUserUpdatedProperty.value = ()
   }
 
-  fileprivate let dismissFacebookConnectSectionProperty = MutableProperty(())
-  public func findFriendsFacebookConnectCellDidDismissHeader() {
-    self.dismissFacebookConnectSectionProperty.value = ()
-  }
-
-  fileprivate let dismissFindFriendsSectionProperty = MutableProperty(())
-  public func findFriendsHeaderCellDismissHeader() {
-    self.dismissFindFriendsSectionProperty.value = ()
-  }
-
-  fileprivate let erroredBackingViewDidTapManageWithBackingProperty = MutableProperty<GraphBacking?>(nil)
-  public func erroredBackingViewDidTapManage(with backing: GraphBacking) {
+  fileprivate let erroredBackingViewDidTapManageWithBackingProperty
+    = MutableProperty<ProjectAndBackingEnvelope?>(nil)
+  public func erroredBackingViewDidTapManage(with backing: ProjectAndBackingEnvelope) {
     self.erroredBackingViewDidTapManageWithBackingProperty.value = backing
   }
 
   fileprivate let managePledgeViewControllerDidFinishProperty = MutableProperty(())
   public func managePledgeViewControllerDidFinish() {
     self.managePledgeViewControllerDidFinishProperty.value = ()
-  }
-
-  fileprivate let goToFriendsProperty = MutableProperty(())
-  public func findFriendsHeaderCellGoToFriends() {
-    self.goToFriendsProperty.value = ()
-  }
-
-  fileprivate let showFacebookConnectErrorAlertProperty = MutableProperty<AlertError?>(nil)
-  public func findFriendsFacebookConnectCellShowErrorAlert(_ alert: AlertError) {
-    self.showFacebookConnectErrorAlertProperty.value = alert
   }
 
   fileprivate let viewWillAppearProperty = MutableProperty<Bool?>(nil)
@@ -425,11 +318,6 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     self.tappedActivityProperty.value = activity
   }
 
-  fileprivate let userFacebookConnectedProperty = MutableProperty(())
-  public func findFriendsFacebookConnectCellDidFacebookConnectUser() {
-    self.userFacebookConnectedProperty.value = ()
-  }
-
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
@@ -452,20 +340,14 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
 
   public let activities: Signal<[Activity], Never>
   public let clearBadgeValue: Signal<(), Never>
-  public let deleteFacebookConnectSection: Signal<(), Never>
-  public let deleteFindFriendsSection: Signal<(), Never>
-  public let erroredBackings: Signal<[GraphBacking], Never>
+  public let erroredBackings: Signal<[ProjectAndBackingEnvelope], Never>
   public let hideEmptyState: Signal<(), Never>
   public let isRefreshing: Signal<Bool, Never>
-  public let goToFriends: Signal<FriendsSource, Never>
   public let goToManagePledge: Signal<ManagePledgeViewParamConfigData, Never>
   public let goToProject: Signal<(Project, RefTag), Never>
   public let goToSurveyResponse: Signal<SurveyResponse, Never>
   public let goToUpdate: Signal<(Project, Update), Never>
   public let showEmptyStateIsLoggedIn: Signal<Bool, Never>
-  public let showFindFriendsSection: Signal<(FriendsSource, Bool), Never>
-  public let showFacebookConnectSection: Signal<(FriendsSource, Bool), Never>
-  public let showFacebookConnectErrorAlert: Signal<AlertError, Never>
   public let unansweredSurveys: Signal<[SurveyResponse], Never>
   public let updateUserInEnvironment: Signal<User, Never>
 

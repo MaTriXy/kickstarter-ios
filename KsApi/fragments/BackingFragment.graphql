@@ -1,0 +1,39 @@
+fragment BackingFragment on Backing {
+  amount {
+    ...MoneyFragment
+  }
+  backer {
+    ...UserFragment
+  }
+  backerCompleted
+  bonusAmount {
+    ...MoneyFragment
+  }
+  cancelable
+  creditCard: paymentSource {
+    ...CreditCardFragment
+  }
+  id
+  isLatePledge
+  location {
+    ...LocationFragment
+  }
+  paymentIncrements {
+    ...PaymentIncrementFragment
+  }
+  pledgedOn
+  project {
+    ...ProjectFragment
+  }
+  reward {
+    ...RewardFragment
+  }
+  rewardsAmount {
+    ...MoneyFragment
+  }
+  sequence
+  shippingAmount {
+    ...MoneyFragment
+  }
+  status
+}

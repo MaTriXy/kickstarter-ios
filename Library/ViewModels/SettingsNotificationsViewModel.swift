@@ -107,8 +107,10 @@ public final class SettingsNotificationsViewModel: SettingsNotificationsViewMode
     self.goToManageProjectNotifications = manageProjectNotificationsSelected.signal
       .ignoreValues()
 
-    self.viewDidLoadProperty.signal.observeValues { _ in
-      AppEnvironment.current.koala.trackSettingsView()
+    // MARK: - Tracking
+
+    self.updatedUserProperty.signal.observeValues { user in
+      AppEnvironment.current.ksrAnalytics.identify(newUser: user)
     }
   }
 

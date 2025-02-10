@@ -19,9 +19,6 @@ public protocol SearchViewModelInputs {
   /// Call when the user taps the return key.
   func searchTextEditingDidEnd()
 
-  /// Call when the project navigator has transitioned to a new project with its index.
-  func transitionedToProject(at row: Int, outOf totalRows: Int)
-
   /// Call when the view loads.
   func viewDidLoad()
 
@@ -59,9 +56,6 @@ public protocol SearchViewModelOutputs {
 
   /// Emits when the search field should resign focus.
   var resignFirstResponder: Signal<(), Never> { get }
-
-  /// Emits when should scroll to project with row number.
-  var scrollToProjectRow: Signal<Int, Never> { get }
 
   /// Emits a string that should be filled into the search field.
   var searchFieldText: Signal<String, Never> { get }
@@ -111,16 +105,13 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .filter { !$0.isEmpty }
       .map { .defaults |> DiscoveryParams.lens.query .~ $0 }
 
-    let isCloseToBottom = Signal.merge(
-      self.willDisplayRowProperty.signal.skipNil(),
-      self.transitionedToProjectRowAndTotalProperty.signal.skipNil()
-    )
-    .map { row, total in
-      row >= total - 3
-    }
-    .skipRepeats()
-    .filter(isTrue)
-    .ignoreValues()
+    let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
+      .map { row, total in
+        row >= total - 3
+      }
+      .skipRepeats()
+      .filter(isTrue)
+      .ignoreValues()
 
     let requestFromParamsWithDebounce: (DiscoveryParams)
       -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> = { params in
@@ -133,16 +124,23 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
           }
       }
 
-    let (paginatedProjects, isLoading, page) = paginate(
+    let statsProperty = MutableProperty<Int>(0)
+
+    let (paginatedProjects, isLoading, page, _) = paginate(
       requestFirstPageWith: requestFirstPageWith,
       requestNextPageWhen: isCloseToBottom,
       clearOnNewRequest: false,
       skipRepeats: false,
-      valuesFromEnvelope: { $0.projects },
+      valuesFromEnvelope: { [statsProperty] result -> [Project] in
+        statsProperty.value = result.stats.count
+        return result.projects
+      },
       cursorFromEnvelope: { $0.urls.api.moreProjects },
       requestFromParams: requestFromParamsWithDebounce,
       requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) }
     )
+
+    let stats = statsProperty.signal
 
     self.searchLoaderIndicatorIsAnimating = isLoading
 
@@ -183,12 +181,31 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       popularEvent.filter { $0.isTerminating }.mapConst(false)
     )
 
-    self.scrollToProjectRow = self.transitionedToProjectRowAndTotalProperty.signal.skipNil().map(first)
+    self.goToProject = Signal.combineLatest(self.projects, query)
+      .takePairWhen(self.tappedProjectProperty.signal.skipNil())
+      .map { projectsAndQuery, tappedProject in
+        let (projects, query) = projectsAndQuery
 
-    // koala
+        return (tappedProject, projects, refTag(query: query, projects: projects, project: tappedProject))
+      }
 
-    viewWillAppearNotAnimated
-      .observeValues { AppEnvironment.current.koala.trackProjectSearchView() }
+    // Tracking
+
+    // This represents search results count whenever the search page is viewed.
+    // An initial value is emitted on first visit.
+    let viewWillAppearSearchResultsCount = Signal.merge(
+      stats,
+      viewWillAppearNotAnimated.mapConst(0).take(first: 1)
+    )
+
+    Signal.combineLatest(query, viewWillAppearSearchResultsCount)
+      .takeWhen(viewWillAppearNotAnimated)
+      .observeValues { query, searchResults in
+        let results = query.isEmpty ? 0 : searchResults
+        let params = .defaults |> DiscoveryParams.lens.query .~ query
+        AppEnvironment.current.ksrAnalytics
+          .trackProjectSearchView(params: params, results: results)
+      }
 
     let hasResults = Signal.combineLatest(paginatedProjects, isLoading)
       .filter(second >>> isFalse)
@@ -199,25 +216,33 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .filter { _, page in page == 1 }
       .map(first)
 
+    // This represents search results count only when a search is performed
+    // and there is a response from the API for the query.
+    let newQuerySearchResultsCount = Signal.merge(
+      viewWillAppearSearchResultsCount.filter { $0 == 0 },
+      viewWillAppearSearchResultsCount.takeWhen(firstPageResults)
+    )
+
     Signal.combineLatest(query, requestFirstPageWith)
-      .takePairWhen(firstPageResults)
+      .takePairWhen(newQuerySearchResultsCount)
       .map(unpack)
       .filter { query, _, _ in !query.isEmpty }
-      .observeValues { query, params, hasResults in
-        AppEnvironment.current.koala.trackSearchResults(
-          query: query,
-          params: params,
-          refTag: .search,
-          hasResults: hasResults
-        )
+      .observeValues { _, params, stats in
+        AppEnvironment.current.ksrAnalytics
+          .trackProjectSearchView(params: params, results: stats)
       }
 
-    self.goToProject = Signal.combineLatest(self.projects, query)
-      .takePairWhen(self.tappedProjectProperty.signal.skipNil())
-      .map { projectsAndQuery, tappedProject in
-        let (projects, query) = projectsAndQuery
+    Signal.combineLatest(self.tappedProjectProperty.signal, requestFirstPageWith)
+      .observeValues { project, params in
+        guard let project = project else { return }
 
-        return (tappedProject, projects, refTag(query: query, projects: projects, project: tappedProject))
+        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+          page: .search,
+          project: project,
+          typeContext: .results,
+          location: .searchResults,
+          params: params
+        )
       }
   }
 
@@ -251,11 +276,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.tappedProjectProperty.value = project
   }
 
-  private let transitionedToProjectRowAndTotalProperty = MutableProperty<(row: Int, total: Int)?>(nil)
-  public func transitionedToProject(at row: Int, outOf totalRows: Int) {
-    self.transitionedToProjectRowAndTotalProperty.value = (row, totalRows)
-  }
-
   fileprivate let viewDidLoadProperty = MutableProperty(())
   public func viewDidLoad() {
     self.viewDidLoadProperty.value = ()
@@ -277,7 +297,6 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
   public let popularLoaderIndicatorIsAnimating: Signal<Bool, Never>
   public let projects: Signal<[Project], Never>
   public let resignFirstResponder: Signal<(), Never>
-  public let scrollToProjectRow: Signal<Int, Never>
   public let searchFieldText: Signal<String, Never>
   public let searchLoaderIndicatorIsAnimating: Signal<Bool, Never>
   public let showEmptyState: Signal<(DiscoveryParams, Bool), Never>

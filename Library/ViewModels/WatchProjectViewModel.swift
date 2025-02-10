@@ -1,10 +1,11 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
 
 public typealias WatchProjectValue = (
   project: Project,
-  context: Koala.LocationContext,
+  context: KSRAnalytics.PageContext,
   discoveryParams: DiscoveryParams?
 )
 
@@ -71,8 +72,8 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
       self.userSessionStartedProperty.signal,
       self.userSessionEndedProperty.signal
     ])
-      .map { AppEnvironment.current.currentUser }
-      .skipRepeats(==)
+    .map { AppEnvironment.current.currentUser }
+    .skipRepeats(==)
 
     let loggedInUserTappedSaveButton = currentUser
       .takePairWhen(self.saveButtonTappedProperty.signal)
@@ -109,7 +110,18 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
       .switchMap { project, shouldWatch in
         watchProjectProducer(with: project, shouldWatch: shouldWatch)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { _ in (project, project.personalization.isStarred ?? false, success: true) }
+          .map { watchProjectEnvelope in
+            let updatedWatchCount = watchProjectEnvelope.watchProject.project.watchesCount
+
+            let updatedProjectWithWatchCount = project
+              |> \.watchesCount .~ updatedWatchCount
+
+            return (
+              updatedProjectWithWatchCount,
+              updatedProjectWithWatchCount.personalization.isStarred ?? false,
+              success: true
+            )
+          }
           .flatMapError { _ in .init(value: (project, !shouldWatch, success: false)) }
           .take(until: saveButtonTapped.ignoreValues())
       }
@@ -180,10 +192,11 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
     self.configureWithValueProperty.signal.skipNil()
       .takeWhen(self.saveButtonTappedProperty.signal)
       .observeValues { project, context, discoveryParams in
-        AppEnvironment.current.koala.trackWatchProjectButtonClicked(
+        AppEnvironment.current.ksrAnalytics.trackWatchProjectButtonClicked(
           project: project,
-          location: context,
-          params: discoveryParams
+          page: context,
+          params: discoveryParams,
+          typeContext: self.saveButtonTappedProperty.value ? .unwatch : .watch
         )
       }
   }
@@ -245,7 +258,7 @@ public final class WatchProjectViewModel: WatchProjectViewModelType,
 private func watchProjectProducer(
   with project: Project,
   shouldWatch: Bool
-) -> SignalProducer<GraphMutationWatchProjectResponseEnvelope, GraphError> {
+) -> SignalProducer<WatchProjectResponseEnvelope, ErrorEnvelope> {
   guard shouldWatch else {
     return AppEnvironment.current.apiService.unwatchProject(input: .init(id: project.graphID))
   }

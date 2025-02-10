@@ -5,29 +5,29 @@ import Prelude
 import XCTest
 
 final class FeatureHelpersTests: TestCase {
-  // MARK: - Qualtrics
+  // MARK: - Segment
 
-  func testFeatureQualtrics_isTrue() {
+  func testFeatureSegment_isTrue() {
     let config = Config.template
-      |> \.features .~ [Feature.qualtrics.rawValue: true]
+      |> \.features .~ [Feature.segment.rawValue: true]
 
     withEnvironment(config: config) {
-      XCTAssertTrue(featureQualtricsIsEnabled())
+      XCTAssertTrue(featureSegmentIsEnabled())
     }
   }
 
-  func testFeatureQualtrics_isFalse() {
+  func testFeatureSegment_isFalse() {
     let config = Config.template
-      |> \.features .~ [Feature.qualtrics.rawValue: false]
+      |> \.features .~ [Feature.segment.rawValue: false]
 
     withEnvironment(config: config) {
-      XCTAssertFalse(featureQualtricsIsEnabled())
+      XCTAssertFalse(featureSegmentIsEnabled())
     }
   }
 
-  func testFeatureQualtrics_isFalse_whenNil() {
+  func testFeatureSegment_isFalse_whenNil() {
     withEnvironment(config: .template) {
-      XCTAssertFalse(featureQualtricsIsEnabled())
+      XCTAssertFalse(featureSegmentIsEnabled())
     }
   }
 }

@@ -9,6 +9,7 @@ import XCTest
 
 final class ThanksViewModelTests: TestCase {
   let vm: ThanksViewModelType = ThanksViewModel()
+  private let categoryEnvelope = CategoryEnvelope(node: .template)
 
   private let backedProjectText = TestObserver<String, Never>()
   private let dismissToRootViewControllerAndPostNotification = TestObserver<Notification.Name, Never>()
@@ -20,7 +21,6 @@ final class ThanksViewModelTests: TestCase {
   private let showGamesNewsletterAlert = TestObserver<(), Never>()
   private let showGamesNewsletterOptInAlert = TestObserver<String, Never>()
   private let showRecommendationsProjects = TestObserver<[Project], Never>()
-  private let showRecommendationsVariant = TestObserver<OptimizelyExperiment.Variant, Never>()
   private let postContextualNotification = TestObserver<(), Never>()
   private let postUserUpdatedNotification = TestObserver<Notification.Name, Never>()
   private let updateUserInEnvironment = TestObserver<User, Never>()
@@ -45,12 +45,20 @@ final class ThanksViewModelTests: TestCase {
     self.vm.outputs.showRatingAlert.observe(self.showRatingAlert.observer)
     self.vm.outputs.showRecommendations.map(first)
       .observe(self.showRecommendationsProjects.observer)
-    self.vm.outputs.showRecommendations.map(third).observe(self.showRecommendationsVariant.observer)
     self.vm.outputs.updateUserInEnvironment.observe(self.updateUserInEnvironment.observer)
   }
 
+  private func thanksPageData(
+    project: Project = Project.template,
+    reward: Reward = Reward.template,
+    checkoutData: KSRAnalytics.CheckoutPropertiesData? = nil,
+    pledgeTotal: Double = 1
+  ) -> ThanksPageData {
+    return (project, reward, checkoutData, pledgeTotal)
+  }
+
   func testDismissToRootViewController() {
-    self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
+    self.vm.inputs.configure(with: self.thanksPageData())
     self.vm.inputs.viewDidLoad()
 
     self.vm.inputs.closeButtonTapped()
@@ -68,27 +76,34 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+    withEnvironment(apiService: MockService(
+      fetchGraphCategoryResult: .success(self.categoryEnvelope),
+      fetchDiscoveryResponse: response
+    )) {
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendationsProjects.assertValueCount(1)
+      self.showRecommendationsProjects.assertValueCount(1)
 
-      vm.inputs.categoryCellTapped(.illustration)
+      self.vm.inputs.categoryCellTapped(.illustration)
 
-      goToDiscovery.assertValues([.illustration])
+      self.goToDiscovery.assertValues([.illustration])
       XCTAssertEqual(
-        ["Triggered App Store Rating Dialog", "Thanks Page Viewed", "Checkout Finished Discover More"],
-        self.trackingClient.events
+        ["Page Viewed"],
+        self.segmentTrackingClient.events
+      )
+      XCTAssertEqual(
+        ["new_pledge"],
+        self.segmentTrackingClient.properties(forKey: "context_type")
       )
     }
   }
 
   func testDisplayBackedProjectText() {
     let project = Project.template |> \.category .~ .games
-    self.vm.inputs.configure(with: (project, Reward.template, nil))
+    self.vm.inputs.configure(with: self.thanksPageData(project: project))
     self.vm.inputs.viewDidLoad()
 
     self.backedProjectText.assertValues(
@@ -99,16 +114,42 @@ final class ThanksViewModelTests: TestCase {
     )
   }
 
-  func testRatingAlert_Initial() {
-    withEnvironment(currentUser: .template) {
-      showRatingAlert.assertValueCount(0, "Rating Alert does not emit")
+  func testDisplayBackedProjectText_postCampaignBackings() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.postCampaignPledgeEnabled.rawValue: true
+    ]
 
-      self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
+    var project = Project.template
+    project.name = "Test Project"
+    project.isInPostCampaignPledgingPhase = true
+    project.country = Project.Country.jp
+
+    withEnvironment(Environment(currentUserEmail: "test@user.com", remoteConfigClient: mockConfigClient)) {
+      self.vm.inputs.configure(with: self.thanksPageData(project: project, pledgeTotal: 127))
       self.vm.inputs.viewDidLoad()
 
-      showRatingAlert.assertValueCount(1, "Rating Alert emits when view did load")
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
-      XCTAssertEqual(["Triggered App Store Rating Dialog", "Thanks Page Viewed"], self.trackingClient.events)
+      self.backedProjectText
+        .assertValues(
+          ["Your ¥127 pledge will help in bringing this project to life. Check your email for more details."]
+        )
+    }
+  }
+
+  func testRatingAlert_Initial() {
+    withEnvironment(currentUser: .template) {
+      self.showRatingAlert.assertValueCount(0, "Rating Alert does not emit")
+
+      self.vm.inputs.configure(with: self.thanksPageData())
+      self.vm.inputs.viewDidLoad()
+
+      self.showRatingAlert.assertValueCount(1, "Rating Alert emits when view did load")
+      self.showGamesNewsletterAlert.assertValueCount(0, "Games alert does not emit")
+
+      XCTAssertEqual(
+        ["Page Viewed"],
+        self.segmentTrackingClient.events
+      )
     }
   }
 
@@ -120,11 +161,11 @@ final class ThanksViewModelTests: TestCase {
       )
 
       let project = Project.template |> Project.lens.category .~ .games
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
-      showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
+      self.showRatingAlert.assertValueCount(0, "Rating alert does not show on games project")
+      self.showGamesNewsletterAlert.assertValueCount(1, "Games alert shows on games project")
       XCTAssertEqual(
         true, AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt,
         "Newsletter pref saved"
@@ -136,7 +177,7 @@ final class ThanksViewModelTests: TestCase {
       let secondShowGamesNewsletterAlert = TestObserver<(), Never>()
       secondVM.outputs.showGamesNewsletterAlert.observe(secondShowGamesNewsletterAlert.observer)
 
-      secondVM.inputs.configure(with: (project, Reward.template, nil))
+      secondVM.inputs.configure(with: self.thanksPageData(project: project))
       secondVM.inputs.viewDidLoad()
 
       secondShowRatingAlert.assertValueCount(1, "Rating alert shows on games project")
@@ -150,10 +191,10 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(currentUser: user) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on games project")
+      self.showGamesNewsletterAlert.assertValueCount(0, "Games alert does not show on games project")
     }
   }
 
@@ -161,25 +202,26 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(currentUser: .template) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      showGamesNewsletterAlert.assertValueCount(1)
+      self.showGamesNewsletterAlert.assertValueCount(1)
 
-      vm.inputs.gamesNewsletterSignupButtonTapped()
+      self.vm.inputs.gamesNewsletterSignupButtonTapped()
 
       scheduler.advance()
 
-      updateUserInEnvironment.assertValueCount(1)
-      showGamesNewsletterOptInAlert.assertValueCount(0, "Opt-in alert does not emit")
+      self.updateUserInEnvironment.assertValueCount(1)
+      self.showGamesNewsletterOptInAlert.assertValueCount(0, "Opt-in alert does not emit")
+
       XCTAssertEqual(
-        ["Thanks Page Viewed", "Subscribed To Newsletter", "Newsletter Subscribe"],
-        self.trackingClient.events
+        ["Page Viewed"],
+        self.segmentTrackingClient.events
       )
 
-      vm.inputs.userUpdated()
+      self.vm.inputs.userUpdated()
 
-      postUserUpdatedNotification.assertValues(
+      self.postUserUpdatedNotification.assertValues(
         [Notification.Name.ksr_userUpdated],
         "User updated notification emits"
       )
@@ -190,8 +232,8 @@ final class ThanksViewModelTests: TestCase {
     let user = User.template |> \.stats.backedProjectsCount .~ 0
 
     withEnvironment(currentUser: user) {
-      vm.inputs.viewDidLoad()
-      postContextualNotification.assertDidEmitValue()
+      self.vm.inputs.viewDidLoad()
+      self.postContextualNotification.assertDidEmitValue()
     }
   }
 
@@ -199,8 +241,8 @@ final class ThanksViewModelTests: TestCase {
     let user = User.template |> \.stats.backedProjectsCount .~ 2
 
     withEnvironment(currentUser: user) {
-      vm.inputs.viewDidLoad()
-      postContextualNotification.assertDidNotEmitValue()
+      self.vm.inputs.viewDidLoad()
+      self.postContextualNotification.assertDidNotEmitValue()
     }
   }
 
@@ -208,17 +250,21 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(countryCode: "DE", currentUser: User.template) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
-      showGamesNewsletterAlert.assertValueCount(1)
+      self.showGamesNewsletterAlert.assertValueCount(1)
 
-      vm.inputs.gamesNewsletterSignupButtonTapped()
+      self.vm.inputs.gamesNewsletterSignupButtonTapped()
 
-      showGamesNewsletterOptInAlert.assertValues(["Kickstarter Loves Games"], "Opt-in alert emits with title")
+      self.showGamesNewsletterOptInAlert.assertValues(
+        ["Kickstarter Loves Games"],
+        "Opt-in alert emits with title"
+      )
+
       XCTAssertEqual(
-        ["Thanks Page Viewed", "Subscribed To Newsletter", "Newsletter Subscribe"],
-        self.trackingClient.events
+        ["Page Viewed"],
+        self.segmentTrackingClient.events
       )
     }
   }
@@ -232,33 +278,33 @@ final class ThanksViewModelTests: TestCase {
 
     let project = Project.template
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
-    let mockOptimizelyClient = MockOptimizelyClient()
 
     withEnvironment(
-      apiService: MockService(fetchDiscoveryResponse: response),
-      optimizelyClient: mockOptimizelyClient
+      apiService: MockService(
+        fetchGraphCategoryResult: .success(self.categoryEnvelope),
+        fetchDiscoveryResponse: response
+      )
     ) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
-      showRecommendationsProjects.assertValueCount(1)
+      self.showRecommendationsProjects.assertValueCount(1)
 
-      vm.inputs.projectTapped(project)
+      self.vm.inputs.projectTapped(project)
 
-      goToProject.assertValues([project])
-      goToProjects.assertValueCount(1)
-      goToRefTag.assertValues([.thanks])
+      self.goToProject.assertValues([project])
+      self.goToProjects.assertValueCount(1)
+      self.goToRefTag.assertValues([.thanks])
+
       XCTAssertEqual(
         [
-          "Triggered App Store Rating Dialog",
-          "Thanks Page Viewed",
-          "Project Card Clicked"
+          "Page Viewed",
+          "CTA Clicked"
         ],
-        self.trackingClient.events
+        self.segmentTrackingClient.events
       )
-      XCTAssertEqual("Project Card Clicked", mockOptimizelyClient.trackedEventKey)
     }
   }
 
@@ -275,14 +321,16 @@ final class ThanksViewModelTests: TestCase {
     let response = .template |> DiscoveryEnvelope.lens.projects .~ projects
     let project = Project.template |> Project.lens.id .~ 12
 
-    withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+    withEnvironment(apiService: MockService(
+      fetchGraphCategoryResult: .success(self.categoryEnvelope),
+      fetchDiscoveryResponse: response
+    )) {
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(1, "Recommended projects emit, shuffled.")
-      self.showRecommendationsVariant.assertValues([.control])
     }
   }
 
@@ -291,82 +339,96 @@ final class ThanksViewModelTests: TestCase {
     let project = Project.template |> Project.lens.category .~ .games
 
     withEnvironment(apiService: MockService(fetchDiscoveryResponse: response)) {
-      self.vm.inputs.configure(with: (project, Reward.template, nil))
+      self.vm.inputs.configure(with: self.thanksPageData(project: project))
       self.vm.inputs.viewDidLoad()
 
       scheduler.advance()
 
       self.showRecommendationsProjects.assertValueCount(0, "Recommended projects did not emit")
-      self.showRecommendationsVariant.assertDidNotEmitValue()
     }
   }
 
-  func testRecommendationsProjects_ExperimentalVariant() {
-    let recommendedProject = Project.template
-      |> \.id .~ 3
-    let response = .template |> DiscoveryEnvelope.lens.projects .~ [recommendedProject]
-    let mockOptimizelyClient = MockOptimizelyClient()
-      |> \.experiments .~ [
-        OptimizelyExperiment.Key.nativeProjectCards.rawValue: OptimizelyExperiment.Variant.variant1.rawValue
-      ]
-
-    withEnvironment(
-      apiService: MockService(fetchDiscoveryResponse: response),
-      optimizelyClient: mockOptimizelyClient
-    ) {
-      self.vm.inputs.configure(with: (Project.template, Reward.template, nil))
-      self.vm.inputs.viewDidLoad()
-
-      scheduler.advance()
-
-      self.showRecommendationsProjects.assertValues([[recommendedProject]])
-      self.showRecommendationsVariant.assertValues([.variant1])
-    }
-  }
-
-  func testThanksPageViewed_Properties() {
-    let checkoutData = Koala.CheckoutPropertiesData(
-      amount: "10.00",
-      checkoutId: 1,
-      estimatedDelivery: nil,
+  func testThanksPageViewed_Properties_AdvertisingConsentNotAllowed_NoEventsTracked() {
+    let checkoutData = KSRAnalytics.CheckoutPropertiesData(
+      addOnsCountTotal: 2,
+      addOnsCountUnique: 1,
+      addOnsMinimumUsd: 8.00,
+      bonusAmountInUsd: 10.00,
+      checkoutId: "1",
+      estimatedDelivery: 12_345_678,
       paymentType: "CREDIT_CARD",
-      revenueInUsdCents: 500,
-      rewardId: 2,
+      revenueInUsd: 20.00,
+      rewardId: "2",
+      rewardMinimumUsd: 5.00,
       rewardTitle: "SUPER reward",
-      shippingEnabled: false,
-      shippingAmount: nil,
+      shippingEnabled: true,
+      shippingAmountUsd: 10.00,
       userHasStoredApplePayCard: true
     )
 
-    self.vm.inputs.configure(with: (Project.template, Reward.template, checkoutData))
+    (self.appTrackingTransparency as? MockAppTrackingTransparency)?.shouldRequestAuthStatus = false
+    self.vm.inputs.configure(with: self.thanksPageData(checkoutData: checkoutData))
     self.vm.inputs.viewDidLoad()
 
-    let props = self.trackingClient.properties.last
+    XCTAssertNil(self.segmentTrackingClient.properties.last)
+  }
 
-    XCTAssertEqual(["Triggered App Store Rating Dialog", "Thanks Page Viewed"], self.trackingClient.events)
+  func testThanksPageViewed_Properties_AdvertisingConsentAllowed_EventsTracked() {
+    let checkoutData = KSRAnalytics.CheckoutPropertiesData(
+      addOnsCountTotal: 2,
+      addOnsCountUnique: 1,
+      addOnsMinimumUsd: 8.00,
+      bonusAmountInUsd: 10.00,
+      checkoutId: "1",
+      estimatedDelivery: 12_345_678,
+      paymentType: "CREDIT_CARD",
+      revenueInUsd: 20.00,
+      rewardId: "2",
+      rewardMinimumUsd: 5.00,
+      rewardTitle: "SUPER reward",
+      shippingEnabled: true,
+      shippingAmountUsd: 10.00,
+      userHasStoredApplePayCard: true
+    )
+
+    self.vm.inputs.configure(with: self.thanksPageData(checkoutData: checkoutData))
+    self.vm.inputs.viewDidLoad()
+
+    let segmentClientProps = self.segmentTrackingClient.properties.last
+
+    XCTAssertEqual(
+      ["Page Viewed"],
+      self.segmentTrackingClient.events
+    )
 
     // Checkout properties
-    XCTAssertEqual("10.00", props?["checkout_amount"] as? String)
-    XCTAssertEqual("CREDIT_CARD", props?["checkout_payment_type"] as? String)
-    XCTAssertEqual("SUPER reward", props?["checkout_reward_title"] as? String)
-    XCTAssertEqual(2, props?["checkout_reward_id"] as? Int)
-    XCTAssertEqual(500, props?["checkout_revenue_in_usd_cents"] as? Int)
-    XCTAssertEqual(false, props?["checkout_reward_shipping_enabled"] as? Bool)
-    XCTAssertEqual(true, props?["checkout_user_has_eligible_stored_apple_pay_card"] as? Bool)
-    XCTAssertNil(props?["checkout_shipping_amount"] as? Double)
-    XCTAssertNil(props?["checkout_reward_estimated_delivery_on"] as? TimeInterval)
+
+    XCTAssertEqual(2, segmentClientProps?["checkout_add_ons_count_total"] as? Int)
+    XCTAssertEqual(1, segmentClientProps?["checkout_add_ons_count_unique"] as? Int)
+    XCTAssertEqual(8.00, segmentClientProps?["checkout_add_ons_minimum_usd"] as? Decimal)
+    XCTAssertEqual(10.00, segmentClientProps?["checkout_bonus_amount_usd"] as? Decimal)
+    XCTAssertEqual("CREDIT_CARD", segmentClientProps?["checkout_payment_type"] as? String)
+    XCTAssertEqual("SUPER reward", segmentClientProps?["checkout_reward_title"] as? String)
+    XCTAssertEqual(5.00, segmentClientProps?["checkout_reward_minimum_usd"] as? Decimal)
+    XCTAssertEqual("2", segmentClientProps?["checkout_reward_id"] as? String)
+    XCTAssertEqual(20.00, segmentClientProps?["checkout_amount_total_usd"] as? Decimal)
+    XCTAssertEqual(true, segmentClientProps?["checkout_reward_is_limited_quantity"] as? Bool)
+    XCTAssertEqual(true, segmentClientProps?["checkout_reward_shipping_enabled"] as? Bool)
+    XCTAssertEqual(true, segmentClientProps?["checkout_user_has_eligible_stored_apple_pay_card"] as? Bool)
+    XCTAssertEqual(10.00, segmentClientProps?["checkout_shipping_amount_usd"] as? Decimal)
+    XCTAssertEqual(
+      "1970-05-23T21:21:18Z",
+      segmentClientProps?["checkout_reward_estimated_delivery_on"] as? String
+    )
 
     // Pledge properties
-    XCTAssertEqual(false, props?["pledge_backer_reward_has_items"] as? Bool)
-    XCTAssertEqual(1, props?["pledge_backer_reward_id"] as? Int)
-    XCTAssertEqual(true, props?["pledge_backer_reward_is_limited_quantity"] as? Bool)
-    XCTAssertEqual(false, props?["pledge_backer_reward_is_limited_time"] as? Bool)
-    XCTAssertEqual(10.00, props?["pledge_backer_reward_minimum"] as? Double)
-    XCTAssertEqual(false, props?["pledge_backer_reward_shipping_enabled"] as? Bool)
 
-    XCTAssertNil(props?["pledge_backer_reward_shipping_preference"] as? String)
+    XCTAssertEqual(true, segmentClientProps?["pledge_backer_reward_has_items"] as? Bool)
+    XCTAssertEqual(1, segmentClientProps?["pledge_backer_reward_id"] as? Int)
+    XCTAssertEqual(10.00, segmentClientProps?["pledge_backer_reward_minimum"] as? Double)
 
     // Project properties
-    XCTAssertEqual(1, props?["project_pid"] as? Int)
+
+    XCTAssertEqual("1", segmentClientProps?["project_pid"] as? String)
   }
 }

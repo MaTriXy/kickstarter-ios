@@ -1,7 +1,6 @@
-import Argo
 import Foundation
 
-public enum PaymentType: String, Swift.Decodable {
+public enum PaymentType: String, Decodable {
   case applePay = "APPLE_PAY"
   case creditCard = "CREDIT_CARD"
   case googlePay = "ANDROID_PAY"
@@ -16,6 +15,15 @@ public enum PaymentType: String, Swift.Decodable {
       return nil
     }
   }
-}
 
-extension PaymentType: Argo.Decodable {}
+  public var trackingString: String? {
+    switch self {
+    case .applePay:
+      return "apple_pay"
+    case .googlePay:
+      return nil
+    case .creditCard:
+      return "credit_card"
+    }
+  }
+}

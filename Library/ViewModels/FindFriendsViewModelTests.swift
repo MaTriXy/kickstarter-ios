@@ -36,64 +36,11 @@ final class FindFriendsViewModelTests: TestCase {
     self.vm.inputs.configureWith(source: FriendsSource.findFriends)
     self.vm.inputs.viewDidLoad()
 
-    XCTAssertEqual(["Find Friends View", "Viewed Find Friends"], self.trackingClient.events)
-    XCTAssertEqual(
-      ["find-friends", "find-friends"],
-      self.trackingClient.properties.map { $0["source"] as! String? }
-    )
-
-    XCTAssertEqual([true, nil], self.trackingClient.properties.map { $0[Koala.DeprecatedKey] as! Bool? })
-
-    self.vm.inputs.configureWith(source: FriendsSource.activity)
-    self.vm.inputs.viewDidLoad()
-
-    XCTAssertEqual([
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends"
-    ], self.trackingClient.events)
-
-    XCTAssertEqual(
-      [
-        "find-friends", "find-friends",
-        "activity", "activity"
-      ],
-      self.trackingClient.properties.map { $0["source"] as! String? }
-    )
-
     self.vm.inputs.configureWith(source: FriendsSource.discovery)
     self.vm.inputs.viewDidLoad()
 
-    XCTAssertEqual([
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends"
-    ], self.trackingClient.events)
-
-    XCTAssertEqual(
-      [
-        "find-friends", "find-friends",
-        "activity", "activity",
-        "discovery", "discovery"
-      ],
-      self.trackingClient.properties.map { $0["source"] as! String? }
-    )
-
     self.vm.inputs.configureWith(source: FriendsSource.settings)
     self.vm.inputs.viewDidLoad()
-
-    XCTAssertEqual([
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends",
-      "Find Friends View", "Viewed Find Friends"
-    ], self.trackingClient.events)
-
-    XCTAssertEqual([
-      "find-friends", "find-friends",
-      "activity", "activity",
-      "discovery", "discovery",
-      "settings", "settings"
-    ], self.trackingClient.properties.map { $0["source"] as! String? })
   }
 
   func testGoToDiscovery() {
@@ -102,86 +49,86 @@ final class FindFriendsViewModelTests: TestCase {
       |> DiscoveryParams.lens.sort .~ .magic
 
     withEnvironment(currentUser: User.template) {
-      vm.inputs.configureWith(source: FriendsSource.findFriends)
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.configureWith(source: FriendsSource.findFriends)
+      self.vm.inputs.viewDidLoad()
 
-      goToDiscovery.assertValueCount(0)
+      self.goToDiscovery.assertValueCount(0)
 
-      vm.inputs.discoverButtonTapped()
+      self.vm.inputs.discoverButtonTapped()
 
-      goToDiscovery.assertValues([params], "Go to Discovery emits with 'Friends Backed' params")
+      self.goToDiscovery.assertValues([params], "Go to Discovery emits with 'Friends Backed' params")
     }
   }
 
   func testFriends_WithFacebookConnectedUser() {
     withEnvironment(currentUser: User.template |> \.facebookConnected .~ true) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      friends.assertValueCount(0, "Friends does not emit")
-      showFacebookConnect.assertValueCount(0, "Facebook connect does not emit")
+      self.friends.assertValueCount(0, "Friends does not emit")
+      self.showFacebookConnect.assertValueCount(0, "Facebook connect does not emit")
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
-      showLoadingIndicatorView.assertValues([true])
-
-      self.scheduler.advance()
-
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(1, "Friends emit")
-      showFacebookConnect.assertValues([false])
-
-      vm.inputs.willDisplayRow(30, outOf: 10)
-
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(1, "Friends value has not changed")
-      showFacebookConnect.assertValues([false], "Show Facebook Connect value has not changed")
+      self.showLoadingIndicatorView.assertValues([true])
 
       self.scheduler.advance()
 
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(2, "Friends emits again")
-      showFacebookConnect.assertValues([false], "Show Facebook Connect value has not changed")
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(1, "Friends emit")
+      self.showFacebookConnect.assertValues([false])
+
+      self.vm.inputs.willDisplayRow(30, outOf: 10)
+
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(1, "Friends value has not changed")
+      self.showFacebookConnect.assertValues([false], "Show Facebook Connect value has not changed")
+
+      self.scheduler.advance()
+
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(2, "Friends emits again")
+      self.showFacebookConnect.assertValues([false], "Show Facebook Connect value has not changed")
     }
   }
 
   func testFriends_WithNonFacebookConnectedUser() {
     withEnvironment(currentUser: User.template) {
-      friends.assertValueCount(0, "Friends does not emit")
-      showFacebookConnect.assertValueCount(0, "Facebook connect does not emit")
+      self.friends.assertValueCount(0, "Friends does not emit")
+      self.showFacebookConnect.assertValueCount(0, "Facebook connect does not emit")
 
-      vm.inputs.configureWith(source: FriendsSource.discovery)
+      self.vm.inputs.configureWith(source: FriendsSource.discovery)
 
-      showFacebookConnect.assertValueCount(0, "Show Facebook Connect does not emit")
+      self.showFacebookConnect.assertValueCount(0, "Show Facebook Connect does not emit")
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
       self.scheduler.advance()
 
-      friends.assertValueCount(0, "Friends does not emit")
-      showFacebookConnect.assertValues([true], "Show Facebook Connect")
+      self.friends.assertValueCount(0, "Friends does not emit")
+      self.showFacebookConnect.assertValues([true], "Show Facebook Connect")
 
       AppEnvironment.updateCurrentUser(User.template |> \.facebookConnected .~ true)
-      vm.inputs.findFriendsFacebookConnectCellDidFacebookConnectUser()
+      self.vm.inputs.findFriendsFacebookConnectCellDidFacebookConnectUser()
 
-      showLoadingIndicatorView.assertValues([true])
-
-      self.scheduler.advance()
-
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(1, "Friends emit after Facebook Connected")
-      showFacebookConnect.assertValues([true, false], "Hide Facebook Connect")
-
-      vm.inputs.willDisplayRow(20, outOf: 10)
-
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(1, "Friends value has not changed")
-      showFacebookConnect.assertValues([true, false], "Show Facebook Connect value has not changed")
+      self.showLoadingIndicatorView.assertValues([true])
 
       self.scheduler.advance()
 
-      showLoadingIndicatorView.assertValues([true, false])
-      friends.assertValueCount(2, "Friends emits again")
-      showFacebookConnect.assertValues([true, false], "Show Facebook Connect value has not changed")
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(1, "Friends emit after Facebook Connected")
+      self.showFacebookConnect.assertValues([true, false], "Hide Facebook Connect")
+
+      self.vm.inputs.willDisplayRow(20, outOf: 10)
+
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(1, "Friends value has not changed")
+      self.showFacebookConnect.assertValues([true, false], "Show Facebook Connect value has not changed")
+
+      self.scheduler.advance()
+
+      self.showLoadingIndicatorView.assertValues([true, false])
+      self.friends.assertValueCount(2, "Friends emits again")
+      self.showFacebookConnect.assertValues([true, false], "Show Facebook Connect value has not changed")
     }
   }
 
@@ -191,9 +138,9 @@ final class FindFriendsViewModelTests: TestCase {
       |> \.needsFreshFacebookToken .~ true
 
     withEnvironment(currentUser: needsReconnectUser) {
-      vm.inputs.configureWith(source: FriendsSource.findFriends)
+      self.vm.inputs.configureWith(source: FriendsSource.findFriends)
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
       self.scheduler.advance()
 
@@ -204,33 +151,33 @@ final class FindFriendsViewModelTests: TestCase {
 
   func testStats_WithFacebookConnectedUser() {
     withEnvironment(currentUser: User.template |> \.facebookConnected .~ true) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      stats.assertValueCount(0)
-      statsSource.assertValueCount(0)
+      self.stats.assertValueCount(0)
+      self.statsSource.assertValueCount(0)
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
       self.scheduler.advance()
 
-      stats.assertValueCount(1)
-      statsSource.assertValues([FriendsSource.activity])
+      self.stats.assertValueCount(1)
+      self.statsSource.assertValues([FriendsSource.settings])
     }
   }
 
   func testStats_WithNonFacebookConnectedUser() {
     withEnvironment(currentUser: User.template) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      stats.assertValueCount(0)
-      statsSource.assertValueCount(0)
+      self.stats.assertValueCount(0)
+      self.statsSource.assertValueCount(0)
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
       self.scheduler.advance()
 
-      stats.assertValueCount(0, "Stats should not emit if user isn't FB Connected")
-      statsSource.assertValueCount(0)
+      self.stats.assertValueCount(0, "Stats should not emit if user isn't FB Connected")
+      self.statsSource.assertValueCount(0)
     }
   }
 
@@ -240,17 +187,17 @@ final class FindFriendsViewModelTests: TestCase {
       |> \.needsFreshFacebookToken .~ true
 
     withEnvironment(currentUser: facebookConnectedNeedsReconnectUser) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      stats.assertValueCount(0)
-      statsSource.assertValueCount(0)
+      self.stats.assertValueCount(0)
+      self.statsSource.assertValueCount(0)
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
       self.scheduler.advance()
 
-      stats.assertValueCount(0, "Stats should not emit if needs facebook reconnect")
-      statsSource.assertValueCount(0)
+      self.stats.assertValueCount(0, "Stats should not emit if needs facebook reconnect")
+      self.statsSource.assertValueCount(0)
     }
   }
 
@@ -260,62 +207,23 @@ final class FindFriendsViewModelTests: TestCase {
       |> \.facebookConnected .~ true
 
     withEnvironment(apiService: MockService(fetchFriendsResponse: friendsResponse), currentUser: user) {
-      self.vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.willDisplayRow(0, outOf: 2)
 
       self.scheduler.advance()
 
       self.friends.assertValues([friendsResponse.users], "Initial friends load.")
-      XCTAssertEqual(["Find Friends View", "Viewed Find Friends"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
 
       self.vm.inputs.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: 1_000)
 
       self.showFollowAllFriendsAlert.assertValues([1_000], "Show Follow All Friends alert with friend count")
-
-      self.vm.inputs.declineFollowAllFriends()
-
-      XCTAssertEqual(
-        [
-          "Find Friends View", "Viewed Find Friends",
-          "Facebook Friend Decline Follow All", "Declined Follow All Facebook Friends"
-        ],
-        self.trackingClient.events
-      )
-
-      XCTAssertEqual(
-        [
-          "activity", "activity",
-          "activity", "activity"
-        ],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
 
       self.vm.inputs.findFriendsStatsCellShowFollowAllFriendsAlert(friendCount: 1_000)
 
       self.showFollowAllFriendsAlert.assertValues([1_000, 1_000])
 
       self.vm.inputs.confirmFollowAllFriends()
-
-      XCTAssertEqual(
-        [
-          "Find Friends View", "Viewed Find Friends",
-          "Facebook Friend Decline Follow All", "Declined Follow All Facebook Friends",
-          "Facebook Friend Follow All", "Followed All Facebook Friends"
-        ], self.trackingClient.events
-      )
-      XCTAssertEqual(
-        [
-          "activity", "activity",
-          "activity", "activity",
-          "activity", "activity"
-        ],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
 
       // Test the 2 second "Follow all" debounce.
       self.scheduler.advance(by: .seconds(1))
@@ -330,31 +238,31 @@ final class FindFriendsViewModelTests: TestCase {
 
   func testLoaderIsAnimating_WithFacebookConnectedUser() {
     withEnvironment(currentUser: User.template |> \.facebookConnected .~ true) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      showLoadingIndicatorView.assertValueCount(0, "Loader is hidden")
+      self.showLoadingIndicatorView.assertValueCount(0, "Loader is hidden")
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
-      showLoadingIndicatorView.assertValues([true])
-
-      self.scheduler.advance()
-
-      showLoadingIndicatorView.assertValues([true, false])
-
-      vm.inputs.willDisplayRow(30, outOf: 10)
-
-      showLoadingIndicatorView.assertValues([true, false])
+      self.showLoadingIndicatorView.assertValues([true])
 
       self.scheduler.advance()
 
-      showLoadingIndicatorView.assertValues([true, false])
+      self.showLoadingIndicatorView.assertValues([true, false])
+
+      self.vm.inputs.willDisplayRow(30, outOf: 10)
+
+      self.showLoadingIndicatorView.assertValues([true, false])
+
+      self.scheduler.advance()
+
+      self.showLoadingIndicatorView.assertValues([true, false])
     }
   }
 
   func testLoadedMoreFriendsReporting() {
     withEnvironment(currentUser: .template |> \.facebookConnected .~ true) {
-      self.vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
       self.vm.inputs.viewDidLoad()
       self.scheduler.advance()
 
@@ -362,53 +270,25 @@ final class FindFriendsViewModelTests: TestCase {
       self.vm.inputs.willDisplayRow(5, outOf: 10)
       self.scheduler.advance()
 
-      XCTAssertEqual(
-        ["Find Friends View", "Viewed Find Friends"], self.trackingClient.events
-      )
-
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
-
-      XCTAssertEqual(
-        [nil, nil],
-        self.trackingClient.properties.map { $0["page_count"] as! String? }
-      )
-
       // This call should trigger next page request and reporting
       self.vm.inputs.willDisplayRow(8, outOf: 10)
       self.scheduler.advance()
-
-      XCTAssertEqual(
-        ["Find Friends View", "Viewed Find Friends", "Loaded More Friends"], self.trackingClient.events
-      )
-
-      XCTAssertEqual(
-        ["activity", "activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
-
-      XCTAssertEqual(
-        [nil, nil, 2],
-        self.trackingClient.properties.map { $0["page_count"] as! Int? }
-      )
     }
   }
 
   func testLoaderIsAnimating_WithNonFacebookConnectedUser() {
     withEnvironment(currentUser: User.template) {
-      vm.inputs.configureWith(source: FriendsSource.activity)
+      self.vm.inputs.configureWith(source: FriendsSource.settings)
 
-      showLoadingIndicatorView.assertValueCount(0, "Loader is hidden")
+      self.showLoadingIndicatorView.assertValueCount(0, "Loader is hidden")
 
-      vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidLoad()
 
-      showLoadingIndicatorView.assertDidNotEmitValue()
+      self.showLoadingIndicatorView.assertDidNotEmitValue()
 
       self.scheduler.advance()
 
-      showLoadingIndicatorView.assertDidNotEmitValue()
+      self.showLoadingIndicatorView.assertDidNotEmitValue()
     }
   }
 

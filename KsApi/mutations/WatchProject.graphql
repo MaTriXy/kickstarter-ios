@@ -1,0 +1,10 @@
+mutation watchProject($input: WatchProjectInput!) {
+  watchProject(input: $input) {
+    clientMutationId
+    project {
+      id
+      isWatched
+      watchesCount
+    }
+  }
+}

@@ -38,7 +38,7 @@ public final class CategorySelectionViewModel: CategorySelectionViewModelType,
     let categoriesEvent = self.viewDidLoadProperty.signal
       .switchMap { _ in
         AppEnvironment.current.apiService
-          .fetchGraphCategories(query: rootCategoriesQuery)
+          .fetchGraphCategories()
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .map { $0.rootCategories }
           .materialize()
@@ -105,20 +105,6 @@ public final class CategorySelectionViewModel: CategorySelectionViewModelType,
     .skipRepeats()
 
     self.dismiss = self.skipButtonTappedProperty.signal
-
-    // Tracking
-
-    self.skipButtonTappedProperty.signal.observeValues { _ in
-      let optimizelyProps = optimizelyProperties() ?? [:]
-      AppEnvironment.current.koala.trackOnboardingSkipButtonClicked(optimizelyProperties: optimizelyProps)
-      trackOptimizelyClientButtonClicked(buttonTitle: "Skip")
-    }
-
-    self.continueButtonTappedProperty.signal.observeValues { _ in
-      let optimizelyProps = optimizelyProperties() ?? [:]
-      AppEnvironment.current.koala.trackOnboardingContinueButtonClicked(optimizelyProperties: optimizelyProps)
-      trackOptimizelyClientButtonClicked(buttonTitle: "Continue")
-    }
   }
 
   private let categorySelectedWithValueProperty = MutableProperty<(IndexPath, KsApi.Category)?>(nil)
@@ -228,7 +214,8 @@ private func categoryData(from rootCategories: [KsApi.Category]) -> ([String], [
     }
 
     // Copy the parent category, but ignore the subcategories to reduce object size
-    let parentCategory = KsApi.Category(id: category.id, name: category.name)
+    let parentCategory = KsApi
+      .Category(analyticsName: category.analyticsName, id: category.id, name: category.name)
     let allProjects = (Strings.All_category_name_Projects(category_name: category.name), parentCategory)
 
     return [allProjects] + subcategoryData
@@ -253,9 +240,4 @@ private func cache(_ categories: [KsApi.Category]) {
   let data = try? JSONEncoder().encode(categories)
 
   AppEnvironment.current.userDefaults.onboardingCategories = data
-}
-
-private func trackOptimizelyClientButtonClicked(buttonTitle: String) {
-  let eventName = "\(buttonTitle) Button Clicked"
-  AppEnvironment.current.optimizelyClient?.track(eventName: eventName)
 }

@@ -1,7 +1,8 @@
 import UIKit
 
-public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
+public enum HelpType: SettingsCellTypeProtocol, CaseIterable, Equatable {
   case helpCenter
+  case community
   case contact
   case howItWorks
   case terms
@@ -9,6 +10,20 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
   case cookie
   case trust
   case accessibility
+  case environment
+  case aiDisclosure
+  case prohibitedItems
+
+  public static func helpType(from url: URL) -> HelpType? {
+    let helpType = HelpType.allCases.filter { helpType in
+      url.absoluteString == helpType.url(
+        withBaseUrl: AppEnvironment.current.apiService.serverConfig.webBaseUrl
+      )?.absoluteString
+    }
+    .first
+
+    return helpType
+  }
 
   public var accessibilityTraits: UIAccessibilityTraits {
     switch self {
@@ -23,6 +38,8 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
     switch self {
     case .helpCenter:
       return Strings.Help_center()
+    case .community:
+      return ""
     case .contact:
       return Strings.profile_settings_about_contact()
     case .howItWorks:
@@ -37,6 +54,12 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
       return ""
     case .accessibility:
       return Strings.Accessibility_statement()
+    case .environment:
+      return ""
+    case .aiDisclosure:
+      return ""
+    case .prohibitedItems:
+      return ""
     }
   }
 
@@ -50,32 +73,13 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
   }
 
   public var textColor: UIColor {
-    return .ksr_soft_black
-  }
-
-  public var trackingString: String {
-    switch self {
-    case .contact:
-      return "Contact"
-    case .cookie:
-      return "Cookie Policy"
-    case .helpCenter:
-      return "FAQ"
-    case .howItWorks:
-      return "How It Works"
-    case .privacy:
-      return "Privacy Policy"
-    case .terms:
-      return "Terms"
-    case .trust:
-      return "Trust & Safety"
-    case .accessibility:
-      return "Accessibility Statement"
-    }
+    return .ksr_support_700
   }
 
   public func url(withBaseUrl baseUrl: URL) -> URL? {
     switch self {
+    case .community:
+      return baseUrl.appendingPathComponent("help/community")
     case .cookie:
       return baseUrl.appendingPathComponent("cookies")
     case .contact:
@@ -92,17 +96,12 @@ public enum HelpType: SettingsCellTypeProtocol, CaseIterable {
       return baseUrl.appendingPathComponent("trust")
     case .accessibility:
       return baseUrl.appendingPathComponent("accessibility")
+    case .environment:
+      return baseUrl.appendingPathComponent("environment")
+    case .aiDisclosure:
+      return baseUrl.appendingPathComponent("hc/en-us/articles/16848396410267")
+    case .prohibitedItems:
+      return baseUrl.appendingPathComponent("rules/prohibited")
     }
-  }
-}
-
-extension HelpType: Equatable {}
-public func == (lhs: HelpType, rhs: HelpType) -> Bool {
-  switch (lhs, rhs) {
-  case (.contact, .contact), (.cookie, .cookie), (.helpCenter, .helpCenter), (.howItWorks, .howItWorks),
-       (.privacy, .privacy), (.terms, .terms), (.trust, .trust), (.accessibility, .accessibility):
-    return true
-  default:
-    return false
   }
 }

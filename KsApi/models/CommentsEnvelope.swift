@@ -1,56 +1,25 @@
-import Argo
-import Curry
-import Runes
+import Foundation
+import ReactiveSwift
 
-public struct CommentsEnvelope: Swift.Decodable {
-  public let comments: [Comment]
-  public let urls: UrlsEnvelope
-
-  public struct UrlsEnvelope: Swift.Decodable {
-    public let api: ApiEnvelope
-
-    public struct ApiEnvelope: Swift.Decodable {
-      public let moreComments: String
-    }
-  }
+public struct CommentsEnvelope: Decodable {
+  public var comments: [Comment]
+  public var cursor: String?
+  public var hasNextPage: Bool
+  public var slug: String?
+  public var totalCount: Int
+  public var updateID: String?
 }
 
-extension CommentsEnvelope.UrlsEnvelope {
-  enum CodingKeys: String, CodingKey {
-    case api
-    case moreComments = "more_comments"
+extension CommentsEnvelope {
+  static func envelopeProducer(from data: GraphAPI.FetchProjectCommentsQuery.Data)
+    -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
+    guard let envelope = CommentsEnvelope.commentsEnvelope(from: data) else { return .empty }
+    return SignalProducer(value: envelope)
   }
 
-  public init(from decoder: Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    do {
-      let moreComments = try values.nestedContainer(keyedBy: CodingKeys.self, forKey: .api)
-        .decode(String.self, forKey: .moreComments)
-      self.api = CommentsEnvelope.UrlsEnvelope.ApiEnvelope(moreComments: moreComments)
-    } catch {
-      self.api = CommentsEnvelope.UrlsEnvelope.ApiEnvelope(moreComments: "")
-    }
-  }
-}
-
-extension CommentsEnvelope: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<CommentsEnvelope> {
-    return curry(CommentsEnvelope.init)
-      <^> json <|| "comments"
-      <*> json <| "urls"
-  }
-}
-
-extension CommentsEnvelope.UrlsEnvelope: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<CommentsEnvelope.UrlsEnvelope> {
-    return curry(CommentsEnvelope.UrlsEnvelope.init)
-      <^> json <| "api"
-  }
-}
-
-extension CommentsEnvelope.UrlsEnvelope.ApiEnvelope: Argo.Decodable {
-  public static func decode(_ json: JSON) -> Decoded<CommentsEnvelope.UrlsEnvelope.ApiEnvelope> {
-    return curry(CommentsEnvelope.UrlsEnvelope.ApiEnvelope.init)
-      <^> (json <| "more_comments" <|> .success(""))
+  static func envelopeProducer(from data: GraphAPI.FetchUpdateCommentsQuery.Data)
+    -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
+    guard let envelope = CommentsEnvelope.commentsEnvelope(from: data) else { return .empty }
+    return SignalProducer(value: envelope)
   }
 }

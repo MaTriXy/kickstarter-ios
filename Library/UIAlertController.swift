@@ -1,6 +1,7 @@
 import FBSDKLoginKit
 import Foundation
 import KsApi
+import Library
 import class UIKit.UIAlertAction
 import class UIKit.UIAlertController
 
@@ -324,6 +325,67 @@ public extension UIAlertController {
         handler: nil
       )
     )
+
+    return alertController
+  }
+
+  static func blockUserAlert(
+    username: String,
+    blockUserHandler: @escaping (UIAlertAction) -> Void
+  ) -> UIAlertController {
+    let alertController = UIAlertController(
+      title: Strings.Block_username(username: username),
+      message: Strings.Blocked_user_confirmation(),
+      preferredStyle: .alert
+    )
+
+    // Scott TODO: Use localized strings once translations can be done [mbl-1037](https://kickstarter.atlassian.net/browse/MBL-1037)
+    alertController.addAction(
+      UIAlertAction(
+        title: Strings.Block(),
+        style: .destructive,
+        handler: blockUserHandler
+      )
+    )
+
+    alertController.addAction(
+      UIAlertAction(
+        title: Strings.Cancel(),
+        style: .cancel,
+        handler: nil
+      )
+    )
+
+    return alertController
+  }
+
+  static func blockUserActionSheet(
+    blockUserHandler: @escaping (UIAlertAction) -> Void,
+    viewProfileHandler: ((UIAlertAction) -> Void)? = nil,
+    sourceView: UIView? = nil,
+    isIPad: Bool
+  ) -> UIAlertController {
+    let alertController = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+
+    if let profileHandler = viewProfileHandler {
+      alertController
+        .addAction(UIAlertAction(title: Strings.View_profile(), style: .default, handler: profileHandler))
+    }
+
+    alertController
+      .addAction(UIAlertAction(
+        title: Strings.Block_this_user(),
+        style: .destructive,
+        handler: blockUserHandler
+      ))
+
+    alertController
+      .addAction(UIAlertAction(title: Strings.Cancel(), style: .cancel, handler: nil))
+
+    if isIPad {
+      alertController.modalPresentationStyle = .popover
+      alertController.popoverPresentationController?.sourceView = sourceView
+    }
 
     return alertController
   }

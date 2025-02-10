@@ -1,13 +1,13 @@
 import Foundation
 
-public enum Feature: String {
-  case qualtrics = "ios_qualtrics"
+public enum Feature: String, CaseIterable {
+  case segment = "ios_segment"
 }
 
 extension Feature: CustomStringConvertible {
   public var description: String {
     switch self {
-    case .qualtrics: return "Qualtrics"
+    case .segment: return "Segment"
     }
   }
 }

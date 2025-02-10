@@ -58,7 +58,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
   public init() {
     let initialTopFilters = self.viewDidLoadProperty.signal
       .take(first: 1)
-      .map { topFilters(forUser: AppEnvironment.current.currentUser) }
+      .map { _ in topFilters(forUser: AppEnvironment.current.currentUser) }
 
     let initialSelectedRow = Signal.combineLatest(
       self.initialSelectedRowProperty.signal.skipNil(),
@@ -86,7 +86,7 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     let categoriesEvent = cachedCats
       .filter { $0?.isEmpty != .some(false) }
       .switchMap { _ in
-        AppEnvironment.current.apiService.fetchGraphCategories(query: rootCategoriesQuery)
+        AppEnvironment.current.apiService.fetchGraphCategories()
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .on(starting: {
             loaderIsVisible.value = true
@@ -156,7 +156,13 @@ public final class DiscoveryFiltersViewModel: DiscoveryFiltersViewModelType,
     self.animateInView = self.viewDidAppearProperty.signal
 
     self.notifyDelegateOfSelectedRow
-      .observeValues { AppEnvironment.current.koala.trackDiscoveryModalSelectedFilter(params: $0.params) }
+      .observeValues {
+        AppEnvironment.current.ksrAnalytics.trackDiscoveryModalSelectedFilter(
+          params: $0.params,
+          typeContext: typeContext(from: $0.params),
+          locationContext: .discoverOverlay
+        )
+      }
   }
 
   fileprivate let initialSelectedRowProperty = MutableProperty<SelectableRow?>(nil)
@@ -249,7 +255,7 @@ private func expandableRows(
       |> ExpandableRow.lens.selectableRows .~
       expandableRow.selectableRows.sorted { lhs, rhs in
         guard let lhsName = lhs.params.category?.name, let rhsName = rhs.params.category?.name,
-          lhs.params.category?.isRoot == rhs.params.category?.isRoot else {
+              lhs.params.category?.isRoot == rhs.params.category?.isRoot else {
           return (lhs.params.category?.isRoot ?? false) && !(rhs.params.category?.isRoot ?? false)
         }
         return lhsName < rhsName
@@ -273,8 +279,10 @@ private func toggleExpansion(
     .map { expandableRow in
 
       expandableRow
-        |> ExpandableRow.lens.isExpanded .~ (expandableRow.params == rowToToggle.params &&
-          !rowToToggle.isExpanded)
+        |> ExpandableRow.lens.isExpanded .~ (
+          expandableRow.params == rowToToggle.params &&
+            !rowToToggle.isExpanded
+        )
     }
 }
 
@@ -291,9 +299,10 @@ private func topFilters(forUser user: User?) -> [DiscoveryParams] {
   filters.append(.defaults |> DiscoveryParams.lens.starred .~ true)
 
   if user?.optedOutOfRecommendations != true {
-    filters.append(.defaults
-      |> DiscoveryParams.lens.recommended .~ true
-      |> DiscoveryParams.lens.backed .~ false
+    filters.append(
+      .defaults
+        |> DiscoveryParams.lens.recommended .~ true
+        |> DiscoveryParams.lens.backed .~ false
     )
   }
 
@@ -335,28 +344,20 @@ private func cache(categories: [KsApi.Category]) {
   AppEnvironment.current.cache[KSCache.ksr_discoveryFiltersCategories] = categories
 }
 
-public let rootCategoriesQuery = NonEmptySet(Query.rootCategories(categoryFields))
-
-public func categoryBy(id: String) -> NonEmptySet<Query> {
-  return NonEmptySet(Query.category(id: id, categoryFields))
-}
-
-private var categoryFields: NonEmptySet<Query.Category> {
-  return .id +| [
-    .name,
-    .subcategories(
-      [],
-      .totalCount +| [
-        .nodes(
-          .id +| [
-            .name,
-            .parentCategory,
-            .parentId,
-            .totalProjectCount
-          ]
-        )
-      ]
-    ),
-    .totalProjectCount
-  ]
+private func typeContext(
+  from discoveryParams: DiscoveryParams
+) -> KSRAnalytics.TypeContext {
+  if discoveryParams.staffPicks == true {
+    return .pwl
+  } else if discoveryParams.starred == true {
+    return .watched
+  } else if discoveryParams.social == true {
+    return .social
+  } else if let category = discoveryParams.category {
+    return category.parent == nil ? .categoryName : .subcategoryName
+  } else if discoveryParams.recommended == true {
+    return .recommended
+  } else {
+    return .allProjects
+  }
 }

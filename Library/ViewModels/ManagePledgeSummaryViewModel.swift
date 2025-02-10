@@ -1,23 +1,31 @@
-import Foundation
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public struct ManagePledgeSummaryViewData: Equatable {
   public let backerId: Int
   public let backerName: String
   public let backerSequence: Int
-  public let backingState: BackingState
+  public let backingState: Backing.Status
+  public let bonusAmount: Double?
   public let currentUserIsCreatorOfProject: Bool
+  public let isNoReward: Bool
   public let locationName: String?
   public let needsConversion: Bool
   public let omitUSCurrencyCode: Bool
   public let pledgeAmount: Double
   public let pledgedOn: TimeInterval
-  public let projectCountry: Project.Country
+  public let projectCurrencyCountry: Project.Country
   public let projectDeadline: TimeInterval
-  public let projectState: ProjectState
+  public let projectState: Project.State
+  public let rewardMinimum: Double
   public let shippingAmount: Double?
+  public let shippingAmountHidden: Bool
+  public let rewardIsLocalPickup: Bool
+  public let paymentIncrements: [PledgePaymentIncrement]?
+  // Temporary property
+  public let project: Project?
 }
 
 public protocol ManagePledgeSummaryViewModelInputs {
@@ -56,7 +64,7 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
     self.configurePledgeAmountSummaryViewWithData = data.map(pledgeAmountSummaryViewData)
 
     let userAndIsBackingProject = data.map(\.backerId)
-      .filterMap { backerId -> (User, Bool)? in
+      .compactMap { backerId -> (User, Bool)? in
         guard let user = AppEnvironment.current.currentUser else {
           return nil
         }
@@ -86,9 +94,13 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
     self.backingDateText = data.map(\.pledgedOn)
       .map(formattedPledgeDate)
 
-    self.totalAmountText = data.map { ($0.projectCountry, $0.pledgeAmount, $0.omitUSCurrencyCode) }
-      .map { projectCountry, pledgeAmount, omitUSCurrencyCode in
-        attributedCurrency(with: projectCountry, amount: pledgeAmount, omitUSCurrencyCode: omitUSCurrencyCode)
+    self.totalAmountText = data.map { ($0.projectCurrencyCountry, $0.pledgeAmount, $0.omitUSCurrencyCode) }
+      .map { projectCurrencyCountry, pledgeAmount, omitUSCurrencyCode in
+        attributedCurrency(
+          with: projectCurrencyCountry,
+          amount: pledgeAmount,
+          omitUSCurrencyCode: omitUSCurrencyCode
+        )
       }
       .skipNil()
   }
@@ -126,24 +138,31 @@ private func pledgeAmountSummaryViewData(
   with data: ManagePledgeSummaryViewData
 ) -> PledgeAmountSummaryViewData {
   return .init(
-    projectCountry: data.projectCountry,
-    pledgeAmount: data.pledgeAmount,
-    pledgedOn: data.pledgedOn,
-    shippingAmount: data.shippingAmount,
+    bonusAmount: data.bonusAmount,
+    bonusAmountHidden: false,
+    isNoReward: data.isNoReward,
     locationName: data.locationName,
-    omitUSCurrencyCode: data.omitUSCurrencyCode
+    omitUSCurrencyCode: data.omitUSCurrencyCode,
+    projectCurrencyCountry: data.projectCurrencyCountry,
+    pledgedOn: data.pledgedOn,
+    rewardMinimum: data.rewardMinimum,
+    shippingAmount: data.shippingAmount,
+    shippingAmountHidden: data.shippingAmountHidden,
+    rewardIsLocalPickup: data.rewardIsLocalPickup
   )
 }
 
 private func pledgeStatusLabelViewData(with data: ManagePledgeSummaryViewData) -> PledgeStatusLabelViewData {
-  return .init(
+  return PledgeStatusLabelViewData(
     currentUserIsCreatorOfProject: data.currentUserIsCreatorOfProject,
     needsConversion: data.needsConversion,
     pledgeAmount: data.pledgeAmount,
-    projectCountry: data.projectCountry,
+    projectCurrencyCountry: data.projectCurrencyCountry,
     projectDeadline: data.projectDeadline,
     projectState: data.projectState,
-    backingState: data.backingState
+    backingState: data.backingState,
+    paymentIncrements: data.paymentIncrements,
+    project: data.project
   )
 }
 
@@ -153,7 +172,7 @@ private func attributedCurrency(
   omitUSCurrencyCode: Bool
 ) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_green_500])
+    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_700])
   let superscriptAttributes = checkoutCurrencySuperscriptAttributes()
   guard
     let attributedCurrency = Format.attributedCurrency(

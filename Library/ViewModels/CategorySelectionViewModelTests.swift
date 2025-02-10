@@ -43,7 +43,7 @@ final class CategorySelectionViewModelTests: TestCase {
       .filmAndVideo
     ])
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.loadCategorySectionTitles.assertDidNotEmitValue()
@@ -84,7 +84,7 @@ final class CategorySelectionViewModelTests: TestCase {
       .filmAndVideo
     ])
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.loadCategorySectionTitles.assertDidNotEmitValue()
@@ -131,7 +131,7 @@ final class CategorySelectionViewModelTests: TestCase {
     let filmAndVideoIndexPath = IndexPath(item: 0, section: 2)
     let documentaryIndexPath = IndexPath(item: 1, section: 2)
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
@@ -198,7 +198,7 @@ final class CategorySelectionViewModelTests: TestCase {
     let filmAndVideoIndexPath = IndexPath(item: 0, section: 2)
     let documentaryIndexPath = IndexPath(item: 1, section: 2)
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
@@ -261,7 +261,7 @@ final class CategorySelectionViewModelTests: TestCase {
     let filmAndVideoIndexPath = IndexPath(item: 0, section: 2)
     let documentaryIndexPath = IndexPath(item: 1, section: 2)
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
@@ -323,7 +323,7 @@ final class CategorySelectionViewModelTests: TestCase {
     let illustrationIndexPath = IndexPath(item: 1, section: 0)
     let gamesIndexPath = IndexPath(item: 0, section: 1)
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService, userDefaults: mockKVStore) {
       self.vm.inputs.viewDidLoad()
@@ -335,9 +335,6 @@ final class CategorySelectionViewModelTests: TestCase {
       self.vm.inputs.categorySelected(with: (illustrationIndexPath, .illustration))
       self.vm.inputs.categorySelected(with: (gamesIndexPath, .games))
 
-      XCTAssertNil(self.optimizelyClient.trackedEventKey)
-      XCTAssertNil(self.optimizelyClient.trackedAttributes)
-
       XCTAssertNil(mockKVStore.onboardingCategories)
       XCTAssertFalse(mockKVStore.hasCompletedCategoryPersonalizationFlow)
 
@@ -348,15 +345,13 @@ final class CategorySelectionViewModelTests: TestCase {
       ])
 
       let categories: [KsApi.Category] = [.art, .games, .illustration]
-      let encodedCategories = try? JSONEncoder().encode(categories)
+      let cachedCategories = try? JSONDecoder().decode(
+        [KsApi.Category].self,
+        from: mockKVStore.onboardingCategories!
+      )
 
-      XCTAssertEqual(encodedCategories, mockKVStore.onboardingCategories)
+      XCTAssertEqual(categories, cachedCategories)
       XCTAssertTrue(mockKVStore.hasCompletedCategoryPersonalizationFlow)
-
-      XCTAssertEqual("Continue Button Clicked", self.optimizelyClient.trackedEventKey)
-      XCTAssertEqual(["Onboarding Continue Button Clicked"], self.trackingClient.events)
-      XCTAssertEqual(self.trackingClient.properties(forKey: "context_location"), ["onboarding"])
-      assertBaseUserAttributesLoggedOut()
     }
   }
 
@@ -368,7 +363,7 @@ final class CategorySelectionViewModelTests: TestCase {
     let artIndexPath = IndexPath(item: 0, section: 0)
     let illustrationIndexPath = IndexPath(item: 1, section: 0)
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
@@ -387,7 +382,7 @@ final class CategorySelectionViewModelTests: TestCase {
   }
 
   func testShowErrorMessage() {
-    let mockService = MockService(fetchGraphCategoriesError: .invalidInput)
+    let mockService = MockService(fetchGraphCategoriesResult: .failure(.couldNotParseJSON))
 
     withEnvironment(apiService: mockService) {
       self.showErrorMessage.assertDidNotEmitValue()
@@ -403,7 +398,7 @@ final class CategorySelectionViewModelTests: TestCase {
   func testIsLoading() {
     let categoriesResponse = RootCategoriesEnvelope.init(rootCategories: [.art])
 
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.isLoading.assertDidNotEmitValue()
@@ -420,7 +415,7 @@ final class CategorySelectionViewModelTests: TestCase {
 
   func testDismiss() {
     let categoriesResponse = RootCategoriesEnvelope.init(rootCategories: [.art])
-    let mockService = MockService(fetchGraphCategoriesResponse: categoriesResponse)
+    let mockService = MockService(fetchGraphCategoriesResult: .success(categoriesResponse))
 
     withEnvironment(apiService: mockService) {
       self.vm.inputs.viewDidLoad()
@@ -428,17 +423,9 @@ final class CategorySelectionViewModelTests: TestCase {
 
       self.dismiss.assertDidNotEmitValue()
 
-      XCTAssertNil(self.optimizelyClient.trackedEventKey)
-      XCTAssertNil(self.optimizelyClient.trackedAttributes)
-
       self.vm.inputs.skipButtonTapped()
 
       self.dismiss.assertValueCount(1)
-
-      XCTAssertEqual(self.optimizelyClient.trackedEventKey, "Skip Button Clicked")
-      XCTAssertEqual(self.trackingClient.events, ["Onboarding Skip Button Clicked"])
-      XCTAssertEqual(self.trackingClient.properties(forKey: "context_location"), ["onboarding"])
-      assertBaseUserAttributesLoggedOut()
     }
   }
 }

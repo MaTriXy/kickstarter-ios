@@ -1,3 +1,4 @@
+import Foundation
 import Prelude
 
 extension Activity {
@@ -10,7 +11,7 @@ extension Activity {
       ) }
     )
 
-    public static let comment = Lens<Activity, Comment?>(
+    public static let comment = Lens<Activity, ActivityComment?>(
       view: { $0.comment },
       set: { Activity(
         category: $1.category, comment: $0, createdAt: $1.createdAt, id: $1.id,

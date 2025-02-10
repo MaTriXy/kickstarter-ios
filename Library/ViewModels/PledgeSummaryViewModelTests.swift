@@ -14,6 +14,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
   private let confirmationLabelText = TestObserver<String, Never>()
   private let confirmationLabelHidden = TestObserver<Bool, Never>()
   private let notifyDelegateOpenHelpType = TestObserver<HelpType, Never>()
+  private var pledgeOverTimeStackViewHidden = TestObserver<Bool, Never>()
+  private var pledgeOverTimeChargesText = TestObserver<String, Never>()
   private let totalConversionLabelText = TestObserver<String, Never>()
 
   override func setUp() {
@@ -27,6 +29,8 @@ internal final class PledgeSummaryViewModelTests: TestCase {
     self.vm.outputs.confirmationLabelAttributedText.map { $0.string }
       .observe(self.confirmationLabelText.observer)
     self.vm.outputs.confirmationLabelHidden.observe(self.confirmationLabelHidden.observer)
+    self.vm.outputs.pledgeOverTimeStackViewHidden.observe(self.pledgeOverTimeStackViewHidden.observer)
+    self.vm.outputs.pledgeOverTimeChargesText.observe(self.pledgeOverTimeChargesText.observer)
     self.vm.outputs.totalConversionLabelText.observe(self.totalConversionLabelText.observer)
   }
 
@@ -41,23 +45,74 @@ internal final class PledgeSummaryViewModelTests: TestCase {
     self.notifyDelegateOpenHelpType.assertValues(allCases)
   }
 
-  func testAmountAttributedText() {
-    self.vm.inputs.configure(with: (.template, total: 10, false))
+  func testAmountAttributedText_US_ProjectCurrency_RegularReward() {
+    let project = Project.cosmicSurgery
+      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+
+    self.vm.inputs.configure(with: (project, total: 30, false, false))
     self.vm.inputs.viewDidLoad()
 
-    self.amountLabelText.assertValues(["$10.00"])
+    self.amountLabelText.assertValues(["$30.00"], "Total is added to reward minimum")
   }
 
-  func testTotalConversionText_NeedsConversion() {
+  func testAmountAttributedText_NonUS_ProjectCurrency_RegularReward() {
+    let project = Project.cosmicSurgery
+      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+
+    self.vm.inputs.configure(with: (project, total: 30, false, false))
+    self.vm.inputs.viewDidLoad()
+
+    self.amountLabelText.assertValues([" MX$ 30.00"], "Total is added to reward minimum")
+  }
+
+  func testAmountAttributedText_US_ProjectCurrency_NoReward() {
+    let project = Project.template
+      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+    self.vm.inputs.configure(with: (project, total: 10, false, true))
+
+    self.vm.inputs.viewDidLoad()
+
+    self.amountLabelText.assertValues(["$10.00"], "Total is used directly")
+  }
+
+  func testAmountAttributedText_NonUS_ProjectCurrency_NoReward() {
+    let project = Project.template
+      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.country .~ Project.Country.us
+    let pledgeSummaryViewData = PledgeSummaryViewData(project, total: 10, false, true)
+
+    self.vm.inputs.configure(with: pledgeSummaryViewData)
+
+    self.vm.inputs.viewDidLoad()
+
+    self.amountLabelText.assertValues([" MX$ 10.00"], "Total is used directly")
+  }
+
+  func testTotalConversionText_NeedsConversion_NoReward() {
     let project = Project.template
       |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
       |> Project.lens.stats.currentCurrency .~ Project.Country.gb.currencyCode
       |> Project.lens.stats.currentCurrencyRate .~ 2.0
 
-    self.vm.inputs.configure(with: (project, total: 10, false))
+    self.vm.inputs.configure(with: (project, total: 10, false, true))
     self.vm.inputs.viewDidLoad()
 
     self.totalConversionLabelText.assertValues(["About £20.00"])
+  }
+
+  func testTotalConversionText_NeedsConversion_RegularReward() {
+    let project = Project.template
+      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.currentCurrency .~ Project.Country.gb.currencyCode
+      |> Project.lens.stats.currentCurrencyRate .~ 2.0
+
+    self.vm.inputs.configure(with: (project, total: 20, false, false))
+    self.vm.inputs.viewDidLoad()
+
+    self.totalConversionLabelText.assertValues(["About £40.00"])
   }
 
   func testTotalConversionText_NoConversionNeeded() {
@@ -66,7 +121,7 @@ internal final class PledgeSummaryViewModelTests: TestCase {
       |> Project.lens.stats.currentCurrency .~ nil
       |> Project.lens.stats.currentCurrencyRate .~ nil
 
-    self.vm.inputs.configure(with: (project, total: 10, false))
+    self.vm.inputs.configure(with: (project, total: 10, false, false))
     self.vm.inputs.viewDidLoad()
 
     self.totalConversionLabelText.assertDidNotEmitValue()
@@ -90,13 +145,14 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.stats.currentCurrency .~ Currency.USD.rawValue
         |> Project.lens.stats.currency .~ Currency.USD.rawValue
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false))
+      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
+      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
       self.vm.inputs.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
       self.confirmationLabelText.assertValues([
-        "If the project reaches its funding goal, you will be charged on November 1, 2019."
+        "If the project reaches its funding goal, you will be charged $10 on November 1, 2019. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
       ])
     }
   }
@@ -119,18 +175,19 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.stats.currentCurrency .~ Currency.USD.rawValue
         |> Project.lens.stats.currency .~ Currency.USD.rawValue
 
-      self.vm.inputs.configure(with: (project: project, total: 10, true))
+      self.vm.inputs.configure(with: (project: project, total: 10, true, false))
+      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
       self.vm.inputs.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([true])
       self.confirmationLabelAttributedText.assertValueCount(1)
       self.confirmationLabelText.assertValues([
-        "If the project reaches its funding goal, you will be charged on November 1, 2019."
+        "If the project reaches its funding goal, you will be charged $10 on November 1, 2019. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
       ])
     }
   }
 
-  func testUpdateContext_ConfirmationLabelShowsTotalAmount() {
+  func testUpdateContext_NonUS_ProjectCurrency_US_ProjectCountry_ConfirmationLabelShowsTotalAmount() {
     let dateComponents = DateComponents()
       |> \.month .~ 11
       |> \.day .~ 1
@@ -147,15 +204,82 @@ internal final class PledgeSummaryViewModelTests: TestCase {
         |> Project.lens.dates.deadline .~ date!.timeIntervalSince1970
         |> Project.lens.stats.currentCurrency .~ Currency.USD.rawValue
         |> Project.lens.stats.currency .~ Currency.HKD.rawValue
-        |> Project.lens.country .~ .hk
+        |> Project.lens.country .~ .us
 
-      self.vm.inputs.configure(with: (project: project, total: 10, false))
+      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
+      self.vm.inputs.configureWith(pledgeOverTimeData: nil)
       self.vm.inputs.viewDidLoad()
 
       self.confirmationLabelHidden.assertValues([false])
       self.confirmationLabelAttributedText.assertValueCount(1)
       self.confirmationLabelText.assertValues([
-        "If the project reaches its funding goal, you will be charged HK$ 10 on November 1, 2019."
+        "If the project reaches its funding goal, you will be charged HK$ 10 on November 1, 2019. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
+      ])
+    }
+  }
+
+  func testPledgeOverTime_PledgeInFull() {
+    let dateComponents = DateComponents()
+      |> \.month .~ 11
+      |> \.day .~ 1
+      |> \.year .~ 2_019
+      |> \.timeZone .~ TimeZone.init(secondsFromGMT: 0)
+
+    let calendar = Calendar(identifier: .gregorian)
+      |> \.timeZone .~ TimeZone.init(secondsFromGMT: 0)!
+
+    withEnvironment(calendar: calendar, locale: Locale(identifier: "en")) {
+      let date = AppEnvironment.current.calendar.date(from: dateComponents)
+
+      let project = Project.template
+        |> Project.lens.dates.deadline .~ date!.timeIntervalSince1970
+        |> Project.lens.stats.currentCurrency .~ Currency.USD.rawValue
+        |> Project.lens.stats.currency .~ Currency.USD.rawValue
+
+      let plotData = PledgePaymentPlansAndSelectionData(
+        selectedPlan: .pledgeInFull,
+        increments: mockPaymentIncrements(),
+        ineligible: false,
+        project: project
+      )
+
+      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
+      self.vm.inputs.configureWith(pledgeOverTimeData: plotData)
+      self.vm.inputs.viewDidLoad()
+
+      self.confirmationLabelHidden.assertValues([false])
+      self.confirmationLabelAttributedText.assertValueCount(1)
+      self.pledgeOverTimeStackViewHidden.assertValue(true)
+      self.pledgeOverTimeChargesText.assertDidEmitValue()
+      self.confirmationLabelText.assertValues([
+        "If the project reaches its funding goal, you will be charged $10 on November 1, 2019. You will receive a proof of pledge that will be redeemable if the project is funded and the creator is successful at completing the creative venture."
+      ])
+    }
+  }
+
+  func testPledgeOverTime_PledgeOverTime() {
+    withEnvironment(locale: Locale(identifier: "en")) {
+      let project = Project.template
+        |> Project.lens.stats.currentCurrency .~ Currency.USD.rawValue
+        |> Project.lens.stats.currency .~ Currency.USD.rawValue
+
+      let plotData = PledgePaymentPlansAndSelectionData(
+        selectedPlan: .pledgeOverTime,
+        increments: mockPaymentIncrements(),
+        ineligible: false,
+        project: project
+      )
+
+      self.vm.inputs.configure(with: (project: project, total: 10, false, false))
+      self.vm.inputs.configureWith(pledgeOverTimeData: plotData)
+      self.vm.inputs.viewDidLoad()
+
+      self.confirmationLabelHidden.assertValues([false])
+      self.confirmationLabelAttributedText.assertValueCount(1)
+      self.pledgeOverTimeStackViewHidden.assertValue(false)
+      self.pledgeOverTimeChargesText.assertValue("charged as 5 payments")
+      self.confirmationLabelText.assertValues([
+        "If the project reaches its funding goal, the first charge of $250.00 will be collected on March 28, 2019."
       ])
     }
   }

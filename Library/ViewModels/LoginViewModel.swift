@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
@@ -63,7 +64,7 @@ public protocol LoginViewModelOutputs {
   /// Emits when the reset password screen should be shown
   var showResetPassword: Signal<(), Never> { get }
 
-  // Emits when the show/hide password button is toggled
+  /// Emits when the show/hide password button is toggled
   var showHidePasswordButtonToggled: Signal<Bool, Never> { get }
 
   /// Emits when TFA is required for login.
@@ -136,8 +137,13 @@ public final class LoginViewModel: LoginViewModelType, LoginViewModelInputs, Log
       self.shouldShowPasswordProperty.signal.takeWhen(self.traitCollectionDidChangeProperty.signal)
     )
 
+    // Tracking
+
+    self.viewDidLoadProperty.signal
+      .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginPageViewed() }
+
     tryLogin
-      .observeValues { AppEnvironment.current.koala.trackLoginSubmitButtonClicked() }
+      .observeValues { AppEnvironment.current.ksrAnalytics.trackLoginSubmitButtonClicked() }
   }
 
   public var inputs: LoginViewModelInputs { return self }

@@ -7,7 +7,7 @@ extension UIScrollView {
    */
   public func scrollToTop() {
     if let tableView = self as? UITableView,
-      tableView.numberOfSections > 0, tableView.numberOfRows(inSection: 0) > 0 {
+       tableView.numberOfSections > 0, tableView.numberOfRows(inSection: 0) > 0 {
       tableView.scrollToRow(at: .init(row: 0, section: 0), at: .top, animated: true)
 
     } else {
@@ -35,7 +35,7 @@ extension UIScrollView {
           let bottomInsets = max(insets.bottom, change.frame.height - bottomEdgeInWindowCoordinates)
 
           self.contentInset.bottom = bottomInsets
-          self.scrollIndicatorInsets.bottom = bottomInsets
+          self.verticalScrollIndicatorInsets.bottom = bottomInsets
 
         case UIResponder.keyboardWillHideNotification:
           self.contentInset = insets

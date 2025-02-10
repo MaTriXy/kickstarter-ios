@@ -4,9 +4,7 @@ public enum Storyboard: String {
   case Activity
   case Backing
   case BackerDashboard
-  case Comments
-  case Dashboard
-  case DashboardProjectsDrawer
+  case CommentsDialog
   case DebugPushNotifications
   case Discovery
   case DiscoveryPage
@@ -30,7 +28,6 @@ public enum Storyboard: String {
   case Update
   case UpdateDraft
   case Video
-  case WebModal
 
   public func instantiate<VC: UIViewController>(_: VC.Type, inBundle bundle: Bundle = .framework) -> VC {
     guard

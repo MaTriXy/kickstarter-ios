@@ -1,3 +1,4 @@
+@testable import FBSDKCoreKit
 @testable import FBSDKLoginKit
 @testable import KsApi
 @testable import Library
@@ -46,30 +47,27 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
   }
 
   func testShowCloseButton() {
-    self.vm.inputs.configureWith(source: .activity)
+    self.vm.inputs.configureWith(source: .settings)
 
     self.hideCloseButton.assertValue(false)
   }
 
   func testDismissal() {
-    self.vm.inputs.configureWith(source: .activity)
+    self.vm.inputs.configureWith(source: .settings)
 
     self.notifyPresenterToDismissHeader.assertValueCount(0)
 
     self.vm.inputs.closeButtonTapped()
 
     self.notifyPresenterToDismissHeader.assertValueCount(1)
-
-    XCTAssertEqual(["Close Facebook Connect"], self.trackingClient.events)
-    XCTAssertEqual(["activity"], self.trackingClient.properties.map { $0["source"] as! String? })
   }
 
   func testLabels_NonFacebookConnectedUser() {
     withEnvironment(currentUser: User.template) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      title.assertValue(Strings.Discover_more_projects())
-      subtitle.assertValue(Strings.Connect_with_Facebook_to_follow_friends_and_get_notified())
+      self.title.assertValue(Strings.Discover_more_projects())
+      self.subtitle.assertValue(Strings.Connect_with_Facebook_to_follow_friends_and_get_notified())
     }
   }
 
@@ -79,10 +77,10 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
         |> \.facebookConnected .~ true
         |> \.needsFreshFacebookToken .~ true
     ) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      title.assertValue(Strings.Facebook_reconnect())
-      subtitle.assertValue(Strings.Facebook_reconnect_description())
+      self.title.assertValue(Strings.Facebook_reconnect())
+      self.subtitle.assertValue(Strings.Facebook_reconnect_description())
     }
   }
 
@@ -101,40 +99,36 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
     )
 
     withEnvironment(currentUser: User.template) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      attemptFacebookLogin.assertValueCount(0, "Attempt Facebook Login does not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook Login does not emit")
 
-      vm.inputs.facebookConnectButtonTapped()
+      self.vm.inputs.facebookConnectButtonTapped()
 
-      attemptFacebookLogin.assertValueCount(1, "Attempt Facebook Connect emitted")
-      XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook Connect emitted")
 
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
-      updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
+      self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
 
       scheduler.advance()
 
-      updateUserInEnvironment.assertValueCount(1, "Update user in environment")
+      self.updateUserInEnvironment.assertValueCount(1, "Update user in environment")
 
-      vm.inputs.userUpdated()
+      self.vm.inputs.userUpdated()
 
-      postUserUpdatedNotification.assertValues(
+      self.postUserUpdatedNotification.assertValues(
         [.ksr_userUpdated],
         "User updated notification posted"
       )
-      notifyPresenterUserFacebookConnected.assertValueCount(1, "Notify presenter that user was updated")
+      self.notifyPresenterUserFacebookConnected.assertValueCount(1, "Notify presenter that user was updated")
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
     }
@@ -150,7 +144,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       ]
     )
 
-    vm.inputs.configureWith(source: .activity)
+    self.vm.inputs.configureWith(source: .settings)
 
     self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
 
@@ -158,8 +152,6 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
     self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
-    XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-    XCTAssertEqual(["activity", "activity"], self.trackingClient.properties.map { $0["source"] as! String? })
 
     self.vm.inputs.facebookLoginFail(error: error)
 
@@ -168,17 +160,6 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
       "Show Facebook Attempt Login error"
     )
     self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
-    XCTAssertEqual([
-      "Facebook Connect", "Connected Facebook",
-      "Facebook Connect Error", "Errored Facebook Connect"
-    ], self.trackingClient.events)
-    XCTAssertEqual(
-      [
-        "activity", "activity",
-        "activity", "activity"
-      ],
-      self.trackingClient.properties.map { $0["source"] as! String? }
-    )
   }
 
   func testFacebookConnectFlow_Error_TokenFail() {
@@ -196,6 +177,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -209,20 +191,15 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(facebookConnectError: error)) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
 
-      vm.inputs.facebookConnectButtonTapped()
+      self.vm.inputs.facebookConnectButtonTapped()
 
-      attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
-      XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
 
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
@@ -232,18 +209,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
         [AlertError.facebookTokenFail],
         "Show Facebook token fail error"
       )
-      updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
-      XCTAssertEqual([
-        "Facebook Connect", "Connected Facebook",
-        "Facebook Connect Error", "Errored Facebook Connect"
-      ], self.trackingClient.events)
-      XCTAssertEqual(
-        [
-          "activity", "activity",
-          "activity", "activity"
-        ],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
     }
   }
 
@@ -262,6 +228,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -275,20 +242,15 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(facebookConnectError: error)) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
 
-      vm.inputs.facebookConnectButtonTapped()
+      self.vm.inputs.facebookConnectButtonTapped()
 
-      attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
-      XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
 
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
@@ -298,18 +260,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
         [AlertError.facebookConnectAccountTaken(envelope: error)],
         "Show Facebook account taken error"
       )
-      updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
-      XCTAssertEqual([
-        "Facebook Connect", "Connected Facebook",
-        "Facebook Connect Error", "Errored Facebook Connect"
-      ], self.trackingClient.events)
-      XCTAssertEqual(
-        [
-          "activity", "activity",
-          "activity", "activity"
-        ],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
     }
   }
 
@@ -328,6 +279,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -343,20 +295,15 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(facebookConnectError: error)) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
 
-      vm.inputs.facebookConnectButtonTapped()
+      self.vm.inputs.facebookConnectButtonTapped()
 
-      attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
-      XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
 
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
@@ -366,18 +313,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
         [AlertError.facebookConnectEmailTaken(envelope: error)],
         "Show Facebook account taken error"
       )
-      updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
-      XCTAssertEqual([
-        "Facebook Connect", "Connected Facebook",
-        "Facebook Connect Error", "Errored Facebook Connect"
-      ], self.trackingClient.events)
-      XCTAssertEqual(
-        [
-          "activity", "activity",
-          "activity", "activity"
-        ],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
     }
   }
 
@@ -396,6 +332,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
 
     let result = LoginManagerLoginResult(
       token: token,
+      authenticationToken: nil,
       isCancelled: false,
       grantedPermissions: [],
       declinedPermissions: []
@@ -409,20 +346,15 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
     )
 
     withEnvironment(apiService: MockService(facebookConnectError: error)) {
-      vm.inputs.configureWith(source: .activity)
+      self.vm.inputs.configureWith(source: .settings)
 
-      attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
+      self.attemptFacebookLogin.assertValueCount(0, "Attempt Facebook login does not emit")
 
-      vm.inputs.facebookConnectButtonTapped()
+      self.vm.inputs.facebookConnectButtonTapped()
 
-      attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
-      XCTAssertEqual(["Facebook Connect", "Connected Facebook"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.attemptFacebookLogin.assertValueCount(1, "Attempt Facebook login emitted")
 
-      vm.inputs.facebookLoginSuccess(result: result)
+      self.vm.inputs.facebookLoginSuccess(result: result)
 
       self.showErrorAlert.assertValueCount(0, "Error alert does not emit")
 
@@ -432,15 +364,7 @@ final class FindFriendsFacebookConnectCellViewModelTests: TestCase {
         [AlertError.genericFacebookError(envelope: error)],
         "Show Facebook account taken error"
       )
-      updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
-      XCTAssertEqual([
-        "Facebook Connect", "Connected Facebook",
-        "Facebook Connect Error", "Errored Facebook Connect"
-      ], self.trackingClient.events)
-      XCTAssertEqual(
-        ["activity", "activity", "activity", "activity"],
-        self.trackingClient.properties.map { $0["source"] as! String? }
-      )
+      self.updateUserInEnvironment.assertValueCount(0, "Update user does not emit")
     }
   }
 }

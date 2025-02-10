@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public protocol ActivityFriendFollowCellViewModelInputs {
   /// Call to configure activity with Activity.
@@ -36,11 +37,11 @@ public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellVi
       return string.simpleHtmlAttributedString(
         base: [
           NSAttributedString.Key.font: UIFont.ksr_subhead(size: 14.0),
-          NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+          NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
         ],
         bold: [
           NSAttributedString.Key.font: UIFont.ksr_headline(size: 14.0),
-          NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+          NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
         ]
       ) ?? NSAttributedString(string: "")
     }
@@ -58,9 +59,6 @@ public final class ActivityFriendFollowCellViewModel: ActivityFriendFollowCellVi
     self.hideFollowButton = Signal.merge(friend, followFriendSuccess)
       .map { $0.isFriend ?? false }
       .skipRepeats()
-
-    self.followButtonTappedProperty.signal
-      .observeValues { AppEnvironment.current.koala.trackFriendFollow(source: FriendsSource.activity) }
   }
 
   fileprivate let activityProperty = MutableProperty<Activity?>(nil)

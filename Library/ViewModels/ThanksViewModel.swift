@@ -2,10 +2,13 @@ import KsApi
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
+import UIKit
 
 public typealias ThanksPageData = (
-  project: Project, reward: Reward,
-  checkoutData: Koala.CheckoutPropertiesData?
+  project: Project,
+  reward: Reward,
+  checkoutData: KSRAnalytics.CheckoutPropertiesData?,
+  pledgeTotal: Double
 )
 
 public protocol ThanksViewModelInputs {
@@ -60,7 +63,7 @@ public protocol ThanksViewModelOutputs {
   var showRatingAlert: Signal<(), Never> { get }
 
   /// Emits array of projects and a category when should show recommendations
-  var showRecommendations: Signal<([Project], KsApi.Category, OptimizelyExperiment.Variant), Never> { get }
+  var showRecommendations: Signal<([Project], KsApi.Category), Never> { get }
 
   /// Emits a User that can be used to replace the current user in the environment
   var updateUserInEnvironment: Signal<User, Never> { get }
@@ -75,17 +78,35 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   public init() {
     let project = self.configureWithDataProperty.signal
       .skipNil()
-      .map(first)
+      .map { $0.project }
 
-    self.backedProjectText = project.map {
-      let string = Strings.You_have_successfully_backed_project_html(
-        project_name: $0.name
-      )
+    let rewardAndCheckoutData = self.configureWithDataProperty.signal
+      .skipNil()
+      .map { ($0.reward, $0.checkoutData) }
 
-      return string.simpleHtmlAttributedString(font: UIFont.ksr_subhead(), bold: UIFont.ksr_subhead().bolded)
-        ?? NSAttributedString(string: "")
-    }
-    .takeWhen(self.viewDidLoadProperty.signal)
+    self.backedProjectText = self.configureWithDataProperty.signal
+      .skipNil()
+      .map { project, _, _, pledgeTotal in
+
+        let string: String
+
+        /// Setting this to a an empty string for the late pledge beta release.
+        // TODO: [MBL-1351[(https://kickstarter.atlassian.net/browse/MBL-1350) Update as fast-follow when there is time to get translations in for a new more contextually accurate string.
+        let isInPostCampaignPledging = featurePostCampaignPledgeEnabled() && project
+          .isInPostCampaignPledgingPhase
+
+        let totalString = Format.currency(pledgeTotal, country: project.country)
+
+        string = isInPostCampaignPledging
+          ? Strings
+          .You_have_successfully_pledged_to_project_post_campaign_html_short(pledge_total: totalString)
+          : Strings.You_have_successfully_backed_project_html(project_name: project.name)
+
+        return string
+          .simpleHtmlAttributedString(font: UIFont.ksr_subhead(), bold: UIFont.ksr_subhead().bolded)
+          ?? NSAttributedString(string: "")
+      }
+      .takeWhen(self.viewDidLoadProperty.signal)
 
     let shouldShowGamesAlert = project
       .map { project in
@@ -124,7 +145,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     let rootCategory: Signal<KsApi.Category, Never> = project
       .map { toBase64($0.category) }
       .flatMap {
-        AppEnvironment.current.apiService.fetchGraphCategory(query: categoryBy(id: $0))
+        AppEnvironment.current.apiService.fetchGraphCategory(id: $0)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .map { (categoryEnvelope: KsApi.CategoryEnvelope) -> KsApi.Category
             in categoryEnvelope.node.parent ?? categoryEnvelope.node
@@ -137,9 +158,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
       .filter { projects in !projects.isEmpty }
 
     self.showRecommendations = Signal.zip(projects, rootCategory).map { projects, category in
-      let variant = OptimizelyExperiment.nativeProjectCardsExperimentVariant()
-
-      return (projects, category, variant)
+      (projects, category)
     }
 
     self.goToProject = self.showRecommendations
@@ -165,54 +184,87 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     self.showGamesNewsletterAlert
       .observeValues { AppEnvironment.current.userDefaults.hasSeenGamesNewsletterPrompt = true }
 
-    project
-      .takeWhen(self.goToDiscovery)
-      .observeValues { project in
-        AppEnvironment.current.koala.trackCheckoutFinishJumpToDiscovery(project: project)
-      }
+    self.projectTappedProperty.signal.skipNil()
+      .map { project in (project, recommendedParams) }
+      .combineLatest(with: rewardAndCheckoutData)
+      .observeValues { projectAndParams, rewardAndCheckoutData in
+        let (project, params) = projectAndParams
+        let (reward, checkoutData) = rewardAndCheckoutData
 
-    project
-      .takeWhen(self.gamesNewsletterSignupButtonTappedProperty.signal)
-      .observeValues { project in
-        AppEnvironment.current.koala.trackChangeNewsletter(
-          newsletterType: .games,
-          sendNewsletter: true,
+        AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
+          page: .thanks,
           project: project,
-          context: .thanks
+          checkoutData: checkoutData,
+          typeContext: .recommended,
+          location: .curated,
+          params: params,
+          reward: reward
         )
       }
-
-    project
-      .takeWhen(self.showRatingAlert)
-      .observeValues { project in
-        AppEnvironment.current.koala.trackTriggeredAppStoreRatingDialog(project: project)
-      }
-
-    self.projectTappedProperty.signal.skipNil().map { project in
-      (project, recommendedParams)
-    }.observeValues { project, params in
-      let optyProperties = optimizelyProperties() ?? [:]
-
-      AppEnvironment.current.koala.trackProjectCardClicked(
-        project: project,
-        params: params,
-        location: .thanks,
-        optimizelyProperties: optyProperties
-      )
-
-      AppEnvironment.current.optimizelyClient?.track(eventName: "Project Card Clicked")
-    }
 
     Signal.combineLatest(
       self.configureWithDataProperty.signal.skipNil(),
       self.viewDidLoadProperty.signal.ignoreValues()
     )
     .map(first)
-    .observeValues { AppEnvironment.current.koala.trackThanksPageViewed(
+    .observeValues { AppEnvironment.current.ksrAnalytics.trackThanksPageViewed(
       project: $0.project,
       reward: $0.reward,
       checkoutData: $0.checkoutData
     ) }
+
+    // Facebook CAPI + Google Analytics
+    _ = Signal.combineLatest(
+      project,
+      self.configureWithDataProperty.signal.skipNil()
+    )
+    .observeValues { project, configData in
+      var pledgeAmount: Double?
+      var shipping: Double?
+      var transactionId: String?
+
+      if let checkoutDataValues = configData.checkoutData {
+        transactionId = checkoutDataValues.checkoutId
+        shipping = checkoutDataValues.shippingAmountUsd
+        pledgeAmount = NSDecimalNumber(decimal: checkoutDataValues.revenueInUsd).doubleValue
+          + NSDecimalNumber(decimal: checkoutDataValues.bonusAmountInUsd ?? 0).doubleValue
+          + checkoutDataValues.addOnsMinimumUsd
+      }
+
+      AppEnvironment.current.appTrackingTransparency.updateAdvertisingIdentifier()
+
+      guard let externalId = AppEnvironment.current.appTrackingTransparency.advertisingIdentifier
+      else { return }
+
+      var userId = ""
+
+      if let userValue = AppEnvironment.current.currentUser {
+        userId = "\(userValue.id)"
+      }
+
+      let projectId = "\(project.id)"
+
+      var extInfo = Array(repeating: "", count: 16)
+      extInfo[0] = "i2"
+      extInfo[4] = AppEnvironment.current.mainBundle.platformVersion
+
+      _ = AppEnvironment.current.apiService
+        .triggerThirdPartyEventInput(input: .init(
+          deviceId: externalId,
+          eventName: ThirdPartyEventInputName.BackingComplete.rawValue,
+          projectId: projectId,
+          pledgeAmount: pledgeAmount,
+          shipping: shipping,
+          transactionId: transactionId,
+          userId: userId,
+          appData: .init(
+            advertiserTrackingEnabled: true,
+            applicationTrackingEnabled: true,
+            extinfo: extInfo
+          ),
+          clientMutationId: ""
+        ))
+    }
   }
 
   // MARK: - ThanksViewModelType
@@ -242,11 +294,6 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
     self.categoryCellTappedProperty.value = category
   }
 
-  fileprivate let projectProperty = MutableProperty<Project?>(nil)
-  public func project(_ project: Project) {
-    self.projectProperty.value = project
-  }
-
   fileprivate let projectTappedProperty = MutableProperty<Project?>(nil)
   public func projectTapped(_ project: Project) {
     self.projectTappedProperty.value = project
@@ -273,7 +320,7 @@ public final class ThanksViewModel: ThanksViewModelType, ThanksViewModelInputs, 
   public let showRatingAlert: Signal<(), Never>
   public let showGamesNewsletterAlert: Signal<(), Never>
   public let showGamesNewsletterOptInAlert: Signal<String, Never>
-  public let showRecommendations: Signal<([Project], KsApi.Category, OptimizelyExperiment.Variant), Never>
+  public let showRecommendations: Signal<([Project], KsApi.Category), Never>
   public let updateUserInEnvironment: Signal<User, Never>
 }
 

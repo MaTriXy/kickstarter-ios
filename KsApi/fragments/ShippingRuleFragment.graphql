@@ -1,0 +1,17 @@
+fragment ShippingRuleFragment on ShippingRule {
+  cost {
+    ...MoneyFragment
+  }
+  id
+  location {
+    ...LocationFragment
+  }
+  estimatedMin {
+      amount
+      currency
+  }
+  estimatedMax {
+      amount
+      currency
+  }
+}

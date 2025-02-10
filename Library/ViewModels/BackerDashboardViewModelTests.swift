@@ -59,7 +59,12 @@ internal final class BackerDashboardViewModelTests: TestCase {
       |> \.stats.starredProjectsCount .~ 58
       |> \.avatar.large .~ "http://cats.com/furball.jpg"
 
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: user)) {
+    let userEnvelope = UserEnvelope(me: user)
+
+    withEnvironment(apiService: MockService(
+      fetchGraphUserSelfResult: .success(userEnvelope),
+      fetchUserSelfResponse: user
+    )) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
 
       self.avatarURL.assertValueCount(0)
@@ -82,7 +87,7 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.avatarURL.assertValues(["http://cats.com/furball.jpg", "http://cats.com/furball.jpg"])
       self.backedButtonTitleText.assertValues(["45\nbacked", "45\nbacked"])
       self.backerNameText.assertValues(["Princess Vespa", "Princess Vespa"])
-      self.savedButtonTitleText.assertValues(["58\nsaved", "58\nsaved"])
+      self.savedButtonTitleText.assertValues(["58\nsaved"])
       self.setSelectedButton.assertValues([.backed])
       self.sortBarIsHidden.assertValues([true])
       self.embeddedViewTopConstraintConstant.assertValues([0.0])
@@ -99,32 +104,6 @@ internal final class BackerDashboardViewModelTests: TestCase {
     }
   }
 
-  func testUserUpdatesInEnvironment_AfterSavingProject() {
-    let user = User.template
-      |> \.name .~ "user"
-      |> \.stats.starredProjectsCount .~ 60
-
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: user)) {
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: user))
-      self.vm.inputs.viewWillAppear(false)
-
-      self.scheduler.advance()
-
-      self.updateCurrentUserInEnvironment.assertValues([user])
-
-      let user2 = user
-        |> \.name .~ "Updated user"
-
-      withEnvironment(apiService: MockService(fetchUserSelfResponse: user2)) {
-        self.vm.inputs.projectSaved()
-
-        self.scheduler.advance()
-
-        self.updateCurrentUserInEnvironment.assertValues([user, user, user2])
-      }
-    }
-  }
-
   func testConfigurePagesData() {
     self.configurePagesDataSourceTab.assertValueCount(0)
     self.configurePagesDataSourceSort.assertValueCount(0)
@@ -136,7 +115,11 @@ internal final class BackerDashboardViewModelTests: TestCase {
   }
 
   func testTabNavigation() {
-    withEnvironment(apiService: MockService(fetchUserSelfResponse: .template)) {
+    let userEnvelope = UserEnvelope(me: User.template)
+
+    withEnvironment(apiService: MockService(
+      fetchGraphUserSelfResult: .success(userEnvelope)
+    )) {
       AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
 
       self.vm.inputs.viewDidLoad()
@@ -163,6 +146,13 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.pinSelectedIndicatorToTabAnimated.assertValues([false, true])
       XCTAssertEqual(.saved, self.vm.outputs.currentSelectedTab)
 
+      XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+      XCTAssertEqual("watched", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+      XCTAssertEqual(
+        "account_menu",
+        self.segmentTrackingClient.properties.last?["context_location"] as? String
+      )
+
       self.vm.inputs.backedProjectsButtonTapped()
 
       self.navigateToTab.assertValues([.saved, .backed])
@@ -188,6 +178,13 @@ internal final class BackerDashboardViewModelTests: TestCase {
       self.pinSelectedIndicatorToTab.assertValues([.backed, .saved, .backed, .saved])
       self.pinSelectedIndicatorToTabAnimated.assertValues([false, true, true, true])
       XCTAssertEqual(.saved, self.vm.outputs.currentSelectedTab)
+
+      XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+      XCTAssertEqual("watched", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+      XCTAssertEqual(
+        "account_menu",
+        self.segmentTrackingClient.properties.last?["context_location"] as? String
+      )
     }
   }
 
@@ -205,20 +202,6 @@ internal final class BackerDashboardViewModelTests: TestCase {
     self.vm.inputs.messagesButtonTapped()
 
     self.goToMessages.assertValueCount(1)
-  }
-
-  func testTracking() {
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewWillAppear(false)
-
-    XCTAssertEqual(["Profile View My", "Viewed Profile"], self.trackingClient.events)
-
-    self.vm.inputs.viewWillAppear(true)
-
-    XCTAssertEqual(
-      ["Profile View My", "Viewed Profile"], self.trackingClient.events,
-      "Tracking does not emit"
-    )
   }
 
   func testHeaderPanning() {

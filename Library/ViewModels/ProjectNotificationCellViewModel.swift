@@ -35,12 +35,16 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
 
     self.name = notification.map { $0.project.name }
 
-    let toggledNotification = notification
+    let toggledNotification: Signal<ProjectNotification, Never> = notification
       .takePairWhen(self.notificationTappedProperty.signal)
-      .map { notification, on in
-        notification
-          |> ProjectNotification.lens.email .~ on
-          |> ProjectNotification.lens.mobile .~ on
+      .map { notification, on -> ProjectNotification in
+        let n = (
+          notification
+            |> ProjectNotification.lens.email .~ on
+            |> ProjectNotification.lens.mobile .~ on
+        )
+
+        return n
       }
 
     let updateEvent = toggledNotification
@@ -76,10 +80,6 @@ public final class ProjectNotificationCellViewModel: ProjectNotificationCellView
     )
     .map { $0.email && $0.mobile }
     .skipRepeats()
-
-    notification
-      .takeWhen(self.notificationTappedProperty.signal)
-      .observeValues { AppEnvironment.current.koala.trackChangeProjectNotification($0.project) }
   }
 
   fileprivate let notificationProperty = MutableProperty<ProjectNotification?>(nil)

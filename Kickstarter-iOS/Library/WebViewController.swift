@@ -9,6 +9,9 @@ internal class WebViewController: UIViewController {
   internal let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
   internal var bottomAnchorConstraint: NSLayoutConstraint?
 
+  // Enables us to pass the http cookie from Perimeter X for additional protection
+  private var webKitCookieStore: WKHTTPCookieStore?
+
   override func loadView() {
     super.loadView()
 
@@ -16,6 +19,8 @@ internal class WebViewController: UIViewController {
     self.webView.configuration.allowsInlineMediaPlayback = true
     self.webView.configuration.applicationNameForUserAgent = "Kickstarter-iOS"
     self.webView.customUserAgent = Service.userAgent
+
+    self.webKitCookieStore = WKWebsiteDataStore.default().httpCookieStore
 
     self.view.addSubview(self.webView)
 
@@ -42,9 +47,29 @@ internal class WebViewController: UIViewController {
     self.webView.navigationDelegate = nil
     self.webView.scrollView.delegate = nil
   }
+
+  func webView(
+    _: WKWebView,
+    decidePolicyFor _: WKNavigationResponse,
+    decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+  ) {
+    decisionHandler(.allow)
+  }
 }
 
-extension WebViewController: WKUIDelegate {}
+extension WebViewController: WKUIDelegate {
+  func webView(
+    _ webView: WKWebView,
+    createWebViewWith _: WKWebViewConfiguration,
+    for navigationAction: WKNavigationAction,
+    windowFeatures _: WKWindowFeatures
+  ) -> WKWebView? {
+    if navigationAction.targetFrame == nil {
+      webView.load(navigationAction.request)
+    }
+    return nil
+  }
+}
 
 extension WebViewController: WKNavigationDelegate {}
 

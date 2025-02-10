@@ -6,7 +6,8 @@ extension PushEnvelope {
       view: { $0.activity },
       set: { .init(
         activity: $0, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $1.message, project: $1.project, survey: $1.survey, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $1.update
       ) }
     )
 
@@ -14,7 +15,8 @@ extension PushEnvelope {
       view: { $0.aps },
       set: { .init(
         activity: $1.activity, aps: $0, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $1.message, project: $1.project, survey: $1.survey, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $1.update
       ) }
     )
 
@@ -22,7 +24,8 @@ extension PushEnvelope {
       view: { $0.erroredPledge },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $0, forCreator: $1.forCreator,
-        message: $1.message, project: $1.project, survey: $1.survey, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $1.update
       ) }
     )
 
@@ -30,7 +33,8 @@ extension PushEnvelope {
       view: { $0.forCreator },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $0,
-        message: $1.message, project: $1.project, survey: $1.survey, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $1.update
       ) }
     )
 
@@ -38,7 +42,16 @@ extension PushEnvelope {
       view: { $0.message },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $0, project: $1.project, survey: $1.survey, update: $1.update
+        message: $0, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $1.update
+      ) }
+    )
+
+    public static let pledgeRedemption = Lens<PushEnvelope, PushEnvelope.PledgeRedemption?>(
+      view: { $0.pledgeRedemption },
+      set: { .init(
+        activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
+        message: $1.message, pledgeRedemption: $0, project: $1.project, survey: $1.survey, update: $1.update
       ) }
     )
 
@@ -46,7 +59,8 @@ extension PushEnvelope {
       view: { $0.project },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $1.message, project: $0, survey: $1.survey, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $0, survey: $1.survey,
+        update: $1.update
       ) }
     )
 
@@ -54,7 +68,8 @@ extension PushEnvelope {
       view: { $0.survey },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $1.message, project: $1.project, survey: $0, update: $1.update
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $0,
+        update: $1.update
       ) }
     )
 
@@ -62,7 +77,8 @@ extension PushEnvelope {
       view: { $0.update },
       set: { .init(
         activity: $1.activity, aps: $1.aps, erroredPledge: $1.erroredPledge, forCreator: $1.forCreator,
-        message: $1.message, project: $1.project, survey: $1.survey, update: $0
+        message: $1.message, pledgeRedemption: $1.pledgeRedemption, project: $1.project, survey: $1.survey,
+        update: $0
       ) }
     )
   }
@@ -74,15 +90,15 @@ extension PushEnvelope.Activity {
       view: { $0.category },
       set: { .init(
         category: $0, commentId: $1.commentId, id: $1.id, projectId: $1.projectId,
-        projectPhoto: $1.projectPhoto, updateId: $1.updateId, userPhoto: $1.userPhoto
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $1.userPhoto
       ) }
     )
 
-    public static let commentId = Lens<PushEnvelope.Activity, Int?>(
+    public static let commentId = Lens<PushEnvelope.Activity, String?>(
       view: { $0.commentId },
       set: { .init(
         category: $1.category, commentId: $0, id: $1.id, projectId: $1.projectId,
-        projectPhoto: $1.projectPhoto, updateId: $1.updateId, userPhoto: $1.userPhoto
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $1.userPhoto
       ) }
     )
 
@@ -90,7 +106,7 @@ extension PushEnvelope.Activity {
       view: { $0.id },
       set: { .init(
         category: $1.category, commentId: $1.commentId, id: $0, projectId: $1.projectId,
-        projectPhoto: $1.projectPhoto, updateId: $1.updateId, userPhoto: $1.userPhoto
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $1.userPhoto
       ) }
     )
 
@@ -98,7 +114,7 @@ extension PushEnvelope.Activity {
       view: { $0.projectId },
       set: { .init(
         category: $1.category, commentId: $1.commentId, id: $1.id, projectId: $0,
-        projectPhoto: $1.projectPhoto, updateId: $1.updateId, userPhoto: $1.userPhoto
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $1.userPhoto
       ) }
     )
 
@@ -106,7 +122,15 @@ extension PushEnvelope.Activity {
       view: { $0.projectPhoto },
       set: { .init(
         category: $1.category, commentId: $1.commentId, id: $1.id, projectId: $1.projectId,
-        projectPhoto: $0, updateId: $1.updateId, userPhoto: $1.userPhoto
+        projectPhoto: $0, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $1.userPhoto
+      ) }
+    )
+
+    public static let replyId = Lens<PushEnvelope.Activity, String?>(
+      view: { $0.replyId },
+      set: { .init(
+        category: $1.category, commentId: $1.commentId, id: $1.id, projectId: $1.projectId,
+        projectPhoto: $1.projectPhoto, replyId: $0, updateId: $1.updateId, userPhoto: $1.userPhoto
       ) }
     )
 
@@ -114,7 +138,7 @@ extension PushEnvelope.Activity {
       view: { $0.updateId },
       set: { .init(
         category: $1.category, commentId: $1.commentId, id: $1.id, projectId: $1.projectId,
-        projectPhoto: $1.projectPhoto, updateId: $0, userPhoto: $1.userPhoto
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $0, userPhoto: $1.userPhoto
       ) }
     )
 
@@ -122,7 +146,7 @@ extension PushEnvelope.Activity {
       view: { $0.userPhoto },
       set: { .init(
         category: $1.category, commentId: $1.commentId, id: $1.id, projectId: $1.projectId,
-        projectPhoto: $1.projectPhoto, updateId: $1.updateId, userPhoto: $0
+        projectPhoto: $1.projectPhoto, replyId: $1.replyId, updateId: $1.updateId, userPhoto: $0
       ) }
     )
   }
@@ -169,12 +193,17 @@ extension PushEnvelope.Survey {
   public enum lens {
     public static let id = Lens<PushEnvelope.Survey, Int>(
       view: { $0.id },
-      set: { .init(id: $0, projectId: $1.projectId) }
+      set: { .init(id: $0, projectId: $1.projectId, urls: $1.urls) }
     )
 
     public static let projectId = Lens<PushEnvelope.Survey, Int>(
       view: { $0.projectId },
-      set: { .init(id: $1.id, projectId: $0) }
+      set: { .init(id: $1.id, projectId: $0, urls: $1.urls) }
+    )
+
+    public static let urls = Lens<PushEnvelope.Survey, PushEnvelope.Survey.Urls>(
+      view: { $0.urls },
+      set: { .init(id: $1.id, projectId: $1.projectId, urls: $0) }
     )
   }
 }

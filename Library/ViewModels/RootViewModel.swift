@@ -9,37 +9,18 @@ public typealias RootTabBarItemBadgeValueData = (String?, RootViewControllerInde
 public enum RootViewControllerData: Equatable {
   case discovery
   case activities
+  case pledgedProjectsAndActivities
   case search
-  case dashboard(isMember: Bool)
   case profile(isLoggedIn: Bool)
 
   public static func == (lhs: RootViewControllerData, rhs: RootViewControllerData) -> Bool {
     switch (lhs, rhs) {
     case (.discovery, .discovery): return true
     case (.activities, .activities): return true
+    case (.pledgedProjectsAndActivities, .pledgedProjectsAndActivities): return true
     case (.search, .search): return true
-    case let (.dashboard(lhsIsMember), .dashboard(rhsIsMember)):
-      return lhsIsMember == rhsIsMember
     case let (.profile(lhsIsLoggedIn), .profile(rhsIsLoggedIn)):
       return lhsIsLoggedIn == rhsIsLoggedIn
-    default:
-      return false
-    }
-  }
-
-  var isNil: Bool {
-    switch self {
-    case let .dashboard(isMember):
-      return !isMember
-    default:
-      return false
-    }
-  }
-
-  var isDashboard: Bool {
-    switch self {
-    case .dashboard:
-      return true
     default:
       return false
     }
@@ -53,17 +34,24 @@ public enum RootViewControllerData: Equatable {
       return false
     }
   }
+
+  var isActivity: Bool {
+    switch self {
+    case .activities, .pledgedProjectsAndActivities:
+      return true
+    case .discovery, .profile, .search:
+      return false
+    }
+  }
 }
 
 public struct TabBarItemsData {
   public let items: [TabBarItem]
   public let isLoggedIn: Bool
-  public let isMember: Bool
 }
 
 public enum TabBarItem {
   case activity(index: RootViewControllerIndex)
-  case dashboard(index: RootViewControllerIndex)
   case home(index: RootViewControllerIndex)
   case profile(avatarUrl: URL?, index: RootViewControllerIndex)
   case search(index: RootViewControllerIndex)
@@ -87,9 +75,6 @@ public protocol RootViewModelInputs {
 
   /// Call when we should switch to the activities tab.
   func switchToActivities()
-
-  /// Call when we should switch to the creator dashboard tab.
-  func switchToDashboard(project param: Param?)
 
   /// Call when we should switch to the discovery tab.
   func switchToDiscovery(params: DiscoveryParams?)
@@ -136,9 +121,6 @@ public protocol RootViewModelOutputs {
   /// Emits the array of view controllers that should be set on the tab bar.
   var setViewControllers: Signal<[RootViewControllerData], Never> { get }
 
-  /// Emits when the dashboard should switch projects.
-  var switchDashboardProject: Signal<(RootViewControllerIndex, Param), Never> { get }
-
   /// Emits data for setting tab bar item styles.
   var tabBarItemsData: Signal<TabBarItemsData, Never> { get }
 
@@ -159,32 +141,28 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       self.userSessionEndedProperty.signal,
       self.currentUserUpdatedProperty.signal
     )
-    .map { AppEnvironment.current.currentUser }
+    .map { _ in AppEnvironment.current.currentUser }
 
-    let userState: Signal<(isLoggedIn: Bool, isMember: Bool), Never> = currentUser
-      .map { ($0 != nil, ($0?.stats.memberProjectsCount ?? 0) > 0) }
+    let loginState: Signal<Bool, Never> = currentUser
+      .map {
+        $0 != nil
+      }
       .skipRepeats(==)
 
-    let standardViewControllers = self.viewDidLoadProperty.signal.map { generateStandardViewControllers() }
-    let personalizedViewControllers = userState.map { generatePersonalizedViewControllers(userState: $0) }
-
-    let viewControllers = Signal.combineLatest(standardViewControllers, personalizedViewControllers).map(+)
-
-    let refreshedViewControllers = userState.takeWhen(self.userLocalePreferencesChangedProperty.signal)
-      .map { userState -> [RootViewControllerData] in
-        let standard = generateStandardViewControllers()
-        let personalized = generatePersonalizedViewControllers(userState: userState)
-
-        return standard + personalized
-      }
+    let standardViewControllers = loginState.map { isLoggedIn -> [RootViewControllerData] in
+      generateViewControllers(isLoggedIn: isLoggedIn)
+    }
 
     self.setViewControllers = Signal.merge(
-      viewControllers,
-      refreshedViewControllers
+      standardViewControllers,
+      // FIXME: Look at moving the userLocalePreferencesChangedProperty signal into the currentUser signal
+      // https://kickstarter.atlassian.net/browse/MBL-2053
+      loginState.takeWhen(self.userLocalePreferencesChangedProperty.signal)
+        .map { isLoggedIn in
+          generateViewControllers(isLoggedIn: isLoggedIn)
+        }
     )
-    .map { $0.filter { !$0.isNil } }
 
-    let loginState = userState.map { $0.isLoggedIn }
     let vcCount = self.setViewControllers.map { $0.count }
 
     let switchToLogin = Signal.combineLatest(vcCount, loginState)
@@ -204,19 +182,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     self.filterDiscovery = discoveryControllerIndex
       .takePairWhen(self.switchToDiscoveryProperty.signal.skipNil())
 
-    let dashboardControllerIndex = self.setViewControllers
-      .map { $0.firstIndex(where: { $0.isDashboard }) }
-      .skipNil()
-
-    self.switchDashboardProject = Signal
-      .combineLatest(dashboardControllerIndex, self.switchToDashboardProperty.signal.skipNil(), loginState)
-      .filter { _, _, loginState in
-        isTrue(loginState)
-      }
-      .map { dashboard, param, _ in
-        (dashboard, param)
-      }
-
     self.selectedIndex = Signal.combineLatest(
       .merge(
         self.viewDidLoadProperty.signal.mapConst(0),
@@ -225,8 +190,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
         self.switchToDiscoveryProperty.signal.mapConst(0),
         self.switchToSearchProperty.signal.mapConst(2),
         switchToLogin,
-        switchToProfile,
-        self.switchToDashboardProperty.signal.mapConst(3)
+        switchToProfile
       ),
       self.setViewControllers,
       self.viewDidLoadProperty.signal
@@ -234,7 +198,7 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     .map { idx, vcs, _ in clamp(0, vcs.count - 1)(idx) }
 
     let activityViewControllerIndex = self.setViewControllers
-      .map { $0.firstIndex(where: { $0 == .activities }) }
+      .map { $0.firstIndex(where: \.isActivity) }
       .skipNil()
       .map { $0 as RootViewControllerIndex }
 
@@ -295,7 +259,10 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       integerBadgeValueAndIndex,
       integerBadgeValueAndIndex.takeWhen(self.voiceOverStatusDidChangeProperty.signal)
     )
-    .map { value, index in (activitiesBadgeValue(with: value), index) }
+    .map { value, index in
+      let hasPPOAction = AppEnvironment.current.currentUserPPOSettings?.hasAction ?? false
+      return (activitiesBadgeValue(with: value, hasPPOAction: hasPPOAction), index)
+    }
 
     currentBadgeValue <~ self.setBadgeValueAtIndex.map { $0.0 }
 
@@ -323,16 +290,52 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
     .map(first)
     .map(tabData(forUser:))
 
-    // MARK: - Koala
+    // Tracks
 
-    self.tabBarItemsData
-      .takePairWhen(self.didSelectIndexProperty.signal)
-      .filterMap { data, index in
-        guard index < data.items.count else { return nil }
+    let prevSelectedIndex = self.didSelectIndexProperty
+      .signal
+      .combinePrevious(0)
+      .map(first)
+
+    let prevSelectedTabBarItem = Signal
+      .combineLatest(prevSelectedIndex, self.tabBarItemsData)
+      .map { index, data -> KSRAnalytics.TabBarItemLabel in
+        guard index < data.items.count else { return tabBarItemLabel(for: data.items[0]) }
 
         return tabBarItemLabel(for: data.items[index])
-      }.observeValues { tabBarItemLabel in
-        AppEnvironment.current.koala.trackTabBarClicked(tabBarItemLabel)
+      }
+
+    let searchTabBarSelected = Signal
+      .combineLatest(self.didSelectIndexProperty.signal, self.tabBarItemsData)
+      .filter { index, data in index < data.items.count }
+      .map { index, data in
+        tabBarItemLabel(for: data.items[index])
+      }
+      .filter { $0 == .search }
+
+    prevSelectedTabBarItem
+      .takeWhen(searchTabBarSelected)
+      .skipRepeats(==)
+      .observeValues { tabBarLabel in
+        AppEnvironment.current.ksrAnalytics
+          .trackSearchTabBarClicked(prevTabBarItemLabel: tabBarLabel)
+      }
+
+    self.tabBarItemsData
+      .combineLatest(with: prevSelectedTabBarItem.signal)
+      .takePairWhen(self.didSelectIndexProperty.signal)
+      .compactMap { dataAndPrevSelectedTabBarItem, index in
+        let (data, prevSelectedTabBarItem) = dataAndPrevSelectedTabBarItem
+        guard index < data.items.count else { return nil }
+
+        return (tabBarItemLabel(for: data.items[index]), prevSelectedTabBarItem)
+      }
+      .observeValues { tabBarItemLabel, prevTabBarItemLabel in
+        AppEnvironment.current.ksrAnalytics
+          .trackTabBarClicked(
+            tabBarItemLabel: tabBarItemLabel,
+            previousTabBarItemLabel: prevTabBarItemLabel
+          )
       }
   }
 
@@ -365,11 +368,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   fileprivate let switchToActivitiesProperty = MutableProperty(())
   public func switchToActivities() {
     self.switchToActivitiesProperty.value = ()
-  }
-
-  fileprivate let switchToDashboardProperty = MutableProperty<Param?>(nil)
-  public func switchToDashboard(project param: Param?) {
-    self.switchToDashboardProperty.value = param
   }
 
   fileprivate let switchToDiscoveryProperty = MutableProperty<DiscoveryParams?>(nil)
@@ -422,7 +420,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
   public let selectedIndex: Signal<RootViewControllerIndex, Never>
   public let setBadgeValueAtIndex: Signal<RootTabBarItemBadgeValueData, Never>
   public let setViewControllers: Signal<[RootViewControllerData], Never>
-  public let switchDashboardProject: Signal<(Int, Param), Never>
   public let tabBarItemsData: Signal<TabBarItemsData, Never>
   public let updateUserInEnvironment: Signal<User, Never>
 
@@ -431,43 +428,50 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 }
 
 private func currentUserActivitiesAndErroredPledgeCount() -> Int {
-  (AppEnvironment.current.currentUser?.unseenActivityCount ?? 0) +
-    (AppEnvironment.current.currentUser?.erroredBackingsCount ?? 0)
+  // Do not include errored pledges if PPO is enabled.
+  let errorCount = featurePledgedProjectsOverviewEnabled()
+    ? 0
+    : AppEnvironment.current.currentUser?.erroredBackingsCount ?? 0
+  return (AppEnvironment.current.currentUser?.unseenActivityCount ?? 0) + errorCount
 }
 
-private func generateStandardViewControllers() -> [RootViewControllerData] {
-  return [.discovery, .activities, .search]
-}
+private func generateViewControllers(isLoggedIn: Bool) -> [RootViewControllerData] {
+  var controllers: [RootViewControllerData] = []
+  controllers.append(.discovery)
 
-private func generatePersonalizedViewControllers(userState: (isMember: Bool, isLoggedIn: Bool))
-  -> [RootViewControllerData] {
-  return [.dashboard(isMember: userState.isMember), .profile(isLoggedIn: userState.isLoggedIn)]
+  if featurePledgedProjectsOverviewEnabled(), isLoggedIn {
+    controllers.append(.pledgedProjectsAndActivities)
+  } else {
+    controllers.append(.activities)
+  }
+
+  controllers.append(.search)
+  controllers.append(.profile(isLoggedIn: isLoggedIn))
+
+  return controllers
 }
 
 private func tabData(forUser user: User?) -> TabBarItemsData {
-  let isMember = (user?.stats.memberProjectsCount ?? 0) > 0
-
-  let items: [TabBarItem] = isMember
-    ? [
-      .home(index: 0), .activity(index: 1), .search(index: 2), .dashboard(index: 3),
-      .profile(avatarUrl: (user?.avatar.small).flatMap(URL.init(string:)), index: 4)
-    ]
-    : [
-      .home(index: 0), .activity(index: 1), .search(index: 2),
-      .profile(avatarUrl: (user?.avatar.small).flatMap(URL.init(string:)), index: 3)
-    ]
+  let items: [TabBarItem] = [
+    .home(index: 0), .activity(index: 1), .search(index: 2),
+    .profile(avatarUrl: (user?.avatar.small).flatMap(URL.init(string:)), index: 3)
+  ]
 
   return TabBarItemsData(
     items: items,
-    isLoggedIn: user != nil,
-    isMember: isMember
+    isLoggedIn: user != nil
   )
 }
 
 extension TabBarItemsData: Equatable {}
 extension TabBarItem: Equatable {}
 
-private func activitiesBadgeValue(with value: Int?) -> String? {
+private func activitiesBadgeValue(with value: Int?, hasPPOAction: Bool) -> String? {
+  guard !(hasPPOAction && featurePledgedProjectsOverviewEnabled()) else {
+    // an empty string will show a dot as badge
+    return ""
+  }
+
   let isVoiceOverRunning = AppEnvironment.current.isVoiceOverRunning()
   let badgeValue = value ?? 0
   let maxBadgeValue = !isVoiceOverRunning ? 99 : badgeValue
@@ -480,12 +484,10 @@ private func activitiesBadgeValue(with value: Int?) -> String? {
     : "\(clampedBadgeValue)"
 }
 
-private func tabBarItemLabel(for tabBarItem: TabBarItem) -> Koala.TabBarItemLabel {
+private func tabBarItemLabel(for tabBarItem: TabBarItem) -> KSRAnalytics.TabBarItemLabel {
   switch tabBarItem {
   case .activity:
     return .activity
-  case .dashboard:
-    return .dashboard
   case .home:
     return .discovery
   case .profile:

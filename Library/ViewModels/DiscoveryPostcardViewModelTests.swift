@@ -109,8 +109,8 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       |> \.category.parentName .~ Project.Category.art.name
       |> Project.lens.dates.featuredAt .~ featuredAt
 
-    let backedColor: UIColor = .ksr_green_700
-    let featuredColor: UIColor = .ksr_soft_black
+    let backedColor: UIColor = .ksr_create_700
+    let featuredColor: UIColor = .ksr_support_700
 
     let backedImage = image(named: "metadata-backing")
     let featuredImage = image(named: "metadata-featured")
@@ -142,11 +142,12 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
       self.metadataIconTintColor.assertValues([backedColor])
 
       self.vm.inputs.configure(with: (featuredProject, nil, nil))
+      guard let parentName = featuredProject.category.parentName else { return }
       self.metadataLabelText.assertValues(
         [
           Strings.discovery_baseball_card_metadata_backer(),
           Strings.discovery_baseball_card_metadata_featured_project(
-            category_name: featuredProject.category.name
+            category_name: parentName
           )
         ], "Featured metadata emits."
       )
@@ -165,12 +166,13 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
 
   func testProjectStatsEmit() {
     let project = Project.template
+    let deadline = project.dates.deadline!
 
     self.vm.inputs.configure(with: (project, nil, nil))
 
     self.backersTitleLabelText.assertValues([Format.wholeNumber(project.stats.backersCount)])
 
-    let deadlineTitleAndSubtitle = Format.duration(secondsInUTC: project.dates.deadline, useToGo: true)
+    let deadlineTitleAndSubtitle = Format.duration(secondsInUTC: deadline, useToGo: true)
     self.deadlineSubtitleLabelText.assertValues([deadlineTitleAndSubtitle.unit])
     self.deadlineTitleLabelText.assertValues([deadlineTitleAndSubtitle.time])
 
@@ -289,8 +291,8 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     let successful = .template |> Project.lens.state .~ .successful
     let suspended = .template |> Project.lens.state .~ .suspended
 
-    let greenColor = UIColor.ksr_green_700
-    let navyColor = UIColor.ksr_soft_black
+    let greenColor = UIColor.ksr_create_700
+    let navyColor = UIColor.ksr_support_700
 
     self.vm.inputs.configure(with: (live, nil, nil))
     self.projectStateStackViewHidden.assertValues([true])
@@ -397,28 +399,24 @@ internal final class DiscoveryPostcardViewModelTests: TestCase {
     self.projectCategoryViewHidden.assertValue(true)
   }
 
-  func testLocationStackView_IsNotHidden_WhenTagIsLightsOn() {
+  func testLocationStackView_IsHidden_ParamsNotNil() {
     let project = Project.template
       |> \.location .~ Location.template
 
     let params = DiscoveryParams.defaults
-      |> \.tagId .~ DiscoveryParams.TagID.lightsOn
-
-    self.vm.inputs.configure(with: (project, .illustration, params))
-
-    self.locationStackViewHidden.assertValues([false])
-  }
-
-  func testLocationStackView_IsHidden_WhenTagIsNotLightsOn() {
-    let project = Project.template
-      |> \.location .~ Location.template
-
-    let params = DiscoveryParams.defaults
-      |> \.tagId .~ nil
 
     self.vm.inputs.configure(with: (project, .illustration, params))
 
     self.locationStackViewHidden.assertValues([true])
+  }
+
+  func testLocationStackView_IsNotHidden_ParamsNil() {
+    let project = Project.template
+      |> \.location .~ Location.template
+
+    self.vm.inputs.configure(with: (project, .illustration, nil))
+
+    self.locationStackViewHidden.assertValues([false])
   }
 
   func testLocationLabelText() {

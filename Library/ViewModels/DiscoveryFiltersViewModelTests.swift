@@ -51,6 +51,16 @@ private let categories =
 internal final class DiscoveryFiltersViewModelTests: TestCase {
   private let vm: DiscoveryFiltersViewModelType = DiscoveryFiltersViewModel()
 
+  private var defaultRootCategoriesTemplate: RootCategoriesEnvelope {
+    RootCategoriesEnvelope.template
+      |> RootCategoriesEnvelope.lens.categories .~ [
+        .art,
+        .filmAndVideo,
+        .illustration,
+        .documentary
+      ]
+  }
+
   private let animateInView = TestObserver<(), Never>()
   private let loadCategoryRows = TestObserver<[ExpandableRow], Never>()
   private let loadCategoryRowsInitialId = TestObserver<Int?, Never>()
@@ -93,7 +103,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
     self.animateInView.assertValueCount(1)
   }
 
-  func testKoalaEventsTrack() {
+  func testKSRAnalyticsEventsTrack() {
     self.vm.inputs.configureWith(selectedRow: allProjectsRow)
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear()
@@ -102,22 +112,89 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
 
     XCTAssertEqual(
       [],
-      self.trackingClient.events
+      self.segmentTrackingClient.events
     )
     self.vm.inputs.tapped(expandableRow: filmExpandableRow)
 
     XCTAssertEqual(
       [],
-      self.trackingClient.events
+      self.segmentTrackingClient.events
     )
 
     self.vm.inputs.tapped(selectableRow: documentarySelectableRow)
 
-    XCTAssertEqual(["Filter Clicked"], self.trackingClient.events)
+    XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
     XCTAssertEqual(
       [Category.documentary.intID],
-      self.trackingClient.properties(forKey: "discover_subcategory_id", as: Int.self)
+      self.segmentTrackingClient.properties(forKey: "discover_subcategory_id", as: Int.self)
     )
+    XCTAssertEqual("discover", segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("subcategory_name", segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual("discover_overlay", segmentTrackingClient.properties.last?["context_location"] as? String)
+    XCTAssertEqual("category_home", segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
+    XCTAssertEqual(
+      "Documentary",
+      segmentTrackingClient.properties.last?["discover_subcategory_name"] as? String
+    )
+    XCTAssertEqual(
+      "Film & Video",
+      segmentTrackingClient.properties.last?["discover_category_name"] as? String
+    )
+    XCTAssertEqual(11, segmentTrackingClient.properties.last?["discover_category_id"] as? Int)
+    XCTAssertEqual(30, segmentTrackingClient.properties.last?["discover_subcategory_id"] as? Int)
+
+    self.vm.inputs.tapped(selectableRow: socialRow)
+
+    XCTAssertEqual(["CTA Clicked", "CTA Clicked"], self.segmentTrackingClient.events)
+    XCTAssertEqual("discover", segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("social", segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual("discover_overlay", segmentTrackingClient.properties.last?["context_location"] as? String)
+    XCTAssertEqual("social_home", segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
+
+    self.vm.inputs.tapped(selectableRow: staffPicksRow)
+
+    XCTAssertEqual(
+      ["CTA Clicked", "CTA Clicked", "CTA Clicked"],
+      self.segmentTrackingClient.events
+    )
+    XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("pwl", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual(
+      "discover_overlay",
+      self.segmentTrackingClient.properties.last?["context_location"] as? String
+    )
+    XCTAssertEqual(
+      "recommended_home",
+      self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String
+    )
+
+    self.vm.inputs.tapped(selectableRow: starredRow)
+
+    XCTAssertEqual(
+      ["CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked"],
+      self.segmentTrackingClient.events
+    )
+    XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("watched", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual(
+      "discover_overlay",
+      self.segmentTrackingClient.properties.last?["context_location"] as? String
+    )
+    XCTAssertEqual("starred_home", self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
+
+    self.vm.inputs.tapped(selectableRow: recommendedRow)
+
+    XCTAssertEqual(
+      ["CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked", "CTA Clicked"],
+      self.segmentTrackingClient.events
+    )
+    XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("recommended", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual(
+      "discover_overlay",
+      self.segmentTrackingClient.properties.last?["context_location"] as? String
+    )
+    XCTAssertEqual("recs_home", self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String)
   }
 
   func testTopFilters_Logged_Out() {
@@ -244,7 +321,10 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testExpandingCategoryFilters() {
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResponse: self.categoriesResponse)) {
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+      self
+        .defaultRootCategoriesTemplate
+    ))) {
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
 
       self.loadCategoryRows.assertValueCount(0)
@@ -319,27 +399,32 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
         selectableRowTemplate |> SelectableRow.lens.params.category .~ .illustration
       ]
 
-    self.vm.inputs.configureWith(selectedRow: artSelectableRow)
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+      self
+        .defaultRootCategoriesTemplate
+    ))) {
+      self.vm.inputs.configureWith(selectedRow: artSelectableRow)
 
-    self.loadCategoryRows.assertValueCount(0)
+      self.loadCategoryRows.assertValueCount(0)
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
 
-    self.loadingIndicatorisVisible.assertValues([true])
+      self.loadingIndicatorisVisible.assertValues([true])
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
-    self.loadingIndicatorisVisible.assertValues([true, false])
+      self.loadingIndicatorisVisible.assertValues([true, false])
 
-    self.loadCategoryRows.assertValues(
-      [
-        [artSelectedExpandedRow, filmExpandableRow]
-      ],
-      "The art category expands."
-    )
-    self.loadCategoryRowsInitialId.assertValues([1])
-    self.loadCategoryRowsSelectedId.assertValues([1])
+      self.loadCategoryRows.assertValues(
+        [
+          [artSelectedExpandedRow, filmExpandableRow]
+        ],
+        "The art category expands."
+      )
+      self.loadCategoryRowsInitialId.assertValues([1])
+      self.loadCategoryRowsSelectedId.assertValues([1])
+    }
   }
 
   func testTappingSelectableRow() {
@@ -355,6 +440,19 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
       [allProjectsRow],
       "The tapped row emits."
     )
+
+    XCTAssertEqual(["CTA Clicked"], self.segmentTrackingClient.events)
+    XCTAssertEqual("discover", self.segmentTrackingClient.properties.last?["context_page"] as? String)
+    XCTAssertEqual("all", self.segmentTrackingClient.properties.last?["context_type"] as? String)
+    XCTAssertEqual(
+      "discover_overlay",
+      self.segmentTrackingClient.properties.last?["context_location"] as? String
+    )
+    XCTAssertEqual(true, self.segmentTrackingClient.properties.last?["discover_everything"] as? Bool)
+    XCTAssertEqual(
+      "discovery_home",
+      self.segmentTrackingClient.properties.last?["discover_ref_tag"] as? String
+    )
   }
 
   func testFavoriteRows_Without_Favorites() {
@@ -368,7 +466,7 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testFavoriteRows_With_Favorites() {
-    withEnvironment(apiService: MockService(fetchGraphCategoriesResponse: self.categoriesResponse)) {
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(self.categoriesResponse))) {
       self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
       self.vm.inputs.configureWith(selectedRow: allProjectsRow)
@@ -386,24 +484,29 @@ internal final class DiscoveryFiltersViewModelTests: TestCase {
   }
 
   func testFavoriteRows_With_Favorites_Selected() {
-    self.ubiquitousStore.favoriteCategoryIds = [1, 30]
+    withEnvironment(apiService: MockService(fetchGraphCategoriesResult: .success(
+      self
+        .defaultRootCategoriesTemplate
+    ))) {
+      self.ubiquitousStore.favoriteCategoryIds = [1, 30]
 
-    self.vm.inputs.configureWith(selectedRow: artSelectableRow)
+      self.vm.inputs.configureWith(selectedRow: artSelectableRow)
 
-    self.loadFavoriteRows.assertValueCount(0)
+      self.loadFavoriteRows.assertValueCount(0)
 
-    self.vm.inputs.viewDidLoad()
-    self.vm.inputs.viewDidAppear()
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear()
 
-    self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
+      self.scheduler.advance(by: AppEnvironment.current.apiDelayInterval)
 
-    self.loadFavoriteRows.assertValues([
-      [
-        artSelectableRow |> SelectableRow.lens.isSelected .~ true,
-        documentarySelectableRow
-      ]
-    ])
-    self.loadFavoriteRowsId.assertValues([1])
+      self.loadFavoriteRows.assertValues([
+        [
+          artSelectableRow |> SelectableRow.lens.isSelected .~ true,
+          documentarySelectableRow
+        ]
+      ])
+      self.loadFavoriteRowsId.assertValues([1])
+    }
   }
 
   func testCategoriesFromCache() {

@@ -334,7 +334,7 @@ open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableVie
    */
   internal final func reusableId(item: Int, section: Int) -> String? {
     if !self.values.isEmpty, self.values.count >= section,
-      !self.values[section].isEmpty, self.values[section].count >= item {
+       !self.values[section].isEmpty, self.values[section].count >= item {
       return self.values[section][item].reusableId
     }
     return nil
@@ -351,17 +351,21 @@ open class ValueCellDataSource: NSObject, UICollectionViewDataSource, UITableVie
     let (item, section) = itemSection
 
     if !self.values.isEmpty, self.values.count >= section,
-      !self.values[section].isEmpty, self.values[section].count >= item {
+       !self.values[section].isEmpty, self.values[section].count >= item {
       return self.values[itemSection.section][itemSection.item].value
     }
     return nil
   }
 
-  private func padValuesForSection(_ section: Int) {
+  public func padValuesForSection(_ section: Int) {
     guard self.values.count <= section else { return }
 
     (self.values.count...section).forEach { _ in
       self.values.append([])
     }
+  }
+
+  public func items(in section: Int) -> [(value: Any, reusableId: String)] {
+    return self.values[section]
   }
 }

@@ -5,6 +5,8 @@ import UIKit
 public enum Styles {
   public static let cornerRadius: CGFloat = 4.0
   public static let minTouchSize: CGSize = CGSize(width: 44, height: 44)
+  public static let projectPageLeftRightInset: CGFloat = Styles.grid(3)
+  public static let projectPageTopBottomInset: CGFloat = Styles.grid(4)
 
   public static func grid(_ count: Int) -> CGFloat {
     return 6.0 * CGFloat(count)
@@ -35,15 +37,15 @@ public typealias ToolbarStyle = (UIToolbar) -> UIToolbar
 public typealias ViewStyle = (UIView) -> UIView
 
 public func baseControllerStyle<VC: UIViewControllerProtocol>() -> ((VC) -> VC) {
-  return VC.lens.view.backgroundColor .~ .white
+  return VC.lens.view.backgroundColor .~ .ksr_white
     <> (VC.lens.navigationController .. navBarLens) %~ { $0.map(baseNavigationBarStyle) }
 }
 
 public func baseActivityIndicatorStyle(indicator: UIActivityIndicatorView) -> UIActivityIndicatorView {
   return indicator
     |> UIActivityIndicatorView.lens.hidesWhenStopped .~ true
-    |> UIActivityIndicatorView.lens.style .~ .white
-    |> UIActivityIndicatorView.lens.color .~ UIColor.ksr_soft_black
+    |> UIActivityIndicatorView.lens.style .~ .medium
+    |> UIActivityIndicatorView.lens.color .~ UIColor.ksr_support_700
 }
 
 /**
@@ -53,15 +55,15 @@ public func baseActivityIndicatorStyle(indicator: UIActivityIndicatorView) -> UI
  */
 public func cardStyle<V: UIViewProtocol>(cornerRadius radius: CGFloat = 0) -> ((V) -> V) {
   return roundedStyle(cornerRadius: radius)
-    <> V.lens.layer.borderColor .~ UIColor.ksr_grey_500.cgColor
+    <> V.lens.layer.borderColor .~ UIColor.ksr_support_300.cgColor
     <> V.lens.layer.borderWidth .~ 1.0
-    <> V.lens.backgroundColor .~ .white
+    <> V.lens.backgroundColor .~ .ksr_white
 }
 
 public func darkCardStyle<V: UIViewProtocol>
 (cornerRadius radius: CGFloat = Styles.cornerRadius) -> ((V) -> V) {
   return cardStyle(cornerRadius: radius)
-    <> V.lens.layer.borderColor .~ UIColor.ksr_text_dark_grey_500.cgColor
+    <> V.lens.layer.borderColor .~ UIColor.ksr_support_400.cgColor
 }
 
 public func adaptableStackViewStyle(_ isAccessibilityCategory: Bool) -> (StackViewStyle) {
@@ -80,15 +82,16 @@ public func adaptableStackViewStyle(_ isAccessibilityCategory: Bool) -> (StackVi
 }
 
 public let containerViewBackgroundStyle =
-  UIView.lens.backgroundColor .~ .ksr_grey_100
+  UIView.lens.backgroundColor .~ .ksr_support_100
 
 public func dropShadowStyle<V: UIViewProtocol>(
   radius: CGFloat = 2.0,
-  offset: CGSize = .init(width: 0, height: 1)
+  offset: CGSize = .init(width: 0, height: 1),
+  shadowOpacity: Float = 0.17
 ) -> ((V) -> V) {
   return
-    V.lens.layer.shadowColor .~ UIColor.black.cgColor
-      <> V.lens.layer.shadowOpacity .~ 0.17
+    V.lens.layer.shadowColor .~ UIColor.ksr_black.cgColor
+      <> V.lens.layer.shadowOpacity .~ shadowOpacity
       <> V.lens.layer.shadowRadius .~ radius
       <> V.lens.layer.masksToBounds .~ false
       <> V.lens.layer.shouldRasterize .~ true
@@ -103,12 +106,15 @@ public func dropShadowStyleLarge<V: UIViewProtocol>() -> ((V) -> V) {
   return dropShadowStyle(radius: 6.0, offset: .init(width: 0, height: 3.0))
 }
 
-public let feedTableViewCellStyle = baseTableViewCellStyle()
-  <> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
-    cell.traitCollection.isRegularRegular
-      ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(30))
-      : .init(topBottom: Styles.gridHalf(3), leftRight: Styles.grid(2))
-  }
+public let feedTableViewCellStyle: (UITableViewCell) -> UITableViewCell = { cell in
+  cell
+    |> baseTableViewCellStyle()
+    |> UITableViewCell.lens.contentView.layoutMargins %~~ { _, cell in
+      cell.traitCollection.isRegularRegular
+        ? .init(topBottom: Styles.grid(2), leftRight: Styles.grid(30))
+        : .init(topBottom: Styles.gridHalf(3), leftRight: Styles.grid(2))
+    }
+}
 
 public let formTextInputStyle: TextFieldStyle = { (textField: UITextField) in
   textField
@@ -123,8 +129,8 @@ public let formFieldStyle: TextFieldStyle = { (textField: UITextField) in
     |> \.backgroundColor .~ UIColor.clear
     |> \.borderStyle .~ UITextField.BorderStyle.none
     |> \.font .~ UIFont.ksr_body()
-    |> \.textColor .~ UIColor.ksr_soft_black
-    |> \.tintColor .~ UIColor.ksr_green_700
+    |> \.textColor .~ UIColor.ksr_support_700
+    |> \.tintColor .~ UIColor.ksr_create_700
 }
 
 public let ignoresInvertColorsImageViewStyle: ImageViewStyle = { (imageView: UIImageView) in
@@ -134,13 +140,13 @@ public let ignoresInvertColorsImageViewStyle: ImageViewStyle = { (imageView: UII
 
 public let separatorStyle: ViewStyle = { (view: UIView) in
   view
-    |> \.backgroundColor .~ UIColor.ksr_grey_400
+    |> \.backgroundColor .~ UIColor.ksr_support_300
     |> \.accessibilityElementsHidden .~ true
 }
 
 public let separatorStyleDark: ViewStyle = { view in
   view
-    |> \.backgroundColor .~ UIColor.ksr_grey_500
+    |> \.backgroundColor .~ UIColor.ksr_support_300
     |> \.accessibilityElementsHidden .~ true
 }
 
@@ -157,8 +163,8 @@ public func roundedStyle<V: UIViewProtocol>(cornerRadius r: CGFloat = Styles.cor
 
 public let baseSwitchControlStyle: SwitchControlStyle = { switchControl in
   switchControl
-    |> \.onTintColor .~ .ksr_green_700
-    |> \.tintColor .~ .ksr_grey_600
+    |> \.onTintColor .~ .ksr_create_700
+    |> \.tintColor .~ .ksr_support_100
 }
 
 // MARK: - Private Helpers
@@ -171,16 +177,25 @@ private let navBarLens: Lens<UINavigationController?, UINavigationBar?> = Lens(
 
 private let baseNavigationBarStyle =
   UINavigationBar.lens.titleTextAttributes .~ [
-    NSAttributedString.Key.foregroundColor: UIColor.black
+    NSAttributedString.Key.foregroundColor: UIColor.ksr_black
   ]
   <> UINavigationBar.lens.isTranslucent .~ false
-  <> UINavigationBar.lens.barTintColor .~ .white
-  <> UINavigationBar.lens.tintColor .~ .ksr_green_700
+  <> UINavigationBar.lens.tintColor .~ .ksr_create_700
+  <> UINavigationBar.lens.standardAppearance .~ navigationBarAppearance
+  <> UINavigationBar.lens.scrollEdgeAppearance .~ navigationBarAppearance
+
+private var navigationBarAppearance: UINavigationBarAppearance {
+  let navBarAppearance = UINavigationBarAppearance()
+  navBarAppearance.configureWithOpaqueBackground()
+  navBarAppearance.backgroundColor = .ksr_white
+
+  return navBarAppearance
+}
 
 public let keyboardToolbarStyle: ToolbarStyle = { toolbar -> UIToolbar in
   toolbar
     |> roundedStyle(cornerRadius: 8)
-    |> \.layer.backgroundColor .~ UIColor.white.cgColor
+    |> \.layer.backgroundColor .~ UIColor.ksr_white.cgColor
     |> \.layer.maskedCorners .~ [.layerMaxXMinYCorner, .layerMinXMinYCorner]
 }
 

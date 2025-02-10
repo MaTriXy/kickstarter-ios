@@ -90,11 +90,6 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
     )
     .map(first)
 
-    let viewIsVisible = Signal.merge(
-      self.viewDidAppearProperty.signal.mapConst(true),
-      self.viewWillDisappearProperty.signal.mapConst(false)
-    )
-
     let duration = self.durationProperty.signal.skipNil().skipRepeats()
     let rateCurrentTime = self.rateCurrentTimeProperty.signal.skipNil().skipRepeats(==)
 
@@ -114,13 +109,6 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
 
     let videoCompleted = Signal.merge(videoCompletedOnScrub, self.crossedCompletionThresholdProperty.signal)
       .take(first: 1)
-
-    let videoPaused = Signal.combineLatest(rateCurrentTime, duration)
-      .skip(first: 1)
-      .filter { rateCurrentTime, duration in rateCurrentTime.0 == pauseRate && rateCurrentTime.1 != duration }
-
-    let videoResumed = rateCurrentTime
-      .filter { rate, currentTime in currentTime > CMTime.zero && rate == playRate }
 
     let videoStarted = rateCurrentTime
       .filter { rate, currentTime in currentTime == CMTime.zero && rate == playRate }
@@ -185,23 +173,25 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
         .mapConst(1.0)
     )
 
-    project
-      .takeWhen(videoCompleted)
-      .observeValues { AppEnvironment.current.koala.trackVideoCompleted(forProject: $0) }
+    // Tracking
 
-    Signal.combineLatest(project, viewIsVisible)
-      .takeWhen(videoPaused)
-      .filter { _, isVisible in isVisible }
-      .map(first)
-      .observeValues { AppEnvironment.current.koala.trackVideoPaused(forProject: $0) }
+    /// When the rate == 1, the video is playing
+    let currentPlayTime = rateCurrentTime
+      .filter { $0.rate == 1 }
+      .map { $0.currentTime }
 
-    project
-      .takeWhen(videoResumed)
-      .observeValues { AppEnvironment.current.koala.trackVideoResume(forProject: $0) }
-
-    project
-      .takeWhen(videoStarted)
-      .observeValues { AppEnvironment.current.koala.trackVideoStart(forProject: $0) }
+    Signal.combineLatest(
+      project,
+      duration,
+      currentPlayTime
+    )
+    .observeValues { project, duration, currentPlayTime in
+      AppEnvironment.current.ksrAnalytics.trackProjectVideoPlaybackStarted(
+        project: project,
+        videoLength: lround(duration.seconds),
+        videoPosition: lround(currentPlayTime.seconds)
+      )
+    }
   }
 
   fileprivate let crossedCompletionThresholdProperty = MutableProperty(())
@@ -224,7 +214,7 @@ public final class VideoViewModel: VideoViewModelInputs, VideoViewModelOutputs, 
     self.projectProperty.value = project
   }
 
-  fileprivate let rateCurrentTimeProperty = MutableProperty<(Double, CMTime)?>(nil)
+  fileprivate let rateCurrentTimeProperty = MutableProperty<(rate: Double, currentTime: CMTime)?>(nil)
   public func rateChanged(toNew rate: Double, atTime currentTime: CMTime) {
     self.rateCurrentTimeProperty.value = (rate, currentTime)
   }

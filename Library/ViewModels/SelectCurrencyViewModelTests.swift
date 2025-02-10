@@ -61,7 +61,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     self.updateCurrencyDidSucceed.assertValueCount(0)
     self.selectCellAtIndex.assertValues([0])
 
-    withEnvironment(apiService: MockService(changeCurrencyResponse: .init())) {
+    withEnvironment(apiService: MockService(changeCurrencyResult: .success(EmptyResponseEnvelope()))) {
       self.vm.inputs.didSelectCurrency(atIndex: usdSelectedOrdering.firstIndex(of: .AUD) ?? -1)
       self.vm.inputs.saveButtonTapped()
 
@@ -124,7 +124,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     self.updateCurrencyDidSucceed.assertValueCount(0)
     self.selectCellAtIndex.assertValues([0])
 
-    withEnvironment(apiService: MockService(changeCurrencyError: .invalidInput)) {
+    withEnvironment(apiService: MockService(changeCurrencyResult: .failure(.couldNotParseJSON))) {
       self.vm.inputs.didSelectCurrency(atIndex: usdSelectedOrdering.firstIndex(of: .AUD) ?? -1)
       self.vm.inputs.saveButtonTapped()
 
@@ -160,36 +160,15 @@ internal final class SelectCurrencyViewModelTests: TestCase {
     }
   }
 
-  func testTrackSelectedChosenCurrency() {
-    self.vm.inputs.configure(with: .USD)
-    self.vm.inputs.viewDidLoad()
-
-    let usdSelectedOrdering = currencies(orderedBySelected: .USD)
-
-    XCTAssertEqual([], self.trackingClient.events)
-
-    withEnvironment(apiService: MockService(changeCurrencyResponse: .init())) {
-      self.vm.inputs.didSelectCurrency(atIndex: usdSelectedOrdering.firstIndex(of: .CHF) ?? -1)
-      self.vm.inputs.saveButtonTapped()
-
-      self.scheduler.advance()
-
-      XCTAssertEqual(["Selected Chosen Currency"], self.trackingClient.events)
-      XCTAssertEqual(
-        ["Fr Swiss Franc (CHF)"], self.trackingClient.properties(forKey: "currency", as: String.self)
-      )
-    }
-  }
-
   func testCurrenciesOrderedBySelected() {
     XCTAssertEqual(
       currencies(orderedBySelected: .USD),
-      [.USD, .EUR, .AUD, .CAD, .CHF, .DKK, .GBP, .HKD, .JPY, .MXN, .NOK, .NZD, .SEK, .SGD]
+      [.USD, .EUR, .AUD, .CAD, .CHF, .DKK, .GBP, .HKD, .JPY, .MXN, .NOK, .NZD, .PLN, .SEK, .SGD]
     )
 
     XCTAssertEqual(
       currencies(orderedBySelected: .SEK),
-      [.SEK, .EUR, .AUD, .CAD, .CHF, .DKK, .GBP, .HKD, .JPY, .MXN, .NOK, .NZD, .SGD, .USD]
+      [.SEK, .EUR, .AUD, .CAD, .CHF, .DKK, .GBP, .HKD, .JPY, .MXN, .NOK, .NZD, .PLN, .SGD, .USD]
     )
   }
 
@@ -208,6 +187,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
         SelectedCurrencyData(currency: .MXN, selected: false),
         SelectedCurrencyData(currency: .NOK, selected: false),
         SelectedCurrencyData(currency: .NZD, selected: false),
+        SelectedCurrencyData(currency: .PLN, selected: false),
         SelectedCurrencyData(currency: .SEK, selected: true),
         SelectedCurrencyData(currency: .SGD, selected: false),
         SelectedCurrencyData(currency: .USD, selected: false)
@@ -228,6 +208,7 @@ internal final class SelectCurrencyViewModelTests: TestCase {
         SelectedCurrencyData(currency: .MXN, selected: false),
         SelectedCurrencyData(currency: .NOK, selected: false),
         SelectedCurrencyData(currency: .NZD, selected: false),
+        SelectedCurrencyData(currency: .PLN, selected: false),
         SelectedCurrencyData(currency: .SEK, selected: false),
         SelectedCurrencyData(currency: .SGD, selected: false),
         SelectedCurrencyData(currency: .USD, selected: false)

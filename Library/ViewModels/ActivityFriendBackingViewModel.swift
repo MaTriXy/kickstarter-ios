@@ -1,6 +1,7 @@
 import KsApi
 import Prelude
 import ReactiveSwift
+import UIKit
 
 public protocol ActivityFriendBackingViewModelInputs {
   /// Call to configure with an Activity.
@@ -62,15 +63,15 @@ public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewMode
         return title.simpleHtmlAttributedString(
           base: [
             NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: UIColor.ksr_text_dark_grey_500
+            NSAttributedString.Key.foregroundColor: UIColor.ksr_support_400
           ],
           bold: [
             NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+            NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
           ],
           italic: [
             NSAttributedString.Key.font: UIFont.ksr_subhead(size: 12),
-            NSAttributedString.Key.foregroundColor: UIColor.ksr_soft_black
+            NSAttributedString.Key.foregroundColor: UIColor.ksr_support_700
           ]
         )
           ?? .init()
@@ -113,11 +114,11 @@ public final class ActivityFriendBackingViewModel: ActivityFriendBackingViewMode
 private func progressBarColor(forActivityCategory category: Activity.Category) -> UIColor {
   switch category {
   case .cancellation, .failure, .suspension:
-    return .ksr_dark_grey_400
+    return .ksr_support_400
   case .launch, .success:
-    return .ksr_green_700
+    return .ksr_create_700
   default:
-    return .ksr_green_700
+    return .ksr_create_700
   }
 }
 
@@ -150,6 +151,6 @@ private func percentFundedString(forActivity activity: Activity) -> NSAttributed
 
   return NSAttributedString(string: percentage, attributes: [
     NSAttributedString.Key.font: UIFont.ksr_caption1(size: 10),
-    NSAttributedString.Key.foregroundColor: UIColor.ksr_green_700
+    NSAttributedString.Key.foregroundColor: UIColor.ksr_create_700
   ])
 }
