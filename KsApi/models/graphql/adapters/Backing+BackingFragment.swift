@@ -1,3 +1,4 @@
+import GraphAPI
 import Prelude
 import ReactiveSwift
 
@@ -34,18 +35,26 @@ extension Backing {
         .compactMap { PledgePaymentIncrement(withGraphQLFragment: $0.fragments.paymentIncrementFragment) }
     }
 
+    var backingOrder: Order?
+
+    if let order = backingFragment.order {
+      backingOrder = Order(withGraphQLFragment: order.fragments.orderFragment)
+    }
+
     return Backing(
       addOns: addOns,
       amount: backingFragment.amount.fragments.moneyFragment.amount.flatMap(Double.init) ?? 0,
       backer: backer,
       backerId: backerId,
       backerCompleted: backingFragment.backerCompleted,
+      backingDetailsPageRoute: backingFragment.backingDetailsPageRoute,
       bonusAmount: backingFragment.bonusAmount.fragments.moneyFragment.amount.flatMap(Double.init) ?? 0,
       cancelable: backingFragment.cancelable,
       id: id,
       isLatePledge: backingFragment.isLatePledge,
       locationId: locationId,
       locationName: backingFragment.location?.fragments.locationFragment.name,
+      order: backingOrder,
       paymentIncrements: paymentIncrements,
       paymentSource: backingPaymentSource(from: backingFragment),
       pledgedAt: backingFragment.pledgedOn.flatMap(Double.init) ?? 0,
@@ -83,18 +92,26 @@ private func backingReward(from backingFragment: GraphAPI.BackingFragment) -> Re
 }
 
 private func backingPaymentSource(from backingFragment: GraphAPI.BackingFragment) -> Backing.PaymentSource? {
-  guard
-    let creditCard = backingFragment.creditCard?.fragments.creditCardFragment.asCreditCard,
-    let paymentType = PaymentType(rawValue: creditCard.paymentType.rawValue),
-    let type = CreditCardType(rawValue: creditCard.type.rawValue)
-  else { return nil }
+  if let creditCard = backingFragment.paymentSource?.fragments.paymentSourceFragment.asCreditCard {
+    guard let paymentType = PaymentType(rawValue: creditCard.paymentType.rawValue),
+          let type = CreditCardType(rawValue: creditCard.type.rawValue)
+    else { return nil }
 
+    return Backing.PaymentSource(
+      expirationDate: creditCard.expirationDate,
+      id: creditCard.id,
+      lastFour: creditCard.lastFour,
+      paymentType: paymentType,
+      type: type
+    )
+  }
+  guard let bankAccount = backingFragment.paymentSource?.fragments.paymentSourceFragment.asBankAccount
+  else { return nil }
   return Backing.PaymentSource(
-    expirationDate: creditCard.expirationDate,
-    id: creditCard.id,
-    lastFour: creditCard.lastFour,
-    paymentType: paymentType,
-    state: creditCard.state.rawValue,
-    type: type
+    expirationDate: nil,
+    id: bankAccount.id,
+    lastFour: bankAccount.lastFour,
+    paymentType: .bankAccount,
+    type: nil
   )
 }

@@ -34,8 +34,13 @@ extension Project {
     displayPrelaunch: nil,
     flagging: false,
     id: 1,
+    lastWave: nil,
     location: .template,
     name: "The Project",
+    pledgeManager: nil,
+    pledgeOverTimeCollectionPlanChargeExplanation: "The first charge will occur when the project ends successfully, then every 2 weeks until fully paid. When this option is selected no further edits can be made to your pledge.",
+    pledgeOverTimeCollectionPlanChargedAsNPayments: "charged as four payments",
+    pledgeOverTimeCollectionPlanShortPitch: "You will be charged for your pledge over four payments, at no extra cost.",
     pledgeOverTimeMinimumExplanation: "Available for pledges over $125",
     personalization: Project.Personalization(
       backing: nil,
@@ -47,6 +52,7 @@ extension Project {
     isInPostCampaignPledgingPhase: false,
     postCampaignPledgingEnabled: false,
     prelaunchActivated: nil,
+    redemptionPageUrl: "/projects/creator/a-fun-project/backing/redeem",
     rewardData: RewardData(addOns: nil, rewards: []),
     sendMetaCapiEvents: false,
     slug: "a-fun-project",
@@ -75,7 +81,7 @@ extension Project {
     |> Project.lens.stats.pledged .~ 212_870
     |> Project.lens.stats.goal .~ 24_000
 
-  internal static let cosmicSurgery = .template
+  internal static let cosmicSurgery = Project.template
     |> Project.lens.photo.full .~ "https://i.kickstarter.com/assets/012/347/230/2eddca8c4a06ecb69b8787b985201b92_original.jpg?fit=contain&origin=ugc&q=92&width=460&sig=ewWbTA9q%2BTNYpB9KQnwXKCfjCJum57sWhpZkp%2FiwHKY%3D"
     |> Project.lens.photo.med .~ "https://i.kickstarter.com/assets/012/347/230/2eddca8c4a06ecb69b8787b985201b92_original.jpg?fit=contain&origin=ugc&q=92&width=460&sig=ewWbTA9q%2BTNYpB9KQnwXKCfjCJum57sWhpZkp%2FiwHKY%3D"
     |> Project.lens.photo.small .~ "https://i.kickstarter.com/assets/012/347/230/2eddca8c4a06ecb69b8787b985201b92_original.jpg?fit=contain&origin=ugc&q=92&width=460&sig=ewWbTA9q%2BTNYpB9KQnwXKCfjCJum57sWhpZkp%2FiwHKY%3D"
@@ -86,9 +92,9 @@ extension Project {
     |> Project.lens.stats.pledged .~ 22_318
     |> Project.lens.stats.goal .~ 22_000
     |> Project.lens.stats.staticUsdRate .~ 1.31
-    |> Project.lens.stats.currency .~ Project.Country.gb.currencyCode
-    |> Project.lens.stats.currentCurrency .~ "USD"
-    |> Project.lens.stats.currentCurrencyRate .~ 1.31
+    |> Project.lens.stats.projectCurrency .~ Project.Country.gb.currencyCode
+    |> Project.lens.stats.userCurrency .~ "USD"
+    |> Project.lens.stats.userCurrencyRate .~ 1.31
     |> (Project.lens.location .. Location.lens.displayableName) .~ "Hastings, UK"
     |> Project.lens.country .~ .gb
     |> Project.lens.creator .~ (
@@ -113,6 +119,12 @@ extension Project {
     |> Project.lens.stats.pledged .~ 406_237
     |> Project.lens.stats.goal .~ 200_000
     |> (Project.lens.location .. Location.lens.displayableName) .~ "Burbank, CA"
+
+  internal static let netNewBacker = Project.template
+    |> Project.lens.personalization.backing .~ nil
+    |> Project.lens.personalization.isBacking .~ false
+    |> Project.lens.lastWave .~ LastWave(id: 1, active: true)
+    |> Project.lens.pledgeManager .~ PledgeManager(id: 1, acceptsNewBackers: true)
 }
 
 private let cosmicSurgeryRewards: [Reward] = [

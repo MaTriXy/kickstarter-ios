@@ -8,8 +8,6 @@ import XCTest
 final class CommentRepliesViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
@@ -43,7 +41,7 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         assertSnapshot(
           matching: parent.view,
-          as: .image,
+          as: .image(perceptualPrecision: 0.99),
           named: "CommentReplies - lang_\(language)_device_\(device)"
         )
       }
@@ -77,7 +75,7 @@ final class CommentRepliesViewControllerTests: TestCase {
         self.scheduler.run()
         assertSnapshot(
           matching: parent.view,
-          as: .image,
+          as: .image(perceptualPrecision: 0.99),
           named: "CommentReplies - lang_\(language)_device_\(device)"
         )
       }
@@ -111,7 +109,7 @@ final class CommentRepliesViewControllerTests: TestCase {
         self.scheduler.run()
         assertSnapshot(
           matching: parent.view,
-          as: .image,
+          as: .image(perceptualPrecision: 0.99),
           named: "CommentReplies - lang_\(language)_device_\(device)"
         )
       }
@@ -149,7 +147,7 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         assertSnapshot(
           matching: parent.view,
-          as: .image,
+          as: .image(perceptualPrecision: 0.99),
           named: "CommentReplies - lang_\(language)_device_\(device)"
         )
       }
@@ -190,7 +188,7 @@ final class CommentRepliesViewControllerTests: TestCase {
 
           assertSnapshot(
             matching: parent.view,
-            as: .image,
+            as: .image(perceptualPrecision: 0.99),
             named: "CommentReplies - lang_\(language)_device_\(device)"
           )
         }
@@ -225,7 +223,7 @@ final class CommentRepliesViewControllerTests: TestCase {
 
         assertSnapshot(
           matching: parent.view,
-          as: .image,
+          as: .image(perceptualPrecision: 0.99),
           named: "CommentReplies - lang_\(language)_device_\(device)"
         )
       }

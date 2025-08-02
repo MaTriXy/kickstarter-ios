@@ -32,7 +32,7 @@ public enum PledgeExpandableRewardsHeaderItem {
 public struct PledgeExpandableRewardsHeaderViewData {
   public let rewards: [Reward]
   public let selectedQuantities: SelectedRewardQuantities
-  public let projectCountry: Project.Country
+  public let currencyCode: String
   public let omitCurrencyCode: Bool
 }
 
@@ -139,7 +139,7 @@ private func items(
   total: Double
 ) -> [PledgeExpandableRewardsHeaderItem] {
   guard let totalAmountAttributedText = attributedHeaderCurrency(
-    with: data.projectCountry, amount: total, omitUSCurrencyCode: data.omitCurrencyCode
+    with: data.currencyCode, amount: total, omitUSCurrencyCode: data.omitCurrencyCode
   ) else { return [] }
 
   let headerItem = PledgeExpandableRewardsHeaderItem.header(.init(
@@ -158,7 +158,7 @@ private func items(
 
     let amount = quantity > 1 ? reward.minimum * Double(quantity) : reward.minimum
     let amountAttributedText = attributedRewardCurrency(
-      with: data.projectCountry, amount: amount, omitUSCurrencyCode: data.omitCurrencyCode
+      with: data.currencyCode, amount: amount, omitUSCurrencyCode: data.omitCurrencyCode
     )
 
     return PledgeExpandableRewardsHeaderItem.reward(.init(
@@ -174,17 +174,17 @@ private func items(
 }
 
 private func attributedHeaderCurrency(
-  with projectCountry: Project.Country,
+  with currencyCode: String,
   amount: Double,
   omitUSCurrencyCode: Bool
 ) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_400])
+    .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_400.uiColor()])
   let superscriptAttributes = checkoutCurrencySuperscriptAttributes()
   guard
     let attributedCurrency = Format.attributedCurrency(
       amount,
-      country: projectCountry,
+      currencyCode: currencyCode,
       omitCurrencyCode: omitUSCurrencyCode,
       defaultAttributes: defaultAttributes,
       superscriptAttributes: superscriptAttributes,
@@ -196,13 +196,13 @@ private func attributedHeaderCurrency(
 }
 
 private func attributedRewardCurrency(
-  with projectCountry: Project.Country,
+  with currencyCode: String,
   amount: Double,
   omitUSCurrencyCode: Bool
 ) -> NSAttributedString {
   let currencyString = Format.currency(
     amount,
-    country: projectCountry,
+    currencyCode: currencyCode,
     omitCurrencyCode: omitUSCurrencyCode,
     maximumFractionDigits: 0,
     minimumFractionDigits: 0
@@ -211,7 +211,7 @@ private func attributedRewardCurrency(
   return NSAttributedString(
     string: currencyString,
     attributes: [
-      .foregroundColor: UIColor.ksr_support_400,
+      .foregroundColor: LegacyColors.ksr_support_400.uiColor(),
       .font: UIFont.ksr_subhead().bolded
     ]
   )

@@ -49,6 +49,17 @@ internal final class ActivitiesDataSource: ValueCellDataSource {
         self.appendRow(value: activity, cellClass: ActivityFriendFollowCell.self, toSection: section)
       case .cancellation, .failure, .launch, .success, .suspension:
         self.appendRow(value: activity, cellClass: ActivityProjectStatusCell.self, toSection: section)
+      case .shipped:
+        guard let rewardTrackingActivityData = rewardTrackingActivitiyData(from: activity) else {
+          assert(false, "Unable to create a RewardTrackingActivitiesCellData from activity: \(activity)")
+          return
+        }
+
+        self.appendRow(
+          value: rewardTrackingActivityData,
+          cellClass: RewardTrackingActivitiesCell.self,
+          toSection: section
+        )
       default:
         assertionFailure("Unsupported activity: \(activity)")
       }
@@ -69,10 +80,31 @@ internal final class ActivitiesDataSource: ValueCellDataSource {
       cell.configureWith(value: activity)
     case let (cell as ActivitySurveyResponseCell, value as (SurveyResponse, Int, Int)):
       cell.configureWith(value: value)
+    case let (cell as RewardTrackingActivitiesCell, value as RewardTrackingActivitiesCellData):
+      cell.configureWith(value: value)
     case (is StaticTableViewCell, is Void):
       return
     default:
       assertionFailure("Unrecognized combo: \(cell), \(value)")
     }
+  }
+
+  private func rewardTrackingActivitiyData(from activity: Activity) -> RewardTrackingActivitiesCellData? {
+    guard featureRewardShipmentTrackingEnabled() == true,
+          let project = activity.project,
+          let trackingNumber = activity.trackingNumber
+    else {
+      return nil
+    }
+
+    let trackingData = RewardTrackingDetailsViewData(
+      trackingNumber: trackingNumber,
+      trackingURL: URL(string: activity.trackingUrl ?? "")
+    )
+
+    return RewardTrackingActivitiesCellData(
+      trackingData: trackingData,
+      project: project
+    )
   }
 }

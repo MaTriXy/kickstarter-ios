@@ -1,0 +1,10 @@
+query BuildPaymentPlan($slug: String!, $amount: String!, $includeRefundedAmount: Boolean!) {
+  project(slug: $slug) {
+    paymentPlan(amount: $amount) {
+      amountIsPledgeOverTimeEligible
+      paymentIncrements {
+        ...PaymentIncrementFragment
+      }
+    }
+  }
+}

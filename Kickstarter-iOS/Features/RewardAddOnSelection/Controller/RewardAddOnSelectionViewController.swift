@@ -11,17 +11,19 @@ final class RewardAddOnSelectionViewController: UIViewController {
   private lazy var headerLabel: UILabel = UILabel(frame: .zero)
   private lazy var headerView: UIView = UIView(frame: .zero)
   private lazy var headerRootStackView: UIStackView = UIStackView(frame: .zero)
-  private lazy var pledgeShippingLocationViewController: PledgeShippingLocationViewController = {
-    PledgeShippingLocationViewController.instantiate()
-      |> \.delegate .~ self
-  }()
 
   private lazy var continueCTAView: RewardAddOnSelectionContinueCTAView = {
     RewardAddOnSelectionContinueCTAView(frame: .zero)
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
-  public weak var pledgeViewDelegate: NoShippingPledgeViewControllerDelegate?
+  /// Bonus support
+  private lazy var pledgeAmountViewController = {
+    PledgeAmountViewController.instantiate()
+      |> \.delegate .~ self
+  }()
+
+  public weak var pledgeViewDelegate: PledgeViewControllerDelegate?
 
   private lazy var refreshControl: UIRefreshControl = { UIRefreshControl() }()
 
@@ -37,7 +39,8 @@ final class RewardAddOnSelectionViewController: UIViewController {
       |> \.tableHeaderView .~ self.headerView
   }()
 
-  private let viewModel: RewardAddOnSelectionViewModelType = RewardAddOnSelectionViewModel()
+  private let viewModel: RewardAddOnSelectionViewModelType =
+    RewardAddOnSelectionViewModel()
 
   // MARK: - Lifecycle
 
@@ -96,11 +99,11 @@ final class RewardAddOnSelectionViewController: UIViewController {
       |> ksr_addSubviewToParent()
       |> ksr_constrainViewToEdgesInParent(priority: UILayoutPriority(rawValue: 999))
 
-    _ = ([self.headerLabel, self.pledgeShippingLocationViewController.view], self.headerRootStackView)
+    _ = ([self.headerLabel, self.pledgeAmountViewController.view], self.headerRootStackView)
       |> ksr_addArrangedSubviewsToStackView()
 
-    self.addChild(self.pledgeShippingLocationViewController)
-    self.pledgeShippingLocationViewController.didMove(toParent: self)
+    self.addChild(self.pledgeAmountViewController)
+    self.pledgeAmountViewController.didMove(toParent: self)
   }
 
   private func setupConstraints() {
@@ -132,7 +135,6 @@ final class RewardAddOnSelectionViewController: UIViewController {
     _ = self.headerLabel
       |> \.numberOfLines .~ 0
       |> \.font .~ UIFont.ksr_title2().bolded
-      |> \.text .~ Strings.Customize_your_reward_with_optional_addons()
 
     _ = self.headerRootStackView
       |> \.isLayoutMarginsRelativeArrangement .~ true
@@ -146,8 +148,7 @@ final class RewardAddOnSelectionViewController: UIViewController {
   override func bindViewModel() {
     super.bindViewModel()
 
-    self.pledgeShippingLocationViewController.view.rac.hidden
-      = self.viewModel.outputs.shippingLocationViewIsHidden
+    self.headerLabel.rac.text = self.viewModel.outputs.headerTitle
 
     self.viewModel.outputs.configureContinueCTAViewWithData
       .observeForUI()
@@ -155,10 +156,10 @@ final class RewardAddOnSelectionViewController: UIViewController {
         self?.continueCTAView.configure(with: data)
       }
 
-    self.viewModel.outputs.configurePledgeShippingLocationViewControllerWithData
+    self.viewModel.outputs.configurePledgeAmountViewWithData
       .observeForUI()
       .observeValues { [weak self] data in
-        self?.pledgeShippingLocationViewController.configureWith(value: data)
+        self?.pledgeAmountViewController.configureWith(value: data)
       }
 
     self.viewModel.outputs.loadAddOnRewardsIntoDataSourceAndReloadTableView
@@ -180,7 +181,7 @@ final class RewardAddOnSelectionViewController: UIViewController {
         guard let self else { return }
 
         if data.context == .latePledge {
-          self.goToConfirmDetails(data: data)
+          self.goToLatePledge(data: data)
         } else {
           self.goToPledge(data: data)
         }
@@ -211,41 +212,20 @@ final class RewardAddOnSelectionViewController: UIViewController {
 
   // MARK: Functions
 
-  private func goToConfirmDetails(data: PledgeViewData) {
-    let vc = ConfirmDetailsViewController.instantiate()
+  private func goToLatePledge(data: PledgeViewData) {
+    let vc = PostCampaignCheckoutViewController.instantiate()
     vc.configure(with: data)
     vc.title = self.title
 
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
-  private func goToPledge(data _: PledgeViewData) {
-    // TODO: This class will be removed as part of our legacy checkout cleanup
+  private func goToPledge(data: PledgeViewData) {
+    let vc = PledgeViewController.instantiate()
+    vc.delegate = self.pledgeViewDelegate
+    vc.configure(with: data)
 
-//    let vc = PledgeViewController.instantiate()
-//    vc.delegate = self.pledgeViewDelegate
-//    vc.configure(with: data)
-//
-//    self.navigationController?.pushViewController(vc, animated: true)
-  }
-}
-
-// MARK: - PledgeShippingLocationViewControllerDelegate
-
-extension RewardAddOnSelectionViewController: PledgeShippingLocationViewControllerDelegate {
-  func pledgeShippingLocationViewController(
-    _: PledgeShippingLocationViewController,
-    didSelect shippingRule: ShippingRule
-  ) {
-    self.viewModel.inputs.shippingRuleSelected(shippingRule)
-  }
-
-  func pledgeShippingLocationViewControllerLayoutDidUpdate(_: PledgeShippingLocationViewController, _: Bool) {
-    self.tableView.ksr_sizeHeaderFooterViewsToFit()
-  }
-
-  func pledgeShippingLocationViewControllerFailedToLoad(_: PledgeShippingLocationViewController) {
-    self.viewModel.inputs.shippingLocationViewDidFailToLoad()
+    self.navigationController?.pushViewController(vc, animated: true)
   }
 }
 
@@ -258,6 +238,17 @@ extension RewardAddOnSelectionViewController: RewardAddOnCardViewDelegate {
     rewardId: Int
   ) {
     self.viewModel.inputs.rewardAddOnCardViewDidSelectQuantity(quantity: quantity, rewardId: rewardId)
+  }
+}
+
+// MARK: - PledgeAmountViewControllerDelegate
+
+extension RewardAddOnSelectionViewController: PledgeAmountViewControllerDelegate {
+  func pledgeAmountViewController(
+    _: PledgeAmountViewController,
+    didUpdateWith data: PledgeAmountData
+  ) {
+    self.viewModel.inputs.pledgeAmountViewControllerDidUpdate(with: data)
   }
 }
 

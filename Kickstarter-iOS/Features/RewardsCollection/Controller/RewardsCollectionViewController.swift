@@ -20,6 +20,13 @@ final class RewardsCollectionViewController: UICollectionViewController {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
+  /// The bottom-up modal for selecting a new shipping location
+  private lazy var pledgeShippingLocationViewController = {
+    PledgeShippingLocationViewController.instantiate()
+      |> \.delegate .~ self
+      |> \.view.layoutMargins .~ .init(all: Styles.grid(3))
+  }()
+
   private let layout: UICollectionViewFlowLayout = {
     UICollectionViewFlowLayout()
       |> \.minimumLineSpacing .~ Styles.grid(3)
@@ -29,10 +36,10 @@ final class RewardsCollectionViewController: UICollectionViewController {
   }()
 
   private lazy var navigationBarShadowImage: UIImage? = {
-    UIImage(in: CGRect(x: 0, y: 0, width: 1, height: 0.5), with: .ksr_support_400)
+    UIImage(in: CGRect(x: 0, y: 0, width: 1, height: 0.5), with: LegacyColors.ksr_support_400.uiColor())
   }()
 
-  public weak var pledgeViewDelegate: NoShippingPledgeViewControllerDelegate?
+  public weak var pledgeViewDelegate: PledgeViewControllerDelegate?
 
   private lazy var rewardsCollectionFooterView: RewardsCollectionViewFooter = {
     RewardsCollectionViewFooter(frame: .zero)
@@ -44,10 +51,16 @@ final class RewardsCollectionViewController: UICollectionViewController {
   static func instantiate(
     with project: Project,
     refTag: RefTag?,
-    context: RewardsCollectionViewContext
+    context: RewardsCollectionViewContext,
+    secretRewardToken: String? = nil
   ) -> RewardsCollectionViewController {
     let rewardsCollectionVC = RewardsCollectionViewController()
-    rewardsCollectionVC.viewModel.inputs.configure(with: project, refTag: refTag, context: context)
+    rewardsCollectionVC.viewModel.inputs.configure(
+      with: project,
+      refTag: refTag,
+      context: context,
+      secretRewardToken: secretRewardToken
+    )
 
     return rewardsCollectionVC
   }
@@ -66,13 +79,19 @@ final class RewardsCollectionViewController: UICollectionViewController {
     _ = self
       |> \.extendedLayoutIncludesOpaqueBars .~ true
 
-    if featurePostCampaignPledgeEnabled() {
-      _ = (self.headerView, self.view)
-        |> ksr_addSubviewToParent()
-    }
-
     _ = self.collectionView
       |> \.dataSource .~ self.dataSource
+      |> \.isHidden .~ true
+
+    _ = (self.headerView, self.view)
+      |> ksr_addSubviewToParent()
+
+    /// Adding this to the CollectionView Header's rootStackView from here so that we can handle the shipping view's delegates from this view controller.
+    _ = ([self.pledgeShippingLocationViewController.view], self.headerView.rootStackView)
+      |> ksr_addArrangedSubviewsToStackView()
+
+    self.addChild(self.pledgeShippingLocationViewController)
+    self.pledgeShippingLocationViewController.didMove(toParent: self)
 
     _ = (self.rewardsCollectionFooterView, self.view)
       |> ksr_addSubviewToParent()
@@ -86,6 +105,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
     )
 
     self.setupConstraints()
+    self.viewModel.inputs.shippingRuleSelected(nil)
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -131,6 +151,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
       |> checkoutBackgroundStyle
 
     _ = self.headerView
+      |> \.backgroundColor .~ LegacyColors.ksr_alert.uiColor()
       |> \.layoutMargins .~ .init(all: Styles.grid(3))
 
     _ = self.collectionView
@@ -155,7 +176,7 @@ final class RewardsCollectionViewController: UICollectionViewController {
         self?.collectionView.reloadData()
       }
 
-    self.viewModel.outputs.scrollToBackedRewardIndexPath
+    self.viewModel.outputs.scrollToRewardIndexPath
       .observeForUI()
       .observeValues { [weak self] indexPath in
         self?.collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: false)
@@ -167,16 +188,20 @@ final class RewardsCollectionViewController: UICollectionViewController {
         self?.goToAddOnSelection(data: data)
       }
 
-    self.viewModel.outputs.goToPledge
+    self.viewModel.outputs.goToCustomizeYourReward
       .observeForControllerAction()
       .observeValues { [weak self] data in
         guard let self else { return }
+        /// Goes to screen that only has the pledge amount or bonus amount selectors
+        self.goToAddOnSelection(data: data)
+      }
 
-        if data.context == .latePledge {
-          self.goToConfirmDetails(data: data)
-        } else {
-          self.goToPledge(data: data)
-        }
+    self.viewModel.outputs.rewardsCollectionViewIsHidden
+      .observeForUI()
+      .observeValues { [weak self] rewardsCollectionViewIsHidden in
+        guard let self else { return }
+
+        self.collectionView.isHidden = rewardsCollectionViewIsHidden
       }
 
     self.viewModel.outputs.rewardsCollectionViewFooterIsHidden
@@ -213,6 +238,17 @@ final class RewardsCollectionViewController: UICollectionViewController {
       .observeValues { [weak self] title, message in
         self?.showEditRewardConfirmationPrompt(title: title, message: message)
       }
+
+    // MARK: - Shipping Location Outputs
+
+    self.pledgeShippingLocationViewController.view.rac.hidden = self.viewModel.outputs
+      .shippingLocationViewHidden
+
+    self.viewModel.outputs.configureShippingLocationViewWithData
+      .observeForUI()
+      .observeValues { [weak self] data in
+        self?.pledgeShippingLocationViewController.configureWith(value: data)
+      }
   }
 
   // MARK: - Functions
@@ -221,24 +257,16 @@ final class RewardsCollectionViewController: UICollectionViewController {
     _ = self.collectionView
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
 
-    if featurePostCampaignPledgeEnabled() {
-      self.headerView.leftAnchor.constraint(equalTo: self.view.leftAnchor).isActive = true
-      self.headerView.rightAnchor.constraint(equalTo: self.view.rightAnchor).isActive = true
-      self.headerView.topAnchor.constraint(equalTo: self.view.topAnchor).isActive = true
-    }
-
     NSLayoutConstraint.activate([
+      self.headerView.leftAnchor.constraint(equalTo: self.view.leftAnchor),
+      self.headerView.rightAnchor.constraint(equalTo: self.view.rightAnchor),
+      self.headerView.topAnchor.constraint(equalTo: self.view.topAnchor),
       self.rewardsCollectionFooterView.leftAnchor.constraint(equalTo: self.view.leftAnchor),
       self.rewardsCollectionFooterView.rightAnchor.constraint(equalTo: self.view.rightAnchor),
       self.rewardsCollectionFooterView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
       self.collectionView.leftAnchor.constraint(equalTo: self.view.leftAnchor),
       self.collectionView.rightAnchor.constraint(equalTo: self.view.rightAnchor),
-      self.collectionView.topAnchor
-        .constraint(
-          equalTo: featurePostCampaignPledgeEnabled()
-            ? self.headerView.bottomAnchor
-            : self.view.topAnchor
-        )
+      self.collectionView.topAnchor.constraint(equalTo: self.headerView.bottomAnchor)
     ])
 
     self.collectionViewBottomConstraintFooterView = self.collectionView.bottomAnchor
@@ -282,24 +310,6 @@ final class RewardsCollectionViewController: UICollectionViewController {
     vc.pledgeViewDelegate = self.pledgeViewDelegate
     vc.configure(with: data)
     vc.navigationItem.title = self.title
-    self.navigationController?.pushViewController(vc, animated: true)
-  }
-
-  private func goToPledge(data _: PledgeViewData) {
-    // TODO: This class will be removed as part of our legacy checkout cleanup
-
-//    let pledgeViewController = PledgeViewController.instantiate()
-//    pledgeViewController.delegate = self.pledgeViewDelegate
-//    pledgeViewController.configure(with: data)
-//
-//    self.navigationController?.pushViewController(pledgeViewController, animated: true)
-  }
-
-  private func goToConfirmDetails(data: PledgeViewData) {
-    let vc = ConfirmDetailsViewController.instantiate()
-    vc.configure(with: data)
-    vc.title = self.title
-
     self.navigationController?.pushViewController(vc, animated: true)
   }
 
@@ -370,6 +380,28 @@ extension RewardsCollectionViewController: RewardCellDelegate {
   }
 }
 
+// MARK: - PledgeShippingLocationViewControllerDelegate
+
+extension RewardsCollectionViewController: PledgeShippingLocationViewControllerDelegate {
+  func pledgeShippingLocationViewController(
+    _: PledgeShippingLocationViewController,
+    didSelect shippingRule: ShippingRule
+  ) {
+    self.viewModel.inputs.shippingRuleSelected(shippingRule)
+  }
+
+  func pledgeShippingLocationViewControllerLayoutDidUpdate(
+    _: PledgeShippingLocationViewController,
+    _ shimmerLoadingViewIsHidden: Bool
+  ) {
+    self.viewModel.inputs.pledgeShippingLocationViewControllerDidUpdate(shimmerLoadingViewIsHidden)
+  }
+
+  func pledgeShippingLocationViewControllerFailedToLoad(_: PledgeShippingLocationViewController) {
+    self.viewModel.inputs.shippingLocationViewDidFailToLoad()
+  }
+}
+
 // MARK: Styles
 
 private var collectionViewStyle: CollectionViewStyle = { collectionView -> UICollectionView in
@@ -381,13 +413,19 @@ private var collectionViewStyle: CollectionViewStyle = { collectionView -> UICol
 extension RewardsCollectionViewController {
   public static func controller(
     with project: Project,
-    refTag: RefTag?
+    refTag: RefTag?,
+    secretRewardToken: String?
   ) -> UINavigationController {
     let rewardsCollectionViewController = RewardsCollectionViewController
-      .instantiate(with: project, refTag: refTag, context: .createPledge)
+      .instantiate(
+        with: project,
+        refTag: refTag,
+        context: .createPledge,
+        secretRewardToken: secretRewardToken
+      )
 
     let closeButton = UIBarButtonItem(
-      image: UIImage(named: "icon--cross"),
+      image: image(named: "icon--cross"),
       style: .plain,
       target: rewardsCollectionViewController,
       action: #selector(RewardsCollectionViewController.closeButtonTapped)

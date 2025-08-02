@@ -1,0 +1,110 @@
+fragment ProjectFragment on Project {
+  availableCardTypes
+  backersCount
+  category {
+    ...CategoryFragment
+  }
+  canComment
+  commentsCount(withReplies: true)
+  country {
+    ...CountryFragment
+  }
+  creator {
+    ...UserFragment
+  }
+  currency
+  deadlineAt
+  description
+  environmentalCommitments {
+    commitmentCategory
+    description
+    id
+  }
+  aiDisclosure {
+    id
+    fundingForAiAttribution
+    fundingForAiConsent
+    fundingForAiOption
+    generatedByAiConsent
+    generatedByAiDetails
+    involvesAi
+    involvesFunding
+    involvesGeneration
+    involvesOther
+    otherAiDetails
+  }
+  faqs {
+    nodes {
+      question
+      answer
+      id
+      createdAt
+    }
+  }
+  finalCollectionDate
+  fxRate
+  goal {
+    ...MoneyFragment
+  }
+  image {
+    id
+    url(width: 1024)
+  }
+  isPledgeOverTimeAllowed
+  isProjectWeLove
+  isProjectOfTheDay
+  isWatched
+  isLaunched
+  isInPostCampaignPledgingPhase
+  lastWave {
+    ...LastWaveFragment
+  }
+  launchedAt
+  location {
+    ...LocationFragment
+  }
+  maxPledge
+  minPledge
+  name
+  pid
+  pledgeManager {
+    ...PledgeManagerFragment
+  }
+  pledgeOverTimeCollectionPlanChargeExplanation
+  pledgeOverTimeCollectionPlanChargedAsNPayments
+  pledgeOverTimeCollectionPlanShortPitch
+  pledgeOverTimeMinimumExplanation
+  pledged {
+    ...MoneyFragment
+  }
+  postCampaignPledgingEnabled
+  posts {
+    totalCount
+  }
+  prelaunchActivated
+  projectNotice
+  redemptionPageUrl
+  risks
+  sendMetaCapiEvents
+  slug
+  state
+  stateChangedAt
+  story
+  tags(scope: DISCOVER) {
+    name
+  }
+  url
+  usdExchangeRate
+  video {
+    id
+    videoSources {
+      high {
+        src
+      }
+      hls {
+        src
+      }
+    }
+  }
+  watchesCount
+}

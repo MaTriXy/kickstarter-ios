@@ -55,6 +55,8 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
   internal override func bindStyles() {
     super.bindStyles()
 
+    self.view.backgroundColor = Colors.Background.Surface.primary.uiColor()
+
     _ = self.replyBarButtonItem
       |> UIBarButtonItem.lens.title %~ { _ in Strings.general_navigation_buttons_reply() }
   }
@@ -115,6 +117,10 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
       .observeForControllerAction()
       .observeValues { [weak self] params in self?.goToBacking(with: params) }
 
+    self.viewModel.outputs.goToPledgeManagementViewPledge
+      .observeForControllerAction()
+      .observeValues { [weak self] url in self?.goToPMPledeView(with: url) }
+
     self.viewModel.outputs.didBlockUser
       .observeForUI()
       .observeValues { [weak self] _ in
@@ -170,7 +176,7 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
   }
 
   fileprivate func goTo(project: Project, refTag: RefTag) {
-    let projectParam = Either<Project, Param>(left: project)
+    let projectParam = Either<Project, any ProjectPageParam>(left: project)
     let vc = ProjectPageViewController.configuredWith(
       projectOrParam: projectParam,
       refInfo: RefInfo(refTag)
@@ -184,6 +190,11 @@ internal final class MessagesViewController: UITableViewController, MessageBanne
 
   fileprivate func goToBacking(with params: ManagePledgeViewParamConfigData) {
     let vc = ManagePledgeViewController.controller(with: params)
+    self.present(vc, animated: true)
+  }
+
+  fileprivate func goToPMPledeView(with url: String) {
+    let vc = SurveyResponseViewController.configuredWith(surveyUrl: url)
     self.present(vc, animated: true)
   }
 

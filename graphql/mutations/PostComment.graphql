@@ -1,0 +1,7 @@
+mutation PostComment($input: PostCommentInput!) {
+  createComment(input: $input) {
+    comment {
+      ...CommentFragment
+    }
+  }
+}

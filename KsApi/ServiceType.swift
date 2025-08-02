@@ -1,4 +1,7 @@
+import Apollo
+import ApolloAPI
 import Combine
+import GraphAPI
 import Prelude
 import ReactiveSwift
 import UIKit
@@ -32,6 +35,13 @@ public protocol ServiceType {
     deviceIdentifier: String,
     apolloClient: ApolloClientType?
   )
+
+  /// Adds a user to a secret reward user group
+  func addUserToSecretRewardGroup(input: AddUserToSecretRewardGroupInput) ->
+    SignalProducer<EmptyResponseEnvelope, ErrorEnvelope>
+
+  /// Fetches a GraphQL query and returns the data.
+  func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope>
 
   /// Returns a new service with the oauth token replaced.
   func login(_ oauthToken: OauthTokenAuthType) -> Self
@@ -137,24 +147,21 @@ public protocol ServiceType {
   func fetchProjectComments(
     slug: String,
     cursor: String?,
-    limit: Int?,
-    withStoredCards: Bool
+    limit: Int?
   ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
 
   /// Fetch comments for an update with an id, cursor, limit and comments' users' stored cards.
   func fetchUpdateComments(
     id: String,
     cursor: String?,
-    limit: Int?,
-    withStoredCards: Bool
+    limit: Int?
   ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope>
 
   /// Fetch comment replies for a comment with an id, limit, cursor and user information with stored cards.
   func fetchCommentReplies(
     id: String,
     cursor: String?,
-    limit: Int,
-    withStoredCards: Bool
+    limit: Int
   ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope>
 
   /// Fetch the config.
@@ -212,6 +219,10 @@ public protocol ServiceType {
   func fetchBacking(id: Int, withStoredCards: Bool)
     -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
 
+  /// Explicitly fetches backing details including `refundedAmount` in the `paymentIncrements`.
+  func fetchBackingWithIncrementsRefundedAmount(id: Int, withStoredCards: Bool)
+    -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope>
+
   /// Fetches all of the messages in a particular message thread.
   func fetchMessageThread(messageThreadId: Int)
     -> SignalProducer<MessageThreadEnvelope, ErrorEnvelope>
@@ -234,6 +245,10 @@ public protocol ServiceType {
   /// (currently only used on `ProjectPamphetViewModel`and `ProjectPageViewModel`  because it's a GQL query)
   func fetchProject(projectParam: Param, configCurrency: String?)
     -> SignalProducer<Project.ProjectPamphletData, ErrorEnvelope>
+
+  /// Fetch the project's rewards and pledge over time data
+  func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
+    -> SignalProducer<RewardsAndPledgeOverTimeEnvelope, ErrorEnvelope>
 
   /// Fetch the project's rewards only, without shipping rules
   func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope>
@@ -314,10 +329,12 @@ public protocol ServiceType {
   func followFriend(userId id: Int) -> SignalProducer<User, ErrorEnvelope>
 
   /// Increment the video complete stat for a project.
-  func incrementVideoCompletion(forProject project: Project) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
+  func incrementVideoCompletion(for project: any HasProjectWebURL)
+    -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
   /// Increment the video start stat for a project.
-  func incrementVideoStart(forProject project: Project) -> SignalProducer<VoidEnvelope, ErrorEnvelope>
+  func incrementVideoStart(forProject project: any HasProjectWebURL)
+    -> SignalProducer<VoidEnvelope, ErrorEnvelope>
 
   /// Attempt a login with an email, password and optional code.
   func login(email: String, password: String, code: String?) ->

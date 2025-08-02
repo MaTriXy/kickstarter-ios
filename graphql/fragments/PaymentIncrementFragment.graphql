@@ -1,0 +1,13 @@
+fragment PaymentIncrementFragment on PaymentIncrement {
+  amount {
+    amountFormattedInProjectNativeCurrency
+    currency
+  }
+  scheduledCollection
+  state
+  stateReason
+  refundedAmount @include(if: $includeRefundedAmount) {
+    amountFormattedInProjectNativeCurrency
+    currency
+  }
+}

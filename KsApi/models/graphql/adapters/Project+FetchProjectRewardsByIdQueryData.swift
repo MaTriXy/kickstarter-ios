@@ -1,4 +1,5 @@
 import Apollo
+import GraphAPI
 import Prelude
 import ReactiveSwift
 
@@ -61,5 +62,45 @@ extension Project {
         Reward.reward(from: rewardFragment, expandedShippingRules: expandedShippingRules)
       }
     return projectRewards ?? []
+  }
+
+  static func projectRewardsAndPledgeOverTimeDataProducer(
+    from data: GraphAPI.FetchProjectRewardsByIdQuery.Data
+  ) -> SignalProducer<
+    RewardsAndPledgeOverTimeEnvelope,
+    ErrorEnvelope
+  > {
+    let projectRewards = Project.projectRewardsAndPledgeOverTimeData(from: data)
+
+    return SignalProducer(value: projectRewards)
+  }
+
+  static func projectRewardsAndPledgeOverTimeData(
+    from data: GraphAPI.FetchProjectRewardsByIdQuery
+      .Data
+  ) -> RewardsAndPledgeOverTimeEnvelope {
+    let rewards = self.projectRewards(from: data)
+
+    guard let pledgeOverTimeFragment = data.project?.fragments.pledgeOverTimeFragment else {
+      return RewardsAndPledgeOverTimeEnvelope(
+        rewards: rewards,
+        isPledgeOverTimeAllowed: false,
+        pledgeOverTimeCollectionPlanChargeExplanation: nil,
+        pledgeOverTimeCollectionPlanChargedAsNPayments: nil,
+        pledgeOverTimeCollectionPlanShortPitch: nil,
+        pledgeOverTimeMinimumExplanation: nil
+      )
+    }
+
+    return RewardsAndPledgeOverTimeEnvelope(
+      rewards: rewards,
+      isPledgeOverTimeAllowed: pledgeOverTimeFragment.isPledgeOverTimeAllowed,
+      pledgeOverTimeCollectionPlanChargeExplanation: pledgeOverTimeFragment
+        .pledgeOverTimeCollectionPlanChargeExplanation,
+      pledgeOverTimeCollectionPlanChargedAsNPayments: pledgeOverTimeFragment
+        .pledgeOverTimeCollectionPlanChargedAsNPayments,
+      pledgeOverTimeCollectionPlanShortPitch: pledgeOverTimeFragment.pledgeOverTimeCollectionPlanShortPitch,
+      pledgeOverTimeMinimumExplanation: pledgeOverTimeFragment.pledgeOverTimeMinimumExplanation
+    )
   }
 }

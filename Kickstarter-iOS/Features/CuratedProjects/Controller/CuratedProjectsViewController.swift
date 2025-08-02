@@ -158,7 +158,7 @@ final class CuratedProjectsViewController: UIViewController {
   // MARK: - Functions
 
   fileprivate func goToProject(_ project: Project, projects _: [Project], refTag: RefTag) {
-    let projectParam = Either<Project, Param>(left: project)
+    let projectParam = Either<Project, any ProjectPageParam>(left: project)
     let vc = ProjectPageViewController.configuredWith(
       projectOrParam: projectParam,
       refInfo: RefInfo(refTag)
@@ -183,7 +183,7 @@ extension CuratedProjectsViewController: UITableViewDelegate {
 
 private let doneButtonStyle: BarButtonStyle = { button in
   button
-    |> \.tintColor .~ .ksr_white
+    |> \.tintColor .~ LegacyColors.ksr_white.uiColor()
 }
 
 private let headerViewStyle: ViewStyle = { view in
@@ -193,7 +193,7 @@ private let headerViewStyle: ViewStyle = { view in
 
 private let tableViewStyle: TableViewStyle = { view in
   view
-    |> \.backgroundColor .~ .ksr_white
+    |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
     |> \.separatorStyle .~ .none
     |> \.rowHeight .~ UITableView.automaticDimension
     |> \.estimatedRowHeight .~ 550

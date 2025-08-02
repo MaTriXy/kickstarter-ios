@@ -1,3 +1,4 @@
+import Foundation
 import KsApi
 import Prelude
 import ReactiveExtensions
@@ -27,6 +28,9 @@ public protocol ActitiviesViewModelInputs {
 
   /// Call when the respond button is tapped in a survey cell.
   func tappedRespondNow(forSurveyResponse surveyResponse: SurveyResponse)
+
+  /// Call when the Track shipping button is tapped in a TrackingActivitiesCell.
+  func tappedTrackShipping(with trackingURL: URL)
 
   /// Call when a user session ends.
   func userSessionEnded()
@@ -73,6 +77,9 @@ public protocol ActivitiesViewModelOutputs {
 
   /// Emits a project and update when we should navigate to that update.
   var goToUpdate: Signal<(Project, Update), Never> { get }
+
+  /// Emits a tracking URL when we should navigate to a shipping tracking page.
+  var goToTrackShipping: Signal<URL, Never> { get }
 
   /// Emits a boolean that indicates if the activities are refreshing.
   var isRefreshing: Signal<Bool, Never> { get }
@@ -179,8 +186,9 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
       .map { _ in AppEnvironment.current.currentUser }
 
     let erroredBackingsEvent = currentUser
-      // Only fetch/show errored backings in activity if PPO is not available.
-      .filter { _ in !featurePledgedProjectsOverviewEnabled() }
+      // TODO: Remove this whole set of Signals as these live in Backings Dashboard now.
+      // https://kickstarter.atlassian.net/browse/MBL-2255
+      .filter { _ in false }
       .skipNil()
       .switchMap { _ in
         AppEnvironment.current.apiService.fetchErroredUserBackings(status: .errored)
@@ -270,6 +278,8 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
         project: project
       )
     }
+
+    self.goToTrackShipping = self.tappedTrackShippingProperty.signal.skipNil()
   }
 
   fileprivate let currentUserUpdatedProperty = MutableProperty(())
@@ -318,6 +328,11 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
     self.tappedActivityProperty.value = activity
   }
 
+  fileprivate let tappedTrackShippingProperty = MutableProperty<URL?>(nil)
+  public func tappedTrackShipping(with trackingURL: URL) {
+    self.tappedTrackShippingProperty.value = trackingURL
+  }
+
   fileprivate let userSessionStartedProperty = MutableProperty(())
   public func userSessionStarted() {
     self.userSessionStartedProperty.value = ()
@@ -347,6 +362,7 @@ public final class ActivitiesViewModel: ActivitiesViewModelType, ActitiviesViewM
   public let goToProject: Signal<(Project, RefTag), Never>
   public let goToSurveyResponse: Signal<SurveyResponse, Never>
   public let goToUpdate: Signal<(Project, Update), Never>
+  public let goToTrackShipping: Signal<URL, Never>
   public let showEmptyStateIsLoggedIn: Signal<Bool, Never>
   public let unansweredSurveys: Signal<[SurveyResponse], Never>
   public let updateUserInEnvironment: Signal<User, Never>

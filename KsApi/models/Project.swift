@@ -14,14 +14,20 @@ public struct Project {
   public var displayPrelaunch: Bool?
   public var flagging: Bool?
   public var id: Int
+  public var lastWave: LastWave?
   public var location: Location
   public var name: String
-  public var pledgeOverTimeMinimumExplanation: String
+  public var pledgeManager: PledgeManager?
+  public var pledgeOverTimeCollectionPlanChargeExplanation: String?
+  public var pledgeOverTimeCollectionPlanChargedAsNPayments: String?
+  public var pledgeOverTimeCollectionPlanShortPitch: String?
+  public var pledgeOverTimeMinimumExplanation: String?
   public var personalization: Personalization
   public var photo: Photo
   public var isInPostCampaignPledgingPhase: Bool
   public var postCampaignPledgingEnabled: Bool
   public var prelaunchActivated: Bool?
+  public var redemptionPageUrl: String
   public var rewardData: RewardData
   public var sendMetaCapiEvents: Bool
   public var slug: String
@@ -78,12 +84,12 @@ public struct Project {
     public var commentsCount: Int?
     public var convertedPledgedAmount: Float?
     /// The currency code of the project ex. USD
-    public var currency: String
+    public var projectCurrency: String
     /// The currency code of the User's preferred currency ex. SEK
-    public var currentCurrency: String?
+    public var userCurrency: String?
     /// The currency conversion rate between the User's preferred currency
     /// and the Project's currency
-    public var currentCurrencyRate: Float?
+    public var userCurrencyRate: Float?
     public var goal: Int
     public var pledged: Int
     public var staticUsdRate: Float
@@ -116,9 +122,9 @@ public struct Project {
       return floor(Float(self.goal) * self.staticUsdRate)
     }
 
-    /// Goal amount converted to current currency.
-    public var goalCurrentCurrency: Float? {
-      return self.currentCurrencyRate.map { floor(Float(self.goal) * $0) }
+    /// Goal amount converted to user's currency.
+    public var goalUserCurrency: Float? {
+      return self.userCurrencyRate.map { floor(Float(self.goal) * $0) }
     }
 
     /// Goal amount, converted to USD, irrespective of the users selected currency
@@ -126,27 +132,27 @@ public struct Project {
       return Float(self.goal) * (self.usdExchangeRate ?? 0)
     }
 
-    /// Country determined by current currency.
-    public var currentCountry: Project.Country? {
-      guard let currentCurrency = self.currentCurrency else {
+    /// Country determined by user's currency.
+    public var userCountry: Project.Country? {
+      guard let userCurrency = self.userCurrency else {
         return nil
       }
 
-      return Project.Country(currencyCode: currentCurrency)
+      return Project.Country(currencyCode: userCurrency)
     }
 
     /// Omit US currency code
     public var omitUSCurrencyCode: Bool {
-      let currentCurrency = self.currentCurrency ?? Project.Country.us.currencyCode
+      let userCurrency = self.userCurrency ?? Project.Country.us.currencyCode
 
-      return currentCurrency == Project.Country.us.currencyCode
+      return userCurrency == Project.Country.us.currencyCode
     }
 
     /// Project pledge & goal values need conversion
     public var needsConversion: Bool {
-      let currentCurrency = self.currentCurrency ?? Project.Country.us.currencyCode
+      let userCurrency = self.userCurrency ?? Project.Country.us.currencyCode
 
-      return self.currency != currentCurrency
+      return self.projectCurrency != userCurrency
     }
 
     public var goalMet: Bool {
@@ -279,13 +285,20 @@ extension Project: Decodable {
     case displayPrelaunch = "display_prelaunch"
     case flagging
     case id
+    case lastWave
     case location
     case name
     case photo
+    case pledgeManager
+    case pledgeOverTimeCollectionPlanChargeExplanation = "pledge_over_time_collection_plan_charge_explanation"
+    case pledgeOverTimeCollectionPlanChargedAsNPayments =
+      "pledge_over_time_collection_plan_charged_as_n_payments"
+    case pledgeOverTimeCollectionPlanShortPitch = "pledge_over_time_collection_plan_short_pitch"
     case pledgeOverTimeMinimumExplanation = "pledge_over_time_minimum_explanation"
     case isInPostCampaignPledgingPhase = "is_in_post_campaign_pledging_phase"
     case postCampaignPledgingEnabled = "post_campaign_pledging_enabled"
     case prelaunchActivated = "prelaunch_activated"
+    case redemptionPageUrl
     case sendMetaCapiEvents = "send_meta_capi_events"
     case slug
     case staffPick = "staff_pick"
@@ -309,12 +322,26 @@ extension Project: Decodable {
     self.extendedProjectProperties = nil
     self.flagging = try values.decodeIfPresent(Bool.self, forKey: .flagging) ?? false
     self.id = try values.decode(Int.self, forKey: .id)
+    self.lastWave = try values.decodeIfPresent(LastWave.self, forKey: .lastWave)
     self.location = (try? values.decodeIfPresent(Location.self, forKey: .location)) ?? Location.none
     self.name = try values.decode(String.self, forKey: .name)
     self.personalization = try Project.Personalization(from: decoder)
     self.photo = try values.decode(Photo.self, forKey: .photo)
     self.isInPostCampaignPledgingPhase =
       try values.decodeIfPresent(Bool.self, forKey: .isInPostCampaignPledgingPhase) ?? false
+    self.pledgeManager = try values.decodeIfPresent(PledgeManager.self, forKey: .pledgeManager)
+    self.pledgeOverTimeCollectionPlanChargeExplanation = try values.decodeIfPresent(
+      String.self,
+      forKey: .pledgeOverTimeCollectionPlanChargeExplanation
+    ) ?? ""
+    self.pledgeOverTimeCollectionPlanChargedAsNPayments = try values.decodeIfPresent(
+      String.self,
+      forKey: .pledgeOverTimeCollectionPlanChargedAsNPayments
+    ) ?? ""
+    self.pledgeOverTimeCollectionPlanShortPitch = try values.decodeIfPresent(
+      String.self,
+      forKey: .pledgeOverTimeCollectionPlanShortPitch
+    ) ?? ""
     self.pledgeOverTimeMinimumExplanation = try values.decodeIfPresent(
       String.self,
       forKey: .pledgeOverTimeMinimumExplanation
@@ -322,6 +349,7 @@ extension Project: Decodable {
     self.postCampaignPledgingEnabled =
       try values.decodeIfPresent(Bool.self, forKey: .postCampaignPledgingEnabled) ?? false
     self.prelaunchActivated = try values.decodeIfPresent(Bool.self, forKey: .prelaunchActivated)
+    self.redemptionPageUrl = try values.decodeIfPresent(String.self, forKey: .redemptionPageUrl) ?? ""
     self.rewardData = try Project.RewardData(from: decoder)
     self.sendMetaCapiEvents = try values.decodeIfPresent(Bool.self, forKey: .sendMetaCapiEvents) ?? false
     self.slug = try values.decode(String.self, forKey: .slug)
@@ -370,9 +398,9 @@ extension Project.Stats: Decodable {
     self.backersCount = try values.decode(Int.self, forKey: .backersCount)
     self.commentsCount = try values.decodeIfPresent(Int.self, forKey: .commentsCount)
     self.convertedPledgedAmount = try values.decodeIfPresent(Float.self, forKey: .convertedPledgedAmount)
-    self.currency = try values.decode(String.self, forKey: .currency)
-    self.currentCurrency = try values.decodeIfPresent(String.self, forKey: .currentCurrency)
-    self.currentCurrencyRate = try values.decodeIfPresent(Float.self, forKey: .currentCurrencyRate)
+    self.projectCurrency = try values.decode(String.self, forKey: .currency)
+    self.userCurrency = try values.decodeIfPresent(String.self, forKey: .currentCurrency)
+    self.userCurrencyRate = try values.decodeIfPresent(Float.self, forKey: .currentCurrencyRate)
     self.goal = try values.decode(Int.self, forKey: .goal)
     let value = try values.decode(Double.self, forKey: .pledged)
     self.pledged = Int(value)
@@ -480,3 +508,13 @@ extension Project: GraphIDBridging {
 }
 
 extension Project.Video: Decodable {}
+
+extension Project {
+  public var pledgeManagementAvailable: Bool {
+    let isBacking = self.personalizationIsBacking ?? false
+    let lastWaveActive = self.lastWave?.active ?? false
+    let pmAcceptsNewBackers = self.pledgeManager?.acceptsNewBackers ?? false
+
+    return lastWaveActive && (pmAcceptsNewBackers || isBacking)
+  }
+}

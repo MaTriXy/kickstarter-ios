@@ -1,5 +1,4 @@
 import Foundation
-import KsApi
 
 public struct Backing {
   public let addOns: [Reward]?
@@ -7,12 +6,20 @@ public struct Backing {
   public let backer: User?
   public let backerId: Int
   public let backerCompleted: Bool?
+
+  // Route used to load backing details. Currently points to `backing/survey_responses`
+  // instead of `backing/details` to avoid triggering a webview login prompt.
+  // The original `backing/details` endpoint requires re-authentication,
+  // even if the user is already authenticated in the app.
+  // This may be revisited if the backend updates the auth behavior of `backing/details`.
+  public let backingDetailsPageRoute: String
   public let bonusAmount: Double
   public let cancelable: Bool
   public let id: Int
   public let isLatePledge: Bool
   public let locationId: Int?
   public let locationName: String?
+  public let order: Order?
   public let paymentIncrements: [PledgePaymentIncrement]
   public let paymentSource: PaymentSource?
   public let pledgedAt: TimeInterval
@@ -30,7 +37,7 @@ public struct Backing {
     public var id: String?
     public var lastFour: String?
     public var paymentType: PaymentType
-    public var state: String
+    public var state: String?
     public var type: CreditCardType?
   }
 
@@ -38,6 +45,9 @@ public struct Backing {
     case canceled
     case collected
     case dropped
+    // A dummy pledge is a $0.0 pledge that was created behind the scenes
+    // to allow a net new backer to create a pledge management cart.
+    case dummy
     case errored
     case pledged
     case preauth
@@ -58,12 +68,14 @@ extension Backing: Decodable {
     case backer
     case backerId = "backer_id"
     case backerCompleted = "backer_completed_at"
+    case backingDetailsUrl
     case bonusAmount = "bonus_amount"
     case cancelable
     case id
     case isLatePledge
     case locationId = "location_id"
     case locationName = "location_name"
+    case order
     case paymentIncrements = "payment_increments"
     case paymentSource = "payment_source"
     case pledgedAt = "pledged_at"
@@ -84,12 +96,14 @@ extension Backing: Decodable {
     self.backer = try values.decodeIfPresent(User.self, forKey: .backer)
     self.backerId = try values.decode(Int.self, forKey: .backerId)
     self.backerCompleted = try values.decodeIfPresent(Int.self, forKey: .backerCompleted) != nil
+    self.backingDetailsPageRoute = try values.decodeIfPresent(String.self, forKey: .backingDetailsUrl) ?? ""
     self.bonusAmount = try values.decodeIfPresent(Double.self, forKey: .bonusAmount) ?? 0.0
     self.cancelable = try values.decode(Bool.self, forKey: .cancelable)
     self.id = try values.decode(Int.self, forKey: .id)
     self.isLatePledge = try values.decodeIfPresent(Bool.self, forKey: .isLatePledge) ?? false
     self.locationId = try values.decodeIfPresent(Int.self, forKey: .locationId)
     self.locationName = try values.decodeIfPresent(String.self, forKey: .locationName)
+    self.order = try? values.decodeIfPresent(Order.self, forKey: .order)
     self.paymentIncrements = try values.decodeIfPresent(
       [PledgePaymentIncrement].self,
       forKey: .paymentIncrements
@@ -121,7 +135,6 @@ extension Backing.PaymentSource: Decodable {
     case id
     case lastFour = "last_four"
     case paymentType = "payment_type"
-    case state
     case type
   }
 }

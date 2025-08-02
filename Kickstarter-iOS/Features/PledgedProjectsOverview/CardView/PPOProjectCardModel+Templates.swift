@@ -1,9 +1,11 @@
 import Foundation
+import GraphAPI
 import KsApi
 
 #if targetEnvironment(simulator)
   extension PPOProjectCardModel {
     public static let previewTemplates: [PPOProjectCardModel] = [
+      managePledgeTemplate,
       confirmAddressTemplate,
       addressLockTemplate,
       fixPaymentTemplate,
@@ -20,7 +22,7 @@ import KsApi
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
-      creatorName: "rokaplay truncate if longer than",
+      creatorName: "rokaplay truncate if longer than this extra long string",
       address: """
         Firsty Lasty
         123 First Street, Apt #5678
@@ -52,7 +54,7 @@ import KsApi
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
-      creatorName: "rokaplay truncate if longer than",
+      creatorName: "rokaplay truncate if longer than this extra long string",
       address: nil,
       actions: (.completeSurvey, nil),
       tierType: .openSurvey,
@@ -76,7 +78,7 @@ import KsApi
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
-      creatorName: "rokaplay truncate if longer than",
+      creatorName: "rokaplay truncate if longer than this extra long string",
       address: nil,
       actions: (.fixPayment, nil),
       tierType: .fixPayment,
@@ -100,9 +102,9 @@ import KsApi
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
-      creatorName: "rokaplay truncate if longer than",
+      creatorName: "rokaplay truncate if longer than this extra long string",
       address: nil,
-      actions: (.authenticateCard(clientSecret: ""), nil),
+      actions: (.authenticateCard(clientSecret: "seti_asdqwe_secret_x"), nil),
       tierType: .authenticateCard,
       backingDetailsUrl: "fakeBackingDetailsUrl",
       backingId: 47,
@@ -119,10 +121,29 @@ import KsApi
       projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
       projectId: 12_345,
       pledge: "$50.00",
-      creatorName: "rokaplay truncate if longer than",
+      creatorName: "rokaplay truncate if longer than this extra long string",
       address: nil,
       actions: (.completeSurvey, nil),
       tierType: .openSurvey,
+      backingDetailsUrl: "fakeBackingDetailsUrl",
+      backingId: 47,
+      backingGraphId: "backing-fake-id",
+      projectAnalytics: Self.projectAnalyticsFragmentTemplate
+    )
+
+    internal static let managePledgeTemplate = PPOProjectCardModel(
+      isUnread: true,
+      alerts: [
+        .init(type: .warning, icon: .alert, message: "Finalize your pledge")
+      ],
+      image: .network(URL(string: "https:///")!),
+      projectName: "Sugardew Island - Your cozy farm shop let’s pretend this is a way way way longer title",
+      projectId: 12_345,
+      pledge: "$50.00",
+      creatorName: "rokaplay truncate if longer than this extra long string",
+      address: nil,
+      actions: (.managePledge, nil),
+      tierType: .pledgeManagement,
       backingDetailsUrl: "fakeBackingDetailsUrl",
       backingId: 47,
       backingGraphId: "backing-fake-id",
@@ -135,9 +156,9 @@ import KsApi
       backing: nil,
       category: nil,
       commentsCount: 42,
-      country: .init(code: .us),
+      country: .init(code: GraphQLEnum.case(.us)),
       creator: nil,
-      currency: .usd,
+      currency: GraphQLEnum.case(.usd),
       deadlineAt: nil,
       launchedAt: nil,
       pid: 42,
@@ -149,13 +170,70 @@ import KsApi
       projectTags: [],
       postCampaignPledgingEnabled: false,
       rewards: nil,
-      state: .successful,
+      state: GraphQLEnum.case(.successful),
       video: nil,
       pledged: .init(amount: nil),
       fxRate: 4,
       usdExchangeRate: nil,
       posts: nil,
       goal: nil
+    )
+
+    internal static let shortTextTemplate = PPOProjectCardModel(
+      isUnread: true,
+      alerts: [
+        .init(type: .warning, icon: .time, message: "Wait"),
+        .init(
+          type: .alert,
+          icon: .alert,
+          message: "Bad"
+        )
+      ],
+      image: .network(URL(string: "https:///")!),
+      projectName: "Project",
+      projectId: 12_345,
+      pledge: "$50.00",
+      creatorName: "Bob",
+      address: nil,
+      actions: (.completeSurvey, nil),
+      tierType: .openSurvey,
+      backingDetailsUrl: "fakeBackingDetailsUrl",
+      backingId: 47,
+      backingGraphId: "backing-fake-id",
+      projectAnalytics: Self.projectAnalyticsFragmentTemplate
+    )
+
+    internal static let lotsOfFlagsTemplate = PPOProjectCardModel(
+      isUnread: true,
+      alerts: [
+        .init(
+          type: .warning,
+          icon: .time,
+          message: "This is a very very very very very very very very very very long flag"
+        ),
+        .init(
+          type: .alert,
+          icon: .alert,
+          message: "Also long"
+        ),
+        .init(
+          type: .alert,
+          icon: .alert,
+          message: "And still very long"
+        )
+      ],
+      image: .network(URL(string: "https:///")!),
+      projectName: "Project",
+      projectId: 12_345,
+      pledge: "$50.00",
+      creatorName: "Bob",
+      address: nil,
+      actions: (.completeSurvey, nil),
+      tierType: .openSurvey,
+      backingDetailsUrl: "fakeBackingDetailsUrl",
+      backingId: 47,
+      backingGraphId: "backing-fake-id",
+      projectAnalytics: Self.projectAnalyticsFragmentTemplate
     )
   }
 #endif

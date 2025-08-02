@@ -8,6 +8,8 @@ protocol ManagePledgeViewControllerDelegate: AnyObject {
     _ viewController: ManagePledgeViewController,
     managePledgeViewControllerFinishedWithMessage message: String?
   )
+
+  func managePledgeViewControllerDidDismiss(_ viewController: ManagePledgeViewController)
 }
 
 final class ManagePledgeViewController: UIViewController, MessageBannerViewControllerPresenting {
@@ -28,7 +30,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
 
   private lazy var closeButton: UIBarButtonItem = {
     UIBarButtonItem(
-      image: UIImage(named: "icon--cross"),
+      image: image(named: "icon--cross"),
       style: .plain,
       target: self,
       action: #selector(ManagePledgeViewController.closeButtonTapped)
@@ -42,7 +44,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
 
   private lazy var menuButton: UIBarButtonItem = {
     UIBarButtonItem(
-      image: UIImage(named: "icon--more-menu"),
+      image: image(named: "icon--more-menu"),
       style: .plain,
       target: self,
       action: #selector(ManagePledgeViewController.menuButtonTapped)
@@ -83,11 +85,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
   }()
 
   private lazy var pledgeDetailsSectionViews = {
-    [self.pledgeDetailsSectionLabel, self.rewardReceivedViewController.view, self.pledgeDisclaimerView]
-  }()
-
-  private lazy var pledgeDisclaimerView: PledgeDisclaimerView = {
-    PledgeDisclaimerView(frame: .zero)
+    [self.pledgeDetailsSectionLabel]
   }()
 
   private lazy var pledgeSummaryViewController: ManagePledgeSummaryViewController = {
@@ -123,10 +121,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
 
   private lazy var refreshControl: UIRefreshControl = { UIRefreshControl() }()
 
-  private lazy var rewardReceivedViewController: ManageViewPledgeRewardReceivedViewController = {
-    ManageViewPledgeRewardReceivedViewController.instantiate()
-  }()
-
   private lazy var rootStackView: UIStackView = {
     UIStackView(frame: .zero)
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
@@ -160,7 +154,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
     )
 
     self.configureViews()
-    self.configureDisclaimerView()
 
     self.viewModel.inputs.viewDidLoad()
   }
@@ -189,9 +182,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
     _ = self.rootStackView
       |> checkoutRootStackViewStyle
 
-    _ = self.pledgeDisclaimerView
-      |> roundedStyle(cornerRadius: Styles.grid(2))
-
     _ = self.pledgeDetailsSectionLabel
       |> pledgeDetailsSectionLabelStyle
 
@@ -207,9 +197,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
     super.bindViewModel()
 
     self.pledgeDetailsSectionLabel.rac.text = self.viewModel.outputs.pledgeDetailsSectionLabelText
-    self.pledgeDisclaimerView.rac.hidden = self.viewModel.outputs.pledgeDisclaimerViewHidden
-    self.rewardReceivedViewController.view.rac.hidden =
-      self.viewModel.outputs.rewardReceivedViewControllerViewIsHidden
 
     self.viewModel.outputs.paymentMethodViewHidden
       .observeForUI()
@@ -241,12 +228,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
       .observeForUI()
       .observeValues { [weak self] data in
         self?.pledgeSummaryViewController.configureWith(data)
-      }
-
-    self.viewModel.outputs.configureRewardReceivedWithData
-      .observeForControllerAction()
-      .observeValues { [weak self] data in
-        self?.rewardReceivedViewController.configureWith(data: data)
       }
 
     self.viewModel.outputs.loadProjectAndRewardsIntoDataSource
@@ -284,6 +265,12 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
       }
 
     self.viewModel.outputs.goToRewards
+      .observeForControllerAction()
+      .observeValues { [weak self] project in
+        self?.goToRewards(project)
+      }
+
+    self.viewModel.outputs.goToEditPledgeOverTime
       .observeForControllerAction()
       .observeValues { [weak self] project in
         self?.goToRewards(project)
@@ -341,11 +328,8 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
 
     self.viewModel.outputs.configurePlotPaymentScheduleView
       .observeForUI()
-      .observeValues { [weak self] increments, project in
-        self?.plotPaymentScheduleViewController.configure(
-          with: increments,
-          project: project
-        )
+      .observeValues { [weak self] increments in
+        self?.plotPaymentScheduleViewController.configure(with: increments)
       }
 
     self.viewModel.outputs.showWebHelp
@@ -372,26 +356,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
   }
 
   // MARK: Functions
-
-  private func configureDisclaimerView() {
-    let string1 = Strings.Remember_that_delivery_dates_are_not_guaranteed()
-    let string2 = Strings.Delays_or_changes_are_possible()
-
-    let paragraphStyle = NSMutableParagraphStyle()
-    paragraphStyle.lineSpacing = 2
-
-    let attributedText = string1
-      .appending(String.nbsp)
-      .appending(string2)
-      .attributed(
-        with: UIFont.ksr_footnote(),
-        foregroundColor: .ksr_support_400,
-        attributes: [.paragraphStyle: paragraphStyle],
-        bolding: [string1]
-      )
-
-    self.pledgeDisclaimerView.configure(with: ("calendar-icon", attributedText))
-  }
 
   private func configureViews() {
     _ = (self.tableView, self.view)
@@ -427,7 +391,6 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
       |> ksr_addArrangedSubviewsToStackView()
 
     [
-      self.rewardReceivedViewController,
       self.pledgeSummaryViewController,
       self.plotPaymentScheduleViewController
     ]
@@ -492,7 +455,9 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
     self.viewModel.inputs.beginRefresh()
   }
 
-  private func showActionSheetMenuWithOptions(_ options: [ManagePledgeAlertAction]) {
+  private func showActionSheetMenuWithOptions(
+    _ options: [ManagePledgeAlertAction]
+  ) {
     let actionSheet = UIAlertController.alert(
       title: Strings.Select_an_option(),
       preferredStyle: .actionSheet,
@@ -503,6 +468,8 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
       let title: String
 
       switch option {
+      case .editPledgeOverTimePledge:
+        title = Strings.Edit_pledge()
       case .changePaymentMethod:
         title = Strings.Change_payment_method()
       case .chooseAnotherReward:
@@ -533,17 +500,18 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
 
   @objc private func closeButtonTapped() {
     self.dismiss(animated: true)
+    self.delegate?.managePledgeViewControllerDidDismiss(self)
   }
 
   // MARK: - Functions
 
   private func goToRewards(_ project: Project) {
-    let vc = WithShippingRewardsCollectionViewController.instantiate(
+    let vc = RewardsCollectionViewController.instantiate(
       with: project,
       refTag: nil,
       context: .managePledge
     )
-    vc.noShippingPledgeViewDelegate = self
+    vc.pledgeViewDelegate = self
 
     self.navigationController?.pushViewController(vc, animated: true)
   }
@@ -557,7 +525,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
   }
 
   private func goToChangePaymentMethod(data: PledgeViewData) {
-    let vc = NoShippingPledgeViewController.instantiate()
+    let vc = PledgeViewController.instantiate()
     vc.configure(with: data)
     vc.delegate = self
 
@@ -565,7 +533,7 @@ final class ManagePledgeViewController: UIViewController, MessageBannerViewContr
   }
 
   private func goToFixPaymentMethod(data: PledgeViewData) {
-    let vc = NoShippingPledgeViewController.instantiate()
+    let vc = PledgeViewController.instantiate()
     vc.configure(with: data)
     vc.delegate = self
 
@@ -601,10 +569,10 @@ extension ManagePledgeViewController: ManagePledgePaymentMethodViewDelegate {
   }
 }
 
-// MARK: - NoShippingPledgeViewControllerDelegate
+// MARK: - PledgeViewControllerDelegate
 
-extension ManagePledgeViewController: NoShippingPledgeViewControllerDelegate {
-  func noShippingPledgeViewControllerDidUpdatePledge(_: NoShippingPledgeViewController, message: String) {
+extension ManagePledgeViewController: PledgeViewControllerDelegate {
+  func pledgeViewControllerDidUpdatePledge(_: PledgeViewController, message: String) {
     self.viewModel.inputs.pledgeViewControllerDidUpdatePledgeWithMessage(message)
   }
 }
@@ -640,7 +608,7 @@ extension ManagePledgeViewController {
     managePledgeViewController.delegate = delegate
 
     let closeButton = UIBarButtonItem(
-      image: UIImage(named: "icon--cross"),
+      image: image(named: "icon--cross"),
       style: .plain,
       target: managePledgeViewController,
       action: #selector(ManagePledgeViewController.closeButtonTapped)

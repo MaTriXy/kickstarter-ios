@@ -1,5 +1,6 @@
 import Apollo
 import Foundation
+import GraphAPI
 @testable import KsApi
 
 public enum FetchCommentRepliesQueryTemplate {
@@ -9,9 +10,9 @@ public enum FetchCommentRepliesQueryTemplate {
   var data: GraphAPI.FetchCommentRepliesQuery.Data {
     switch self {
     case .valid:
-      return GraphAPI.FetchCommentRepliesQuery.Data(unsafeResultMap: self.validResultMap)
+      return try! testGraphObject(data: self.validResultMap)
     case .errored:
-      return GraphAPI.FetchCommentRepliesQuery.Data(unsafeResultMap: self.erroredResultMap)
+      return try! testGraphObject<GraphAPI.FetchCommentRepliesQuery.Data>(data: self.erroredResultMap)
     }
   }
 
@@ -69,6 +70,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 3,
                     "chosenCurrency": null,
@@ -107,8 +109,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc0Mzc2Mg==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -116,6 +122,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 42,
                     "chosenCurrency": null,
@@ -154,8 +161,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc0NDk4Nw==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -163,6 +174,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 4,
                     "chosenCurrency": null,
@@ -201,8 +213,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc0NTUyNA==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -210,6 +226,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 3,
                     "chosenCurrency": null,
@@ -248,8 +265,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc0NTY2Nw==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -257,6 +278,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 42,
                     "chosenCurrency": null,
@@ -295,8 +317,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc0NjMxMA==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -304,6 +330,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 4,
                     "chosenCurrency": null,
@@ -342,8 +369,12 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc1MjkxOQ==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
               },
               {
@@ -351,6 +382,7 @@ public enum FetchCommentRepliesQueryTemplate {
                 "node": {
                   "__typename": "Comment",
                   "author": {
+                    "__typename": "User",
                     "backings": null,
                     "backingsCount": 2,
                     "chosenCurrency": null,
@@ -397,10 +429,14 @@ public enum FetchCommentRepliesQueryTemplate {
                   "id": "Q29tbWVudC0zNDc1NTU5NA==",
                   "parentId": "Q29tbWVudC0zNDc0MDc3NA==",
                   "replies": {
+                    "__typename": "CommentConnection",
                     "totalCount": 0
-                  }
+                  },
+                  "hasFlaggings": false,
+                  "removedPerGuidelines": false,
+                  "sustained": false
                 }
-              }
+              },
             ],
             "pageInfo": {
               "__typename": "PageInfo",
@@ -408,7 +444,10 @@ public enum FetchCommentRepliesQueryTemplate {
               "startCursor": "Mg=="
             },
             "totalCount": 8
-          }
+          },
+          "hasFlaggings": false,
+          "removedPerGuidelines": false,
+          "sustained": false
         }
     }
     """
@@ -418,7 +457,7 @@ public enum FetchCommentRepliesQueryTemplate {
     return (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]) ?? [:]
   }
 
-  private var erroredResultMap: [String: Any?] {
+  private var erroredResultMap: [String: Any] {
     return CommentFragmentTemplate.valid.data
   }
 }

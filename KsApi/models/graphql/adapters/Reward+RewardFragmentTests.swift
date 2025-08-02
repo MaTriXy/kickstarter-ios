@@ -1,3 +1,4 @@
+import GraphAPI
 @testable import KsApi
 import Prelude
 import XCTest
@@ -6,7 +7,10 @@ final class Reward_RewardFragmentTests: XCTestCase {
   func test() {
     do {
       let variables = ["includeShippingRules": true, "includeLocalPickup": true]
-      let fragment = try GraphAPI.RewardFragment(jsonObject: rewardDictionary(), variables: variables)
+      let fragment: GraphAPI.RewardFragment = try testGraphObject(
+        jsonObject: rewardDictionary(),
+        variables: variables
+      )
       XCTAssertNotNil(fragment)
 
       let dateFormatter = DateFormatter()
@@ -55,6 +59,12 @@ final class Reward_RewardFragmentTests: XCTestCase {
 
       XCTAssertEqual(v1Reward.isLimitedQuantity, false)
       XCTAssertEqual(v1Reward.isLimitedTime, false)
+
+      XCTAssertNotNil(v1Reward.image)
+      XCTAssertEqual(v1Reward.image?.altText, "Some image")
+      XCTAssertEqual(v1Reward.image?.url, "https://www.ksr.com/image.jpg")
+
+      XCTAssertEqual(v1Reward.audienceData.isSecretReward, false)
     } catch {
       XCTFail(error.localizedDescription)
     }
@@ -207,7 +217,16 @@ private func rewardDictionary() -> [String: Any] {
         },
       }
     ],
-    "startsAt": null
+    "startsAt": null,
+    "image": {
+      "__typename": "Photo",
+      "altText": "Some image",
+      "url": "https://www.ksr.com/image.jpg"
+    },
+    "audienceData": {
+      "__typename": "ResourceAudience",
+      "secret": false
+    }
   }
   """
 

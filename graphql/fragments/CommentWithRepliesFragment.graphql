@@ -1,0 +1,15 @@
+fragment CommentWithRepliesFragment on Comment {
+    ...CommentBaseFragment
+    replies(before: $cursor, last: $limit) {
+      edges {
+        node {
+          ...CommentFragment
+        }
+      }
+      pageInfo {
+        hasPreviousPage
+        startCursor
+      }
+      totalCount
+    }
+}

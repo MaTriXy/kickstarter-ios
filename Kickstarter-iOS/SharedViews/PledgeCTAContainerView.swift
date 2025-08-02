@@ -27,37 +27,48 @@ final class PledgeCTAContainerView: UIView {
 
   private lazy var activityIndicator: UIActivityIndicatorView = {
     let indicator = UIActivityIndicatorView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    indicator.translatesAutoresizingMaskIntoConstraints = false
     indicator.startAnimating()
     return indicator
   }()
 
   private lazy var activityIndicatorContainerView: UIView = {
-    UIView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
   }()
 
   private(set) lazy var pledgeCTAButton: UIButton = {
-    UIButton(type: .custom)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.isHidden = true // Default to hidden until data is ready.
+    return button
   }()
 
   private(set) lazy var retryButton: UIButton = {
-    UIButton(type: .custom)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    return button
   }()
 
   private lazy var retryDescriptionLabel: UILabel = { UILabel(frame: .zero) }()
-  private lazy var retryStackView: UIStackView = { UIStackView(frame: .zero) }()
+
+  private lazy var retryStackView: UIStackView = {
+    let stackView = UIStackView(frame: .zero)
+    stackView.isHidden = true // Default to hidden until data is ready.
+    return stackView
+  }()
 
   private lazy var rootStackView: UIStackView = {
-    UIStackView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let stackView = UIStackView(frame: .zero)
+    stackView.translatesAutoresizingMaskIntoConstraints = false
+    return stackView
   }()
 
   private lazy var spacer: UIView = {
-    UIView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
   }()
 
   private lazy var subtitleLabel: UILabel = { UILabel(frame: .zero) }()
@@ -65,13 +76,15 @@ final class PledgeCTAContainerView: UIView {
   private lazy var watchesLabel: UILabel = { UILabel(frame: .zero) }()
 
   private lazy var titleAndSubtitleStackView: UIStackView = {
-    UIStackView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let stackView = UIStackView(frame: .zero)
+    stackView.translatesAutoresizingMaskIntoConstraints = false
+    return stackView
   }()
 
   private lazy var pledgeButtonAndWatchesStackView: UIStackView = {
-    UIStackView(frame: .zero)
-      |> \.translatesAutoresizingMaskIntoConstraints .~ false
+    let stackView = UIStackView(frame: .zero)
+    stackView.translatesAutoresizingMaskIntoConstraints = false
+    return stackView
   }()
 
   private lazy var titleLabel: UILabel = { UILabel(frame: .zero) }()
@@ -111,8 +124,8 @@ final class PledgeCTAContainerView: UIView {
 
     _ = self.layer
       |> checkoutLayerCardRoundedStyle
-      |> \.backgroundColor .~ UIColor.ksr_white.cgColor
-      |> \.shadowColor .~ UIColor.ksr_black.cgColor
+      |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor().cgColor
+      |> \.shadowColor .~ LegacyColors.ksr_black.uiColor().cgColor
       |> \.shadowOpacity .~ 0.12
       |> \.shadowOffset .~ CGSize(width: 0, height: -1.0)
       |> \.shadowRadius .~ CGFloat(1.0)
@@ -277,7 +290,7 @@ final class PledgeCTAContainerView: UIView {
 
 private let activityIndicatorStyle: ActivityIndicatorStyle = { activityIndicator in
   activityIndicator
-    |> \.color .~ UIColor.ksr_support_400
+    |> \.color .~ LegacyColors.ksr_support_400.uiColor()
     |> \.hidesWhenStopped .~ true
 }
 
@@ -297,7 +310,7 @@ private func adaptableStackViewStyle(_ isAccessibilityCategory: Bool) -> (StackV
 private let subtitleLabelStyle: LabelStyle = { label in
   label
     |> \.font .~ UIFont.ksr_caption1().bolded
-    |> \.textColor .~ UIColor.ksr_support_400
+    |> \.textColor .~ LegacyColors.ksr_support_400.uiColor()
     |> \.numberOfLines .~ 0
 }
 
@@ -341,33 +354,33 @@ private let retryDescriptionLabelStyle: LabelStyle = { label in
 private let prelaunchButtonUnsavedImageStyle: ButtonStyle = { button in
   button
     |> UIButton.lens.image(for: .normal) .~ image(named: "icon--heart-outline")
-    |> UIButton.lens.tintColor .~ .ksr_white
+    |> UIButton.lens.tintColor .~ LegacyColors.ksr_white.uiColor()
     |> UIButton.lens.imageEdgeInsets .~ .init(top: 0, left: 0, bottom: 0, right: 10.0)
-    |> UIButton.lens.titleColor(for: .normal) .~ .ksr_white
-    |> UIButton.lens.backgroundColor(for: .normal) .~ .ksr_black
-    |> UIButton.lens.titleColor(for: .highlighted) .~ .ksr_white
-    |> UIButton.lens.backgroundColor(for: .highlighted) .~ .ksr_black
+    |> UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_white.uiColor()
+    |> UIButton.lens.backgroundColor(for: .normal) .~ LegacyColors.ksr_black.uiColor()
+    |> UIButton.lens.titleColor(for: .highlighted) .~ LegacyColors.ksr_white.uiColor()
+    |> UIButton.lens.backgroundColor(for: .highlighted) .~ LegacyColors.ksr_black.uiColor()
 }
 
 private let prelaunchButtonSavedImageStyle: ButtonStyle = { button in
   button
     |> baseButtonStyle
-    |> UIButton.lens.titleLabel.font .~ UIFont.boldSystemFont(ofSize: 16)
+    |> UIButton.lens.titleLabel.font .~ UIFont.ksr_headline(size: 16)
     |> UIButton.lens.image(for: .normal) .~ image(named: "icon--heart")
     |> UIButton.lens.imageEdgeInsets .~ .init(top: 0, left: 0, bottom: 0, right: 10.0)
-    |> UIButton.lens.titleColor(for: .normal) .~ .ksr_black
-    |> UIButton.lens.layer.borderColor .~ UIColor.ksr_support_300.cgColor
+    |> UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_black.uiColor()
+    |> UIButton.lens.layer.borderColor .~ LegacyColors.ksr_support_300.uiColor().cgColor
     |> UIButton.lens.layer.borderWidth .~ 1.0
-    |> UIButton.lens.backgroundColor(for: .normal) .~ .ksr_white
-    |> UIButton.lens.titleColor(for: .normal) .~ .ksr_black
-    |> UIButton.lens.titleColor(for: .highlighted) .~ .ksr_black
-    |> UIButton.lens.backgroundColor(for: .highlighted) .~ .ksr_white
+    |> UIButton.lens.backgroundColor(for: .normal) .~ LegacyColors.ksr_white.uiColor()
+    |> UIButton.lens.titleColor(for: .normal) .~ LegacyColors.ksr_black.uiColor()
+    |> UIButton.lens.titleColor(for: .highlighted) .~ LegacyColors.ksr_black.uiColor()
+    |> UIButton.lens.backgroundColor(for: .highlighted) .~ LegacyColors.ksr_white.uiColor()
 }
 
 private let watchesLabelStyle: LabelStyle = { label in
   label
     |> \.font .~ UIFont.ksr_caption1()
-    |> \.textColor .~ UIColor.ksr_support_700
+    |> \.textColor .~ LegacyColors.ksr_support_700.uiColor()
     |> \.numberOfLines .~ 1
     |> \.textAlignment .~ .center
 }

@@ -14,7 +14,7 @@ import UserNotifications
 
  - returns: A boolean.
  */
-internal func userIsBacking(reward: Reward, inProject project: Project) -> Bool {
+public func userIsBacking(reward: Reward, inProject project: Project) -> Bool {
   guard let backing = project.personalization.backing else { return false }
 
   return backing.reward?.id == reward.id
@@ -97,7 +97,7 @@ internal func minAndMaxPledgeAmount(forProject project: Project, reward: Reward?
   // The country on the project cannot be trusted to have the min/max values, so first try looking
   // up the country in our launched countries array that we get back from the server config.
   // project currency is more accurate to find the country to base the min/max values off of.
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.projectCurrency) ?? project.country
   let country = AppEnvironment.current.launchedCountries.countries
     .first { $0 == projectCurrencyCountry }
     .coalesceWith(projectCurrencyCountry)
@@ -137,20 +137,22 @@ internal func minPledgeAmount(forProject project: Project, reward: Reward?) -> D
 }
 
 /**
- Returns the full currency symbol for a country. Special logic is added around prefixing currency symbols
+ Returns the full currency symbol for a currencyCode. Special logic is added around prefixing currency symbols
  with country/currency codes based on a variety of factors.
 
- - parameter country: The country.
+ - parameter currencyCode: The currency code.
  - parameter omitCurrencyCode: Safe to omit the US currencyCode
  - parameter env: Current Environment.
 
  - returns: The currency symbol that can be used for currency display.
  */
 public func currencySymbol(
-  forCountry country: Project.Country,
+  forCurrencyCode currencyCode: String,
   omitCurrencyCode: Bool = true,
   env: Environment = AppEnvironment.current
 ) -> String {
+  let country = projectCountry(forCurrency: currencyCode, env: env) ?? .us
+
   guard env.launchedCountries.currencyNeedsCode(country.currencySymbol) else {
     // Currencies that dont have ambigious currencies can just use their symbol.
     return country.currencySymbol
@@ -218,20 +220,19 @@ public func formattedAmountForRewardOrBacking(
   project: Project,
   rewardOrBacking: Either<Reward, Backing>
 ) -> String {
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
-
+  let projectCurrency = project.statsCurrency
   switch rewardOrBacking {
   case let .left(reward):
     let min = minPledgeAmount(forProject: project, reward: reward)
     return Format.currency(
       min,
-      country: projectCurrencyCountry,
+      currencyCode: projectCurrency,
       omitCurrencyCode: project.stats.omitUSCurrencyCode
     )
   case let .right(backing):
     return Format.formattedCurrency(
       backing.amount,
-      country: projectCurrencyCountry,
+      currencyCode: projectCurrency,
       omitCurrencyCode: project.stats.omitUSCurrencyCode
     )
   }
@@ -285,7 +286,7 @@ public func ksr_pledgeAmount(
 }
 
 public func discoveryPageBackgroundColor() -> UIColor {
-  return UIColor.ksr_white
+  return LegacyColors.ksr_white.uiColor()
 }
 
 public func rewardIsAvailable(_ reward: Reward) -> Bool {
@@ -692,18 +693,18 @@ public func estimatedShippingText(
 
   guard estimatedMin > 0, estimatedMax > 0 else { return nil }
 
-  let projectCountry = project.country
+  let projectCurrency = project.stats.projectCurrency
 
   let formattedMin = Format.currency(
     estimatedMin,
-    country: projectCountry,
+    currencyCode: projectCurrency,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     roundingMode: .halfUp
   )
 
   let formattedMax = Format.currency(
     estimatedMax,
-    country: projectCountry,
+    currencyCode: projectCurrency,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     roundingMode: .halfUp
   )
@@ -731,20 +732,20 @@ public func estimatedShippingConversionText(
 
   guard estimatedMin > 0, estimatedMax > 0 else { return nil }
 
-  let convertedMin = estimatedMin * Double(project.stats.currentCurrencyRate ?? project.stats.staticUsdRate)
-  let convertedMax = estimatedMax * Double(project.stats.currentCurrencyRate ?? project.stats.staticUsdRate)
-  let currentCountry = project.stats.currentCountry ?? Project.Country.us
+  let convertedMin = estimatedMin * Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
+  let convertedMax = estimatedMax * Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
+  let currencyCode = project.stats.userCurrency ?? Project.Country.us.currencyCode
 
   let formattedMin = Format.currency(
     convertedMin,
-    country: currentCountry,
+    currencyCode: currencyCode,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     roundingMode: .halfUp
   )
 
   let formattedMax = Format.currency(
     convertedMax,
-    country: currentCountry,
+    currencyCode: currencyCode,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     roundingMode: .halfUp
   )
@@ -758,12 +759,12 @@ public func estimatedShippingConversionText(
 
 public func attributedCurrency(withProject project: Project, total: Double) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_700])
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+    .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_700.uiColor()])
+  let currencyCode = project.statsCurrency
 
   return Format.attributedCurrency(
     total,
-    country: projectCurrencyCountry,
+    currencyCode: currencyCode,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     defaultAttributes: defaultAttributes,
     superscriptAttributes: checkoutCurrencySuperscriptAttributes()

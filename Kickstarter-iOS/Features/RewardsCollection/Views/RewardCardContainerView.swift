@@ -4,6 +4,10 @@ import Prelude
 import ReactiveSwift
 import UIKit
 
+private enum Constants {
+  static let rewardCardMaskViewTopMarginInset = 38.0
+}
+
 public final class RewardCardContainerView: UIView {
   internal var delegate: RewardCardViewDelegate? {
     didSet {
@@ -56,7 +60,6 @@ public final class RewardCardContainerView: UIView {
 
     _ = self.rewardCardMaskView
       |> checkoutWhiteBackgroundStyle
-      |> \.layoutMargins .~ .init(all: Styles.grid(3))
       |> roundedStyle(cornerRadius: Styles.grid(3))
   }
 
@@ -101,6 +104,25 @@ public final class RewardCardContainerView: UIView {
   internal func configure(with data: RewardCardViewData) {
     self.viewModel.inputs.configureWith(project: data.project, rewardOrBacking: .left(data.reward))
     self.rewardCardView.configure(with: data)
+    self.adjustTopMarginForRewardCard(data)
+  }
+
+  /// Adjusts the top margin of the reward card view depending on whether additional spacing is needed.
+  /// This margin (38.0 pts) is applied when both the "Your selection" and "Secret reward" badges are shown simultaneously,
+  /// in order to prevent visual overlap and ensure proper layout spacing.
+  /// If `requiresTopMarginInset` is false, no additional top margin is applied.
+  private func adjustTopMarginForRewardCard(_ data: RewardCardViewData) {
+    let requiresTopMarginInset = data.reward.isSecretReward
+      && data.reward.image == nil
+      && userIsBacking(reward: data.reward, inProject: data.project)
+
+    let topMarginInset = requiresTopMarginInset ? Constants.rewardCardMaskViewTopMarginInset : .zero
+    self.rewardCardMaskView.layoutMargins = UIEdgeInsets(
+      top: topMarginInset,
+      left: .zero,
+      bottom: .zero,
+      right: .zero
+    )
   }
 
   // MARK: - Functions
@@ -110,7 +132,7 @@ public final class RewardCardContainerView: UIView {
       |> ksr_addSubviewToParent()
       |> ksr_constrainViewToEdgesInParent()
 
-    _ = (self.rewardCardView, self.rewardCardMaskView)
+    _ = (self.rewardCardView, self)
       |> ksr_addSubviewToParent()
 
     _ = (self.pledgeButtonLayoutGuide, self)
@@ -159,12 +181,13 @@ public final class RewardCardContainerView: UIView {
     self.addBottomViewsMarginConstraints(with: self.rewardCardMaskView.layoutMarginsGuide)
 
     let pledgeButtonLayoutGuideConstraints = [
-      self.pledgeButtonLayoutGuide.bottomAnchor.constraint(equalTo: containerMargins.bottomAnchor),
+      self.pledgeButtonLayoutGuide.bottomAnchor.constraint(
+        equalTo: containerMargins.bottomAnchor,
+        constant: -Styles.grid(3)
+      ),
       self.pledgeButtonLayoutGuide.leftAnchor.constraint(equalTo: containerMargins.leftAnchor),
       self.pledgeButtonLayoutGuide.rightAnchor.constraint(equalTo: containerMargins.rightAnchor),
-      self.pledgeButtonLayoutGuide.topAnchor.constraint(
-        equalTo: self.rewardCardView.bottomAnchor, constant: Styles.grid(3)
-      ),
+      self.pledgeButtonLayoutGuide.topAnchor.constraint(equalTo: self.rewardCardView.bottomAnchor),
       self.pledgeButtonLayoutGuide.heightAnchor.constraint(equalTo: self.pledgeButton.heightAnchor)
     ]
 
@@ -183,8 +206,14 @@ public final class RewardCardContainerView: UIView {
     let minTouchSize = Styles.minTouchSize.height
 
     let pledgeButtonMarginConstraints = [
-      self.pledgeButton.leftAnchor.constraint(equalTo: layoutMarginsGuide.leftAnchor),
-      self.pledgeButton.rightAnchor.constraint(equalTo: layoutMarginsGuide.rightAnchor),
+      self.pledgeButton.leftAnchor.constraint(
+        equalTo: self.rewardCardMaskView.leftAnchor,
+        constant: Styles.grid(3)
+      ),
+      self.pledgeButton.rightAnchor.constraint(
+        equalTo: self.rewardCardMaskView.rightAnchor,
+        constant: -Styles.grid(3)
+      ),
       self.pledgeButton.bottomAnchor.constraint(lessThanOrEqualTo: layoutMarginsGuide.bottomAnchor),
       self.pledgeButton.heightAnchor.constraint(
         greaterThanOrEqualToConstant: minTouchSize

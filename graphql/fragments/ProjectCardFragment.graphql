@@ -1,0 +1,31 @@
+# Minimal version of ProjectFragment, containing only the fields needed for showing project cards.
+fragment ProjectCardFragment on Project {
+  image {
+    id
+    url(width: 1024)
+  }
+
+  pid
+  name
+  state
+  isLaunched
+  deadlineAt
+  percentFunded
+  prelaunchActivated
+  launchedAt
+  isInPostCampaignPledgingPhase
+  postCampaignPledgingEnabled
+  url
+
+  isWatched
+
+  goal {
+    ...MoneyFragment
+  }
+  pledged {
+    ...MoneyFragment
+  }
+
+  ...ProjectAnalyticsFragment
+  ...ProjectPamphletMainCellPropertiesFragment
+}

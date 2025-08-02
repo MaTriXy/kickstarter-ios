@@ -77,14 +77,14 @@ internal final class ActivityFriendBackingCell: UITableViewCell, ValueCell {
       |> ignoresInvertColorsImageViewStyle
 
     _ = self.fundingProgressContainerView
-      |> UIView.lens.backgroundColor .~ .ksr_support_300
+      |> UIView.lens.backgroundColor .~ LegacyColors.ksr_support_300.uiColor()
 
     _ = self.projectImageView
       |> UIImageView.lens.clipsToBounds .~ true
 
     _ = self.projectNameLabel
       |> UILabel.lens.font .~ .ksr_title1(size: 18)
-      |> UILabel.lens.textColor .~ .ksr_support_700
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
 
     _ = self.projectImageView
       |> ignoresInvertColorsImageViewStyle
@@ -95,5 +95,7 @@ internal final class ActivityFriendBackingCell: UITableViewCell, ValueCell {
         topBottom: Styles.gridHalf(5),
         leftRight: Styles.grid(2)
       )
+
+    self.projectTextContainerView.backgroundColor = Colors.Background.Surface.primary.uiColor()
   }
 }

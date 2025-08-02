@@ -10,13 +10,10 @@ import XCTest
 final class CommentComposerViewTests: TestCase {
   override func setUp() {
     super.setUp()
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
     super.tearDown()
   }
@@ -181,7 +178,7 @@ private func accessoryViewInViewController(
 ) -> UIViewController {
   let controller = UIViewController()
   let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
-  _ = controller.view |> \.backgroundColor .~ .ksr_white
+  _ = controller.view |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
   controller.view.addSubview(composer)
 
   NSLayoutConstraint.activate([

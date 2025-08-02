@@ -1,5 +1,6 @@
 import Apollo
 import Foundation
+import GraphAPI
 @testable import KsApi
 
 public enum FetchUpdateCommentsQueryTemplate {
@@ -9,15 +10,15 @@ public enum FetchUpdateCommentsQueryTemplate {
   var data: GraphAPI.FetchUpdateCommentsQuery.Data {
     switch self {
     case .valid:
-      return GraphAPI.FetchUpdateCommentsQuery.Data(unsafeResultMap: self.validResultMap)
+      return try! testGraphObject(data: self.validResultMap)
     case .errored:
-      return GraphAPI.FetchUpdateCommentsQuery.Data(unsafeResultMap: self.erroredResultMap)
+      return try! testGraphObject(data: self.erroredResultMap)
     }
   }
 
   // MARK: Private Properties
 
-  private var validResultMap: [String: Any?] {
+  private var validResultMap: [String: Any] {
     let json = """
     {
       "post": {
@@ -51,7 +52,10 @@ public enum FetchUpdateCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 0
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -80,7 +84,10 @@ public enum FetchUpdateCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 0
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -109,7 +116,10 @@ public enum FetchUpdateCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 2
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }],
           "pageInfo": {
@@ -126,10 +136,10 @@ public enum FetchUpdateCommentsQueryTemplate {
 
     let data = Data(json.utf8)
 
-    return (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any?]) ?? [:]
+    return (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]) ?? [:]
   }
 
-  private var erroredResultMap: [String: Any?] {
+  private var erroredResultMap: [String: Any] {
     return CommentFragmentTemplate.valid.data
   }
 }

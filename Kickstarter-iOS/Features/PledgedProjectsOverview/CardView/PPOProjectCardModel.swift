@@ -1,4 +1,5 @@
 import Foundation
+import GraphAPI
 import Kingfisher
 import KsApi
 import Library
@@ -35,7 +36,11 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
 
   // MARK: - Identifiable
 
-  public let id = UUID()
+  // Create the card's id from the project id, tier type, and actions.
+  // If any other fields change, the card should be considered the same card, just modified.
+  public var id: String {
+    "\(self.projectId)-\(self.tierType)-\(self.actions.0.id)-\(self.actions.1?.id ?? "")"
+  }
 
   // MARK: - Equatable
 
@@ -58,12 +63,14 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
     case authenticateCard
     case openSurvey
     case confirmAddress
+    case pledgeManagement
   }
 
   public enum Action: Identifiable, Equatable, Hashable {
     case confirmAddress(address: String, addressId: String)
     case editAddress
     case completeSurvey
+    case managePledge
     case fixPayment
     case authenticateCard(clientSecret: String)
 
@@ -75,6 +82,8 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
         Strings.Edit()
       case .completeSurvey:
         Strings.Take_survey()
+      case .managePledge:
+        Strings.Finalize_pledge()
       case .fixPayment:
         Strings.Fix_payment()
       case .authenticateCard:
@@ -89,6 +98,8 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
       case .editAddress:
         .black
       case .completeSurvey:
+        .green
+      case .managePledge:
         .green
       case .fixPayment:
         .red
@@ -162,7 +173,7 @@ public struct PPOProjectCardModel: Identifiable, Equatable, Hashable {
 }
 
 extension PPOProjectCardModel.Alert {
-  init?(flag: GraphAPI.PpoCardFragment.Flag) {
+  init?(flag: GraphAPI.PPOCardFragment.Flag) {
     let alertIcon: PPOProjectCardModel.Alert.AlertIcon? = switch flag.icon {
     case "alert":
       .alert
@@ -191,7 +202,7 @@ extension PPOProjectCardModel.Alert {
 }
 
 extension GraphAPI.MoneyFragment: Equatable {
-  public static func == (lhs: KsApi.GraphAPI.MoneyFragment, rhs: KsApi.GraphAPI.MoneyFragment) -> Bool {
+  public static func == (lhs: GraphAPI.MoneyFragment, rhs: GraphAPI.MoneyFragment) -> Bool {
     return lhs.amount == rhs.amount &&
       lhs.currency == rhs.currency &&
       lhs.symbol == rhs.symbol

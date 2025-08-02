@@ -1,9 +1,0 @@
-mutation CreatePaymentSource($input: CreatePaymentSourceInput!) {
-  createPaymentSource(input: $input) {
-    clientMutationId
-    isSuccessful
-    paymentSource {
-      ...CreditCardFragment
-    }
-  }
-}

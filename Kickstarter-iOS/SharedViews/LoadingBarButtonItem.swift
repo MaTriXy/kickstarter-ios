@@ -8,7 +8,8 @@ struct LoadingBarButtonItem: View {
   let action: () -> Void
 
   var body: some View {
-    let buttonColor = self.$saveEnabled.wrappedValue ? Color(.ksr_create_700) : Color(.ksr_create_300)
+    let buttonColor = self.$saveEnabled.wrappedValue ? LegacyColors.ksr_create_700
+      .swiftUIColor() : LegacyColors.ksr_create_300.swiftUIColor()
 
     HStack {
       if !self.showLoading {
@@ -16,12 +17,12 @@ struct LoadingBarButtonItem: View {
           self.showLoading = true
           self.action()
         }
-        .font(Font(UIFont.systemFont(ofSize: 17)))
+        .font(Font(UIFont.ksr_body()))
         .foregroundColor(buttonColor)
         .disabled(!self.$saveEnabled.wrappedValue)
       } else {
         ProgressView()
-          .foregroundColor(Color(.ksr_support_700))
+          .foregroundColor(LegacyColors.ksr_support_700.swiftUIColor())
       }
     }
     .accessibilityElement(children: .combine)

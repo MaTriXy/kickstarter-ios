@@ -8,39 +8,72 @@ import UIKit
 internal final class DiscoveryPageViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
     super.tearDown()
   }
 
-  func testView_Activity_Backing() {
-    let backing = .template
+  // This screenshot tests all 3 activity sample cell classes.
+  // In practice, only one would ever be shown at a time.
+  func testView_Activity_AllActivities() {
+    let sampleBacking = Activity.template
       |> Activity.lens.category .~ .backing
-      |> Activity.lens.id .~ 1_234
       |> Activity.lens.project .~ self.cosmicSurgeryNoPhoto
       |> Activity.lens.user .~ self.brandoNoAvatar
 
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
-      language, device in
+    let sampleFollow = Activity.template
+      |> Activity.lens.category .~ .follow
+      |> Activity.lens.project .~ self.cosmicSurgeryNoPhoto
+      |> Activity.lens.user .~ self.brandoNoAvatar
+
+    let sampleUpdate = Activity.template
+      |> Activity.lens.category .~ .update
+      |> Activity.lens.project .~ self.cosmicSurgeryNoPhoto
+      |> Activity.lens.user .~ self.brandoNoAvatar
+
+    let activities = [
+      sampleBacking,
+      sampleFollow,
+      sampleUpdate
+    ]
+
+    let newDesignSystemOn = MockRemoteConfigClient()
+    newDesignSystemOn.features = [
+      RemoteConfigFeature.newDesignSystem.rawValue: true
+    ]
+
+    orthogonalCombos(
+      Language.allLanguages,
+      [Device.phone4_7inch, Device.phone5_8inch, Device.pad],
+      [UIUserInterfaceStyle.light, UIUserInterfaceStyle.dark]
+    ).forEach {
+      language, device, style in
       withEnvironment(
-        apiService: MockService(fetchActivitiesResponse: [backing]),
+        apiService: MockService(fetchActivitiesResponse: activities),
+        colorResolver: AppColorResolver(),
         currentUser: User.template,
         language: language,
+        remoteConfigClient: newDesignSystemOn,
         userDefaults: MockKeyValueStore()
       ) {
         let controller = DiscoveryPageViewController.configuredWith(sort: .magic)
+        controller.overrideUserInterfaceStyle = style
         controller.tableView.refreshControl = nil
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 250
+        parent.view.frame.size.height = 750
 
         self.scheduler.run()
 
-        assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
+        let styleDescription = style == .light ? "light" : "dark"
+
+        assertSnapshot(
+          matching: parent.view,
+          as: .image,
+          named: "lang_\(language)_device_\(device)_\(styleDescription)"
+        )
       }
     }
   }
@@ -52,7 +85,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
     let discoveryResponse = .template
       |> DiscoveryEnvelope.lens.projects .~ [project]
 
-    combos(Language.allLanguages, Device.allCases).forEach { language, device in
+    orthogonalCombos(Language.allLanguages, Device.allCases).forEach { language, device in
       withEnvironment(
         apiService: MockService(
           fetchActivitiesResponse: [],
@@ -89,7 +122,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
     let discoveryResponse = .template
       |> DiscoveryEnvelope.lens.projects .~ [project]
 
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad])
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad])
       .forEach { language, device in
         withEnvironment(
           apiService: MockService(
@@ -119,7 +152,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
     let backedProject = self.anomalisaNoPhoto
       |> Project.lens.personalization.backing .~ Backing.template
 
-    combos(Language.allLanguages, Device.allCases).forEach { language, device in
+    orthogonalCombos(Language.allLanguages, Device.allCases).forEach { language, device in
       let discoveryResponse = .template
         |> DiscoveryEnvelope.lens.projects .~ [backedProject]
 
@@ -155,7 +188,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
     let devices = [Device.phone4_7inch, Device.phone5_8inch, Device.pad]
     let config = Config.template
 
-    combos(Language.allLanguages, devices, [("featured", featuredProj)])
+    orthogonalCombos(Language.allLanguages, devices, [("featured", featuredProj)])
       .forEach { language, device, labeledProj in
         let discoveryResponse = .template
           |> DiscoveryEnvelope.lens.projects .~ [labeledProj.1]
@@ -198,7 +231,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
     let devices = [Device.phone4_7inch, Device.phone5_8inch, Device.pad]
     let config = Config.template
 
-    combos(Language.allLanguages, devices, states)
+    orthogonalCombos(Language.allLanguages, devices, states)
       .forEach { language, device, state in
         let discoveryResponse = .template
           |> DiscoveryEnvelope.lens.projects .~ [projectTemplate |> Project.lens.state .~ state]
@@ -230,7 +263,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
   }
 
   func testView_Onboarding() {
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
       language, device in
       withEnvironment(currentUser: nil, language: language) {
         let controller = DiscoveryPageViewController.configuredWith(sort: .magic)
@@ -259,6 +292,7 @@ internal final class DiscoveryPageViewControllerTests: TestCase {
   fileprivate let cosmicSurgeryNoPhoto = .cosmicSurgery
     |> Project.lens.id .~ 2_222
     |> Project.lens.photo.full .~ ""
+    |> Project.lens.photo.med .~ ""
 
   fileprivate let magicParams = .defaults
     |> DiscoveryParams.lens.sort .~ .magic

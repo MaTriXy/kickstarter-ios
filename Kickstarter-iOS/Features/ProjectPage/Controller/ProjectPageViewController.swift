@@ -62,12 +62,17 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
   internal var overlayView: OverlayView? = OverlayView(frame: .zero)
 
   public static func configuredWith(
-    projectOrParam: Either<Project, Param>,
-    refInfo: RefInfo?
+    projectOrParam: Either<Project, any ProjectPageParam>,
+    refInfo: RefInfo?,
+    secretRewardToken: String? = nil
   ) -> ProjectPageViewController {
     let vc = ProjectPageViewController.instantiate()
 
-    vc.viewModel.inputs.configureWith(projectOrParam: projectOrParam, refInfo: refInfo)
+    vc.viewModel.inputs.configureWith(
+      projectOrParam: projectOrParam,
+      refInfo: refInfo,
+      secretRewardToken: secretRewardToken
+    )
 
     return vc
   }
@@ -97,6 +102,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.tableView.registerCellClass(AudioVideoViewElementCell.self)
     self.tableView.registerCellClass(ExternalSourceViewElementCell.self)
     self.tableView.registerCellClass(ReportProjectCell.self)
+    self.tableView.registerCellClass(SimilarProjectsTableViewCell.self)
     self.tableView.register(nib: .ProjectPamphletMainCell)
     self.tableView.register(nib: .ProjectPamphletSubpageCell)
     self.tableView.registerCellClass(ProjectRisksCell.self)
@@ -190,12 +196,12 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     super.bindStyles()
 
     _ = self.view |>
-      \.backgroundColor .~ .ksr_white
+      \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.tableView |> tableViewStyle
 
     _ = self.projectNavigationShadowView
-      |> \.backgroundColor .~ .ksr_white
+      |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
       |> dropShadowStyle(
         offset: .init(width: 0, height: 0),
         shadowOpacity: ProjectPageViewControllerStyles.Layout
@@ -219,7 +225,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       tableViewBottomToPledgeCTA,
       self.tableView.leftAnchor.constraint(equalTo: self.view.leftAnchor),
       self.tableView.rightAnchor.constraint(equalTo: self.view.rightAnchor),
-      self.tableView.topAnchor.constraint(equalTo: self.projectNavigationSelectorView.bottomAnchor)
+      self.tableView.topAnchor.constraint(equalTo: self.projectNavigationSelectorView.bottomAnchor),
+      self.tableView.heightAnchor.constraint(greaterThanOrEqualToConstant: 1)
     ]
 
     NSLayoutConstraint.activate(tableViewConstraints)
@@ -302,8 +309,8 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
           return
         }
 
-        defaultNavigationBarView.standardAppearance.shadowColor = .ksr_white
-        defaultNavigationBarView.scrollEdgeAppearance?.shadowColor = .ksr_white
+        defaultNavigationBarView.standardAppearance.shadowColor = LegacyColors.ksr_white.uiColor()
+        defaultNavigationBarView.scrollEdgeAppearance?.shadowColor = LegacyColors.ksr_white.uiColor()
       }
 
     self.viewModel.outputs.updateWatchProjectWithPrelaunchProjectState
@@ -315,15 +322,27 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.viewModel.outputs.goToRewards
       .observeForControllerAction()
       .observeValues { [weak self] params in
-        let (project, refTag) = params
+        let (project, refTag, secretRewardToken) = params
 
-        self?.goToRewards(project: project, refTag: refTag)
+        self?.goToRewards(project: project, refTag: refTag, secretRewardToken: secretRewardToken)
       }
 
     self.viewModel.outputs.goToManagePledge
       .observeForControllerAction()
       .observeValues { [weak self] params in
         self?.goToManagePledge(params: params)
+      }
+
+    self.viewModel.outputs.goToPledgeManagementPledgeView
+      .observeForControllerAction()
+      .observeValues { [weak self] url in
+        self?.goToPledgeManagementWebViewController(with: url)
+      }
+
+    self.viewModel.outputs.goToPledgeManager
+      .observeForControllerAction()
+      .observeValues { [weak self] url in
+        self?.goToPledgeManagementWebViewController(with: url)
       }
 
     self.viewModel.outputs.configureChildViewControllersWithProject
@@ -374,11 +393,29 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         self?.goToComments(project: $0)
       }
 
+    self.viewModel.outputs.goToLoginWithIntent
+      .observeForControllerAction()
+      .observeValues { [weak self] intent in
+        let loginTout = LoginToutViewController.configuredWith(loginIntent: intent)
+
+        let isIpad = AppEnvironment.current.device.userInterfaceIdiom == .pad
+        let nav = UINavigationController(rootViewController: loginTout)
+          |> \.modalPresentationStyle .~ (isIpad ? .formSheet : .fullScreen)
+
+        self?.present(nav, animated: true, completion: nil)
+      }
+
     self.viewModel.outputs.goToReportProject
       .observeForControllerAction()
       .observeValues { [weak self] flagged, projectID, projectUrl in
         guard !flagged else { return }
         self?.goToReportProject(projectID: projectID, projectUrl: projectUrl)
+      }
+
+    self.viewModel.outputs.goToRestrictedCreator
+      .observeForControllerAction()
+      .observeValues { [weak self] in
+        self?.goToRestrictedCreator(message: $0)
       }
 
     self.viewModel.outputs.goToUpdates
@@ -473,15 +510,18 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
 
     self.viewModel.outputs.updateDataSource
       .observeForUI()
-      .observeValues { [weak self] navSection, project, refTag, initialIsExpandedArray, _ in
+      .observeValues { [weak self] data in
+        let (navSection, project, refTag, initialIsExpandedArray, _, similarProjectsState) = data
+
         self?.pausePlayingMainCellVideo(navSection: navSection)
 
         let initialDatasourceLoad = {
           self?.dataSource.load(
             navigationSection: navSection,
-            project: project,
+            project: .left(project),
             refTag: refTag,
-            isExpandedStates: initialIsExpandedArray
+            isExpandedStates: initialIsExpandedArray,
+            similarProjectsState: similarProjectsState
           )
 
           self?.tableView.reloadData()
@@ -495,7 +535,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
       .observeValues { [weak self] project, refTag, isExpandedValues in
         self?.dataSource.load(
           navigationSection: .faq,
-          project: project,
+          project: .left(project),
           refTag: refTag,
           isExpandedStates: isExpandedValues
         )
@@ -553,6 +593,23 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
         guard let self, let messageBanner = self.messageBannerViewController else { return }
 
         messageBanner.showBanner(with: .error, message: Strings.Block_user_fail())
+      }
+
+    self.viewModel.outputs.navigateToSimilarProject
+      .observeForUI()
+      .observeValues { [weak self] project in
+        guard let self else { return }
+        let vc = ProjectPageViewController.configuredWith(
+          projectOrParam: Either<Project, any ProjectPageParam>.right(project.projectPageParam),
+          refInfo: RefInfo(.similarProjects)
+        )
+        if let nav = self.navigationController {
+          nav.pushViewController(vc, animated: true)
+        } else {
+          assertionFailure("We expect a navigation controller to be here")
+          let nav = UINavigationController(rootViewController: vc)
+          self.present(nav, animated: true)
+        }
       }
   }
 
@@ -637,8 +694,12 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.present(nav, animated: true, completion: nil)
   }
 
-  private func goToRewards(project: Project, refTag: RefTag?) {
-    let vc = WithShippingRewardsCollectionViewController.controller(with: project, refTag: refTag)
+  private func goToRewards(project: Project, refTag: RefTag?, secretRewardToken: String?) {
+    let vc = RewardsCollectionViewController.controller(
+      with: project,
+      refTag: refTag,
+      secretRewardToken: secretRewardToken
+    )
     self.present(vc, animated: true)
   }
 
@@ -652,6 +713,18 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     if AppEnvironment.current.device.userInterfaceIdiom == .pad {
       _ = nc
         |> \.modalPresentationStyle .~ .pageSheet
+    }
+
+    self.present(nc, animated: true)
+  }
+
+  private func goToPledgeManagementWebViewController(with backingDetailsURL: String) {
+    let vc = SurveyResponseViewController.configuredWith(surveyUrl: backingDetailsURL)
+
+    let nc = RewardPledgeNavigationController(rootViewController: vc)
+
+    if AppEnvironment.current.device.userInterfaceIdiom == .pad {
+      nc.modalPresentationStyle = .pageSheet
     }
 
     self.present(nc, animated: true)
@@ -680,6 +753,25 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.viewModel.inputs.showNavigationBar(false)
     self.navigationController?
       .pushViewController(UIHostingController(rootView: reportProjectInfoView), animated: true)
+  }
+
+  private func goToRestrictedCreator(message: String) {
+    let restrictedCreatorVC = RestrictedCreatorViewController.configuredWith(message: message)
+    let navigationVC = UINavigationController(rootViewController: restrictedCreatorVC)
+    navigationVC.modalPresentationStyle = .formSheet
+    navigationVC.setNavigationBarHidden(true, animated: false)
+    if let sheetController = navigationVC.sheetPresentationController {
+      // If large text is on, allow view to scroll to fill entire screen.
+      // This will not update dynamically if the content size category changes while the view is
+      // open, but that's okay for this view.
+      if self.traitCollection.preferredContentSizeCategory.isAccessibilityCategory {
+        sheetController.detents = [.medium(), .large()]
+      } else {
+        sheetController.detents = [.medium()]
+      }
+      sheetController.prefersGrabberVisible = true
+    }
+    present(navigationVC, animated: true)
   }
 
   private func goToUpdates(project: Project) {
@@ -753,7 +845,7 @@ public final class ProjectPageViewController: UIViewController, MessageBannerVie
     self.present(alert, animated: true)
   }
 
-  private func goToCreatorProfile(forProject project: Project) {
+  private func goToCreatorProfile(forProject project: any ProjectCreatorConfiguration) {
     let vc = ProjectCreatorViewController.configuredWith(project: project)
 
     if self.traitCollection.userInterfaceIdiom == .pad {
@@ -809,6 +901,8 @@ extension ProjectPageViewController: ManagePledgeViewControllerDelegate {
   ) {
     self.viewModel.inputs.managePledgeViewControllerFinished(with: message)
   }
+
+  func managePledgeViewControllerDidDismiss(_: ManagePledgeViewController) {}
 }
 
 // MARK: - ProjectPageViewControllerDelegate
@@ -883,6 +977,8 @@ extension ProjectPageViewController: UITableViewDelegate {
       self.playbackDelegate = cell
     } else if let cell = cell as? ImageViewElementCell {
       cell.pinchToZoomDelegate = self
+    } else if let cell = cell as? SimilarProjectsTableViewCell {
+      cell.delegate = self
     }
 
     /// If we are displaying the `ProjectPamphletSubpageCell` we do not want to show the cells separator.
@@ -890,6 +986,16 @@ extension ProjectPageViewController: UITableViewDelegate {
       .overviewReportProject.rawValue ? .none : .singleLine
 
     self.tableView.layoutIfNeeded()
+  }
+
+  public func tableView(_: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+    let cell = self.dataSource.items(in: indexPath.section)[indexPath.row]
+
+    if cell.reusableId == SimilarProjectsTableViewCell.defaultReusableId {
+      return SimilarProjectsCellConstants.collectionViewHeight
+    }
+
+    return UITableView.automaticDimension
   }
 
   public func tableView(
@@ -976,6 +1082,10 @@ extension ProjectPageViewController: ProjectRisksDisclaimerCellDelegate {
 // MARK: ProjectPamphletMainCellDelegate
 
 extension ProjectPageViewController: ProjectPamphletMainCellDelegate {
+  func projectPamphletMainCellGoToProjectNotice(_: ProjectPamphletMainCell) {
+    self.viewModel.inputs.projectNoticeDetailsRequested()
+  }
+
   internal func projectPamphletMainCell(
     _: ProjectPamphletMainCell,
     addChildController child: UIViewController
@@ -988,12 +1098,12 @@ extension ProjectPageViewController: ProjectPamphletMainCellDelegate {
 
   internal func projectPamphletMainCell(
     _ cell: ProjectPamphletMainCell,
-    goToCreatorForProject project: Project
+    goToCreatorForProject project: any ProjectPamphletMainCellConfiguration
   ) {
     guard
       let currentUser = AppEnvironment.current.currentUser,
-      currentUser != project.creator,
-      !project.creator.isBlocked
+      currentUser.id != project.projectPamphletMainCellProperties.creatorId,
+      !project.projectPamphletMainCellProperties.isCreatorBlocked
     else {
       self.goToCreatorProfile(forProject: project)
       return
@@ -1002,7 +1112,10 @@ extension ProjectPageViewController: ProjectPamphletMainCellDelegate {
     let actionSheet = UIAlertController
       .blockUserActionSheet(
         blockUserHandler: { _ in
-          self.presentBlockUserAlert(username: project.creator.name, userId: project.creator.id)
+          self.presentBlockUserAlert(
+            username: project.projectPamphletMainCellProperties.creatorName,
+            userId: project.projectPamphletMainCellProperties.creatorId
+          )
         },
         viewProfileHandler: { _ in self.goToCreatorProfile(forProject: project) },
         sourceView: cell.creatorButton,
@@ -1010,6 +1123,12 @@ extension ProjectPageViewController: ProjectPamphletMainCellDelegate {
       )
 
     self.present(actionSheet, animated: true)
+  }
+}
+
+extension ProjectPageViewController: SimilarProjectsTableViewCellDelegate {
+  func didSelectProject(_ project: ProjectCardProperties) {
+    self.viewModel.inputs.similarProjectTapped(project: project)
   }
 }
 

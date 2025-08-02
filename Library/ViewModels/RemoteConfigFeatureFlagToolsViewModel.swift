@@ -32,8 +32,7 @@ public final class RemoteConfigFeatureFlagToolsViewModel: RemoteConfigFeatureFla
       self.viewDidLoadProperty.signal,
       didUpdateUserDefaultsAndUI
     )
-    .map { _ in AppEnvironment.current.remoteConfigClient?.allFeatures() }
-    .skipNil()
+    .map { _ in RemoteConfigFeature.allCases }
 
     let remoteConfigFeatures = features
       .map { features in
@@ -84,25 +83,7 @@ public final class RemoteConfigFeatureFlagToolsViewModel: RemoteConfigFeatureFla
 // MARK: - Private Helpers
 
 private func isFeatureEnabled(_ feature: RemoteConfigFeature) -> Bool {
-  switch feature {
-  case .darkModeEnabled:
-    return featureDarkModeEnabled()
-  case .postCampaignPledgeEnabled:
-    return featurePostCampaignPledgeEnabled()
-  case .useKeychainForOAuthToken:
-    return featureUseKeychainForOAuthTokenEnabled()
-  case .pledgedProjectsOverviewEnabled:
-    return featurePledgedProjectsOverviewEnabled()
-  case .pledgeOverTime:
-    return featurePledgeOverTimeEnabled()
-  }
-}
-
-/** Returns the value of the User Defaults key in the AppEnvironment.
- */
-private func getValueFromUserDefaults(for feature: RemoteConfigFeature) -> Bool? {
-  return AppEnvironment.current.userDefaults
-    .remoteConfigFeatureFlags[feature.rawValue]
+  return featureEnabled(feature: feature)
 }
 
 /** Sets the value for the UserDefaults key in the AppEnvironment.

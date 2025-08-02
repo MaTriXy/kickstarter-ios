@@ -1,5 +1,6 @@
 import Apollo
 import Foundation
+import GraphAPI
 @testable import KsApi
 
 public enum FetchProjectCommentsQueryTemplate {
@@ -9,15 +10,15 @@ public enum FetchProjectCommentsQueryTemplate {
   var data: GraphAPI.FetchProjectCommentsQuery.Data {
     switch self {
     case .valid:
-      return GraphAPI.FetchProjectCommentsQuery.Data(unsafeResultMap: self.validResultMap)
+      return try! testGraphObject(data: self.validResultMap)
     case .errored:
-      return GraphAPI.FetchProjectCommentsQuery.Data(unsafeResultMap: self.erroredResultMap)
+      return try! testGraphObject(data: self.erroredResultMap)
     }
   }
 
   // MARK: Private Properties
 
-  private var validResultMap: [String: Any?] {
+  private var validResultMap: [String: Any] {
     let json = """
     {
       "project": {
@@ -51,7 +52,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 0
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -80,7 +84,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 1
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -109,7 +116,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 2
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -138,7 +148,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 1
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -167,7 +180,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 2
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }, {
             "__typename": "CommentEdge",
@@ -196,7 +212,10 @@ public enum FetchProjectCommentsQueryTemplate {
               "replies": {
                 "__typename": "CommentConnection",
                 "totalCount": 8
-              }
+              },
+              "hasFlaggings": false,
+              "removedPerGuidelines": false,
+              "sustained": false
             }
           }],
           "pageInfo": {
@@ -214,10 +233,10 @@ public enum FetchProjectCommentsQueryTemplate {
 
     let data = Data(json.utf8)
 
-    return (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any?]) ?? [:]
+    return (try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]) ?? [:]
   }
 
-  private var erroredResultMap: [String: Any?] {
+  private var erroredResultMap: [String: Any] {
     return CommentFragmentTemplate.valid.data
   }
 }

@@ -78,6 +78,7 @@ final class ProjectTests: XCTestCase {
           "medium": "http://www.kickstarter.com/medium.jpg",
           "small": "http://www.kickstarter.com/small.jpg"
         ],
+        "chosen_currency": nil,
         "needs_password": false
       ],
       "photo": [
@@ -146,6 +147,7 @@ final class ProjectTests: XCTestCase {
           "medium": "http://www.kickstarter.com/medium.jpg",
           "small": "http://www.kickstarter.com/small.jpg"
         ],
+        "chosen_currency": nil,
         "needs_password": false
       ],
       "photo": [
@@ -240,6 +242,7 @@ final class ProjectTests: XCTestCase {
           "medium": "http://www.kickstarter.com/medium.jpg",
           "small": "http://www.kickstarter.com/small.jpg"
         ],
+        "chosen_currency": nil,
         "needs_password": false
       ],
       "photo": [
@@ -300,10 +303,10 @@ final class ProjectTests: XCTestCase {
 
   func testGoalCurrentCurrency() {
     let project = .template
-      |> Project.lens.stats.currentCurrencyRate .~ 2.68
+      |> Project.lens.stats.userCurrencyRate .~ 2.68
       |> Project.lens.stats.goal .~ 30_000
 
-    XCTAssertEqual(80_400, project.stats.goalCurrentCurrency)
+    XCTAssertEqual(80_400, project.stats.goalUserCurrency)
   }
 
   func testGoalUsdCurrency() {

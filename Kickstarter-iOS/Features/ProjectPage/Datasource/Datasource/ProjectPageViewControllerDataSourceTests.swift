@@ -1,4 +1,5 @@
 import AVFoundation
+import GraphAPI
 @testable import Kickstarter_Framework
 @testable import KsApi
 @testable import Library
@@ -100,6 +101,8 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
   private let overviewSubpagesSection = ProjectPageViewControllerDataSource.Section.overviewSubpages.rawValue
   private let overviewReportProject = ProjectPageViewControllerDataSource.Section.overviewReportProject
     .rawValue
+  private let overviewSimilarProjects = ProjectPageViewControllerDataSource.Section.overviewSimilarProjects
+    .rawValue
   private let faqsHeaderSection = ProjectPageViewControllerDataSource.Section.faqsHeader.rawValue
   private let faqsEmptySection = ProjectPageViewControllerDataSource.Section.faqsEmpty.rawValue
   private let faqsSection = ProjectPageViewControllerDataSource.Section.faqs.rawValue
@@ -138,17 +141,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .faq,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: [false, false, false, false]
       )
-      XCTAssertEqual(10, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(11, self.dataSource.numberOfSections(in: self.tableView))
 
       // faqsHeader
       XCTAssertEqual(
@@ -194,17 +198,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: nil) {
       self.dataSource.load(
         navigationSection: .faq,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: [false, false, false, false]
       )
-      XCTAssertEqual(9, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(10, self.dataSource.numberOfSections(in: self.tableView))
 
       // faqsHeader
       XCTAssertEqual(
@@ -240,16 +245,17 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .faq,
-        project: project,
+        project: .left(project),
         refTag: nil
       )
-      XCTAssertEqual(10, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(11, self.dataSource.numberOfSections(in: self.tableView))
 
       // faqsHeader
       XCTAssertEqual(
@@ -295,16 +301,17 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: nil) {
       self.dataSource.load(
         navigationSection: .faq,
-        project: project,
+        project: .left(project),
         refTag: nil
       )
-      XCTAssertEqual(8, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(9, self.dataSource.numberOfSections(in: self.tableView))
 
       // faqsHeader
       XCTAssertEqual(
@@ -337,17 +344,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "These are all the risks and challenges associated with this project. Lorem Ipsum",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .risks,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(13, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(14, self.dataSource.numberOfSections(in: self.tableView))
 
       // risksHeader
       XCTAssertEqual(
@@ -390,17 +398,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: self.useOfAIDisclosure,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .aiDisclosure,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(18, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(19, self.dataSource.numberOfSections(in: self.tableView))
 
       XCTAssertEqual(
         1,
@@ -471,17 +480,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: updatedUseOfAIDisclosure,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .aiDisclosure,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(18, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(19, self.dataSource.numberOfSections(in: self.tableView))
 
       XCTAssertEqual(
         1,
@@ -545,17 +555,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .environmentalCommitments,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(21, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(22, self.dataSource.numberOfSections(in: self.tableView))
 
       // environmentCommitmentsHeader
       XCTAssertEqual(
@@ -601,17 +612,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .environmentalCommitments,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(21, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(22, self.dataSource.numberOfSections(in: self.tableView))
 
       // environmentCommitmentsHeader
       XCTAssertEqual(
@@ -653,17 +665,18 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
-      XCTAssertEqual(6, self.dataSource.numberOfSections(in: self.tableView))
+      XCTAssertEqual(7, self.dataSource.numberOfSections(in: self.tableView))
 
       // campaign header section
       XCTAssertEqual(
@@ -709,13 +722,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .overview,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -750,6 +764,79 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
     }
   }
 
+  func testSimilarProjectsInOverviewSection_WhenSimilarProjectsAreLoading() {
+    let project = Project.template
+      |> \.displayPrelaunch .~ false
+      |> \.extendedProjectProperties .~ ExtendedProjectProperties(
+        environmentalCommitments: [],
+        faqs: self.faqs,
+        aiDisclosure: nil,
+        risks: "",
+        story: self.storyViewableElements,
+        minimumPledgeAmount: 1,
+        projectNotice: nil
+      )
+
+    withEnvironment(currentUser: .template) {
+      self.dataSource.load(
+        navigationSection: .overview,
+        project: .left(project),
+        refTag: nil,
+        isExpandedStates: nil,
+        similarProjectsState: .loading
+      )
+      XCTAssertEqual(5, self.dataSource.numberOfSections(in: self.tableView))
+
+      // overview
+      XCTAssertEqual(
+        1,
+        self.dataSource.tableView(self.tableView, numberOfRowsInSection: self.overviewSection)
+      )
+
+      XCTAssertEqual(
+        "SimilarProjectsTableViewCell",
+        self.dataSource.reusableId(item: 0, section: self.overviewSimilarProjects)
+      )
+    }
+  }
+
+  func testSimilarProjectsInOverviewSection_WhenSimilarProjectsAreLoaded() {
+    let project = Project.template
+      |> \.displayPrelaunch .~ false
+      |> \.extendedProjectProperties .~ ExtendedProjectProperties(
+        environmentalCommitments: [],
+        faqs: self.faqs,
+        aiDisclosure: nil,
+        risks: "",
+        story: self.storyViewableElements,
+        minimumPledgeAmount: 1,
+        projectNotice: nil
+      )
+
+    withEnvironment(currentUser: .template) {
+      self.dataSource.load(
+        navigationSection: .overview,
+        project: .left(project),
+        refTag: nil,
+        isExpandedStates: nil,
+        similarProjectsState: .loaded(projects: [])
+      )
+
+      XCTAssertEqual(5, self.dataSource.numberOfSections(in: self.tableView))
+
+      // overview
+      XCTAssertEqual(
+        1,
+        self.dataSource.tableView(self.tableView, numberOfRowsInSection: self.overviewSection)
+      )
+
+      XCTAssertEqual(
+        "SimilarProjectsTableViewCell",
+        self.dataSource.reusableId(item: 0, section: self.overviewSimilarProjects)
+      )
+    }
+  }
+
   func testIsExpandedValuesForFAQsSection() {
     let isExpandedStates = [false, true, false, true]
     let project = Project.template
@@ -759,12 +846,13 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.dataSource.load(
       navigationSection: .faq,
-      project: project,
+      project: .left(project),
       refTag: nil,
       isExpandedStates: isExpandedStates
     )
@@ -781,12 +869,13 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.dataSource.load(
       navigationSection: .overview,
-      project: project,
+      project: .left(project),
       refTag: nil
     )
 
@@ -806,12 +895,13 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.dataSource.load(
       navigationSection: .overview,
-      project: project,
+      project: .left(project),
       refTag: nil
     )
 
@@ -830,13 +920,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -893,13 +984,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -958,7 +1050,8 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
@@ -980,7 +1073,7 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
 
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1011,7 +1104,8 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let image = UIImage(systemName: "camera")!
 
@@ -1034,7 +1128,7 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
 
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1065,13 +1159,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1112,13 +1207,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1160,14 +1256,15 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let camera = UIImage(systemName: "camera")!
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1213,13 +1310,14 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
         aiDisclosure: nil,
         risks: "",
         story: self.storyViewableElements,
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     withEnvironment(currentUser: .template) {
       self.dataSource.load(
         navigationSection: .campaign,
-        project: project,
+        project: .left(project),
         refTag: nil,
         isExpandedStates: nil
       )
@@ -1270,4 +1368,67 @@ final class ProjectPageViewControllerDataSourceTests: XCTestCase {
       )
     }
   }
+}
+
+// Helper method to create mock project nodes for testing
+private func createMockSimilarProjectNode(
+  id: Int = 123,
+  name: String = "Test Project",
+  imageURL: String? = "https://example.com/image.jpg",
+  state stateValue: String = "live",
+  isLaunched: Bool = true,
+  prelaunchActivated: Bool = false,
+  launchedAt: String? = "1741737648",
+  deadlineAt: String? = "1742737648",
+  percentFunded: Int = 75,
+  goal: Double? = 10_000,
+  pledged: Double = 7_500,
+  isInPostCampaignPledgingPhase: Bool = false,
+  isPostCampaignPledgingEnabled: Bool = false
+) -> GraphAPI.FetchSimilarProjectsQuery.Data.Projects.Node {
+  let state = GraphAPI.ProjectState(rawValue: stateValue.uppercased())
+  var resultMap: [String: Any] = [
+    "__typename": "Project",
+    "pid": id,
+    "name": name,
+    "state": state.isSome ? GraphQLEnum.case(state!) : GraphQLEnum.unknown(stateValue),
+    "isLaunched": isLaunched,
+    "prelaunchActivated": prelaunchActivated,
+    "percentFunded": percentFunded,
+    "pledged": [
+      "__typename": "Money",
+      "amount": String(pledged),
+      "currency": GraphAPI.CurrencyCode.usd,
+      "symbol": "$"
+    ],
+    "isInPostCampaignPledgingPhase": isInPostCampaignPledgingPhase,
+    "postCampaignPledgingEnabled": isPostCampaignPledgingEnabled
+  ]
+
+  // Add optional fields
+  if let imageURL {
+    resultMap["image"] = [
+      "__typename": "Photo",
+      "url": imageURL
+    ]
+  }
+
+  if let launchedAt {
+    resultMap["launchedAt"] = launchedAt
+  }
+
+  if let deadlineAt {
+    resultMap["deadlineAt"] = deadlineAt
+  }
+
+  if let goal {
+    resultMap["goal"] = [
+      "__typename": "Money",
+      "amount": String(goal),
+      "currency": GraphAPI.CurrencyCode.usd,
+      "symbol": "$"
+    ]
+  }
+
+  return try! testGraphObject<GraphAPI.FetchSimilarProjectsQuery.Data.Projects.Node>(data: resultMap)
 }

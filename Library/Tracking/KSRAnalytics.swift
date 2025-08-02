@@ -1,4 +1,5 @@
 import AppboySegment
+import AppTrackingTransparency
 import KsApi
 import PassKit
 import Prelude
@@ -40,7 +41,7 @@ public final class KSRAnalytics {
     case loginTout = "log_in_sign_up" // LoginToutViewController
     case managePledgeScreen = "manage_pledge" // ManagePledgeViewController
     case messages // MessagesViewController
-    case onboarding // CategorySelectionViewController, CuratedProjectsViewController
+    case onboarding // OnboardingView
     case pledgeAddNewCard = "pledge_add_new_card"
     case pledgeScreen = "pledge" // PledgeViewController
     case project // ProjectPageViewController
@@ -145,6 +146,7 @@ public final class KSRAnalytics {
     case discoverFilter
     case discoverSort
     case edit
+    case finalizePledgeInitiate
     case fixPledgeInitiate
     case forgotPassword
     case logInInitiate
@@ -163,6 +165,14 @@ public final class KSRAnalytics {
     case signUpSubmit
     case surveyResponseInitiate
     case watchProject
+    /// Onboarding CTA Context
+    case onboardingClose
+    case onboardingNext
+    case onboardingGetNotified
+    case onboardingAllowTracking
+    case onboardingSignUpLogIn
+    case onboardingSystemPermissionsAllowed
+    case onboardingSystemPermissionsDenied
 
     var trackingString: String {
       switch self {
@@ -176,9 +186,17 @@ public final class KSRAnalytics {
       case .discoverFilter: return "discover_filter"
       case .discoverSort: return "discover_sort"
       case .edit: return "edit"
+      case .finalizePledgeInitiate: return "finalize_pledge_initiate"
       case .fixPledgeInitiate: return "fix_pledge_initiate"
       case .forgotPassword: return "forgot_password"
       case .messageCreatorInitiate: return "message_creator_initiate"
+      case .onboardingClose: return "close"
+      case .onboardingNext: return "next"
+      case .onboardingGetNotified: return "get_notified"
+      case .onboardingAllowTracking: return "allow_tracking"
+      case .onboardingSignUpLogIn: return "signup_login"
+      case .onboardingSystemPermissionsAllowed: return "allow"
+      case .onboardingSystemPermissionsDenied: return "deny"
       case .pledgeInitiate: return "pledge_initiate"
       case .pledgeConfirm: return "pledge_confirm"
       case .pledgeSubmit: return "pledge_submit"
@@ -236,6 +254,7 @@ public final class KSRAnalytics {
   }
 
   public enum ManagePledgeMenuCTAType {
+    case editPledgeOverTimePledge
     case cancelPledge
     case changePaymentMethod
     case chooseAnotherReward
@@ -244,6 +263,7 @@ public final class KSRAnalytics {
 
     var trackingString: String {
       switch self {
+      case .editPledgeOverTimePledge: return "edit_pledge_over_time_pledge"
       case .cancelPledge: return "cancel_pledge"
       case .changePaymentMethod: return "change_payment_method"
       case .chooseAnotherReward: return "choose_another_reward"
@@ -281,6 +301,13 @@ public final class KSRAnalytics {
     case backerSurvey
     case comments
     case dashboard
+    case onboardingWelcome
+    case onboardingSaveProjects
+    case onboardingEnableNotifications
+    case onboardingAllowTracking
+    case onboardingLoginSignup
+    case onboardingNotificationsDialog
+    case onboardingAppTrackingDialog
     case overview
     case updates
     case watched
@@ -292,6 +319,13 @@ public final class KSRAnalytics {
       case .backerSurvey: return "backer_survey"
       case .comments: return "comments"
       case .dashboard: return "dashboard"
+      case .onboardingWelcome: return "welcome"
+      case .onboardingSaveProjects: return "save_projects"
+      case .onboardingEnableNotifications: return "enable_notifications"
+      case .onboardingAllowTracking: return "activity_tracking"
+      case .onboardingLoginSignup: return "signup_login"
+      case .onboardingNotificationsDialog: return "enable_notifications_prompt"
+      case .onboardingAppTrackingDialog: return "activity_tracking_prompt"
       case .overview: return "overview"
       case .updates: return "updates"
       case .watched: return "watched"
@@ -527,6 +561,7 @@ public final class KSRAnalytics {
   public struct PledgedProjectOverviewProperties {
     let addressLocksSoonCount: Int
     let surveyAvailableCount: Int
+    let pledgeManagementCount: Int
     let paymentFailedCount: Int
     let cardAuthRequiredCount: Int
     let total: Int?
@@ -535,6 +570,7 @@ public final class KSRAnalytics {
     public init(
       addressLocksSoonCount: Int,
       surveyAvailableCount: Int,
+      pledgeManagementCount: Int,
       paymentFailedCount: Int,
       cardAuthRequiredCount: Int,
       total: Int?,
@@ -542,6 +578,7 @@ public final class KSRAnalytics {
     ) {
       self.addressLocksSoonCount = addressLocksSoonCount
       self.surveyAvailableCount = surveyAvailableCount
+      self.pledgeManagementCount = pledgeManagementCount
       self.paymentFailedCount = paymentFailedCount
       self.cardAuthRequiredCount = cardAuthRequiredCount
       self.total = total
@@ -637,6 +674,23 @@ public final class KSRAnalytics {
   ) {
     let props = contextProperties(
       ctaContext: .surveyResponseInitiate,
+      page: .projectAlerts
+    )
+    .withAllValuesFrom(projectProperties(from: project))
+    .withAllValuesFrom(pledgedProjectOverviewProperties(from: properties))
+
+    self.track(
+      event: SegmentEvent.ctaClicked.rawValue,
+      properties: props
+    )
+  }
+
+  public func trackPPOManagePledge(
+    project: any ProjectAnalyticsProperties,
+    properties: PledgedProjectOverviewProperties
+  ) {
+    let props = contextProperties(
+      ctaContext: .finalizePledgeInitiate,
       page: .projectAlerts
     )
     .withAllValuesFrom(projectProperties(from: project))
@@ -943,11 +997,11 @@ public final class KSRAnalytics {
    */
 
   public func trackProjectVideoPlaybackStarted(
-    project: any ProjectAnalyticsProperties,
+    project: any HasProjectAnalyticsProperties,
     videoLength: Int,
     videoPosition: Int
   ) {
-    let props = projectProperties(from: project, loggedInUser: self.loggedInUser)
+    let props = projectProperties(from: project.projectAnalyticsProperties, loggedInUser: self.loggedInUser)
       .withAllValuesFrom(videoProperties(videoLength: videoLength, videoPosition: videoPosition))
       .withAllValuesFrom(contextProperties(page: .project))
 
@@ -1218,6 +1272,95 @@ public final class KSRAnalytics {
     return props.withAllValuesFrom(["login_intent": intent.trackingString])
   }
 
+  // MARK: - Onboarding Events
+
+  /**
+   Call when an Onboarding Item is viewed.
+   */
+  public func trackOnboardingPageViewed(at item: OnboardingItemType) {
+    let section: SectionContext
+
+    switch item {
+    case .welcome:
+      section = .onboardingWelcome
+    case .saveProjects:
+      section = .onboardingSaveProjects
+    case .enableNotifications:
+      section = .onboardingEnableNotifications
+    case .allowTracking:
+      section = .onboardingAllowTracking
+    case .loginSignUp:
+      section = .onboardingLoginSignup
+    }
+
+    let props = contextProperties(page: .onboarding, sectionContext: section)
+    self.track(event: SegmentEvent.pageViewed.rawValue, properties: props)
+  }
+
+  /**
+   Call when one of the onboarding view's CTAs is tapped.
+   */
+  public func trackOnboardingPageButtonTapped(context: CTAContext, item: OnboardingItemType? = nil) {
+    let section: SectionContext?
+
+    switch item {
+    case .welcome:
+      section = .onboardingWelcome
+    case .saveProjects:
+      section = .onboardingSaveProjects
+    case .enableNotifications:
+      section = .onboardingEnableNotifications
+    case .allowTracking:
+      section = .onboardingAllowTracking
+    case .loginSignUp:
+      section = .onboardingLoginSignup
+    case .none:
+      section = nil
+    }
+
+    let props = contextProperties(ctaContext: context, page: .onboarding, sectionContext: section)
+    self.track(
+      event: SegmentEvent.ctaClicked.rawValue,
+      properties: props
+    )
+  }
+
+  /**
+   Call when a system permissions dialog is viewed in the onboarding flow.
+   */
+  public func trackSystemPermissionsDialogViewed(on sectionContext: SectionContext) {
+    let props = contextProperties(page: .onboarding, sectionContext: sectionContext)
+    self.track(event: SegmentEvent.pageViewed.rawValue, properties: props)
+  }
+
+  /**
+   Call when the user has finished interacting with the Push Notification permissions dialog that was presented in the onboarding flow.
+   */
+  public func trackPushNotificationPermissionsDialogInteraction(
+    _ sectionContext: SectionContext,
+    authStatus: UNAuthorizationStatus
+  ) {
+    let ctaContext: CTAContext = authStatus == .authorized ? .onboardingSystemPermissionsAllowed :
+      .onboardingSystemPermissionsDenied
+
+    let props = contextProperties(ctaContext: ctaContext, page: .onboarding, sectionContext: sectionContext)
+    self.track(event: SegmentEvent.ctaClicked.rawValue, properties: props)
+  }
+
+  /**
+   Call when the user has finished interacting with the AppTrackingTransparency permissions dialog that was presented in the onboarding flow.
+   */
+  public func trackAppTrackingTransparencyPermissionsDialogInteraction(
+    _ sectionContext: SectionContext,
+    authStatus: ATTrackingManager.AuthorizationStatus
+  ) {
+    let ctaContext: CTAContext = authStatus == .authorized ? .onboardingSystemPermissionsAllowed :
+      .onboardingSystemPermissionsDenied
+
+    let props = contextProperties(ctaContext: ctaContext, page: .onboarding, sectionContext: sectionContext)
+    self.track(event: SegmentEvent.ctaClicked.rawValue, properties: props)
+  }
+
   // MARK: - Search Events
 
   /// Call whenever the search view is shown.
@@ -1295,8 +1438,8 @@ public final class KSRAnalytics {
    - parameter project: The project the creator's name is clicked from.
    */
 
-  public func trackGotoCreatorDetailsClicked(project: any ProjectAnalyticsProperties) {
-    let props = projectProperties(from: project, loggedInUser: self.loggedInUser)
+  public func trackGotoCreatorDetailsClicked(project: any HasProjectAnalyticsProperties) {
+    let props = projectProperties(from: project.projectAnalyticsProperties, loggedInUser: self.loggedInUser)
       .withAllValuesFrom(contextProperties(ctaContext: .creatorDetails, page: .project))
 
     self.track(
@@ -1498,6 +1641,7 @@ private func pledgedProjectOverviewProperties(
 
   result["notification_count_address_locks_soon"] = properties.addressLocksSoonCount
   result["notification_count_survey_available"] = properties.surveyAvailableCount
+  result["notification_count_pledge_management"] = properties.pledgeManagementCount
   result["notification_count_payment_failed"] = properties.paymentFailedCount
   result["notification_count_card_auth_required"] = properties.cardAuthRequiredCount
 

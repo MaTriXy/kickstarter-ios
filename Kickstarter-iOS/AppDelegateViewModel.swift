@@ -5,12 +5,6 @@ import Prelude
 import ReactiveSwift
 import UserNotifications
 
-public struct AppCenterConfigData: Equatable {
-  public let appSecret: String
-  public let userId: String
-  public let userName: String
-}
-
 public enum NotificationAuthorizationStatus {
   case authorized
   case denied
@@ -76,6 +70,9 @@ public protocol AppDelegateViewModelInputs {
   /// Call when the redirect URL has been found, see `findRedirectUrl` for more information.
   func foundRedirectUrl(_ url: URL)
 
+  /// Call when the users taps 'Log in or Sign up' from the onboarding flow (`OnboardingView`).
+  func goToLoginSignup(from intent: LoginIntent)
+
   /// Call when Remote Config configuration has failed
   func remoteConfigClientConfigurationFailed()
 
@@ -98,9 +95,6 @@ public protocol AppDelegateViewModelOutputs {
 
   /// Emits the application icon badge number
   var applicationIconBadgeNumber: Signal<Int, Never> { get }
-
-  /// Emits an app secret that should be used to configure AppCenter.
-  var configureAppCenterWithData: Signal<AppCenterConfigData, Never> { get }
 
   /// Emits when the application should configure Firebase
   var configureFirebase: Signal<(), Never> { get }
@@ -157,7 +151,7 @@ public protocol AppDelegateViewModelOutputs {
   /// Emits when we should register the device push token in Segment Analytics.
   var registerPushTokenInSegment: Signal<Data, Never> { get }
 
-  /// Emits when  application didFinishLaunchingWithOptions.
+  /// Emits when application didFinishLaunchingWithOptions.
   var requestATTrackingAuthorizationStatus: Signal<Void, Never> { get }
 
   /// Emits when our config updates with the enabled state for Semgent Analytics.
@@ -174,6 +168,9 @@ public protocol AppDelegateViewModelOutputs {
 
   /// Emits immediately and when the user's authorization status changes
   var trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never> { get }
+
+  /// Emits when application didFinishLaunchingWithOptions and the Onboarding Flow feature flag is enabled.
+  var triggerOnboardingFlow: Signal<(), Never> { get }
 
   /// Emits when we should unregister the user from notifications.
   var unregisterForRemoteNotifications: Signal<(), Never> { get }
@@ -226,15 +223,17 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           return
         }
 
-        let ppoSettings = user
-          .flatMap { $0.me.ppoHasAction }
-          .flatMap { PPOUserSettings(hasAction: $0) }
+        let ppoSettings = PPOUserSettings(
+          hasAction: user?.me.ppoHasAction ?? false,
+          backingActionCount: user?.me.backingActionCount ?? 0
+        )
 
         AppEnvironment.replaceCurrentEnvironment(
           currentUserEmail: email,
           currentUserPPOSettings: ppoSettings,
           currentUserServerFeatures: features
         )
+
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
 
@@ -296,7 +295,9 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     let pushTokenRegistrationStartedEvents = Signal.merge(
       self.didAcceptReceivingRemoteNotificationsProperty.signal,
-      pushNotificationsPreviouslyAuthorized.filter(isTrue).ignoreValues()
+      pushNotificationsPreviouslyAuthorized
+        .filter { isPreviouslyAuthorzied in isPreviouslyAuthorzied }
+        .ignoreValues()
     )
     .flatMap {
       AppEnvironment.current.pushRegistrationType.register(for: [.alert, .sound, .badge])
@@ -313,6 +314,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
         if let context = $0.userInfo?.values.first as? PushNotificationDialog.Context {
           return PushNotificationDialog.canShowDialog(for: context)
         }
+
         return false
       }
 
@@ -329,6 +331,22 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       }
 
     self.registerPushTokenInSegment = self.deviceTokenDataProperty.signal
+
+    // MARK: - Onboarding Flow
+
+    /// Trigger if the user hasn't authorized or denied Push Notification or AppTrackingTransparency permissions yet and hasn't seen the onboarding flow already..
+    self.triggerOnboardingFlow = Signal.combineLatest(
+      self.applicationLaunchOptionsProperty.signal.ignoreValues(),
+      pushNotificationsPreviouslyAuthorized.filter { isFalse($0) }
+    )
+    .filter { _ in
+      let shouldRequestAppTracking = AppEnvironment.current.appTrackingTransparency
+        .shouldRequestAuthorizationStatus() == true
+      let hasNotSeenOnboarding = AppEnvironment.current.userDefaults.hasSeenOnboarding == false
+
+      return shouldRequestAppTracking && hasNotSeenOnboarding
+    }
+    .mapConst(())
 
     // Deep links. For more information, see
     // https://app.getguru.com/card/cyRdjqgi/How-iOS-Universal-Links-work
@@ -460,20 +478,21 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       }
 
     let projectLinkValues = deepLink
-      .map { link -> (Param, Navigation.Project, RefInfo?)? in
-        guard case let .project(param, subpage, refInfo) = link else { return nil }
-        return (param, subpage, refInfo)
+      .map { link -> (Param, Navigation.Project, RefInfo?, secretRewardToken: String?)? in
+        guard case let .project(param, subpage, refInfo, secretRewardToken) = link else { return nil }
+        return (param, subpage, refInfo, secretRewardToken)
       }
       .skipNil()
-      .switchMap { param, subpage, refInfo in
+      .switchMap { param, subpage, refInfo, secretRewardToken in
         AppEnvironment.current.apiService.fetchProject(param: param)
           .demoteErrors()
           .observeForUI()
           .map { project -> (Project, Navigation.Project, [UIViewController], RefInfo?) in
-            let projectParam = Either<Project, Param>(left: project)
+            let projectParam = Either<Project, any ProjectPageParam>(left: project)
             let vc = ProjectPageViewController.configuredWith(
               projectOrParam: projectParam,
-              refInfo: refInfo
+              refInfo: refInfo,
+              secretRewardToken: secretRewardToken
             )
 
             return (
@@ -526,7 +545,8 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     self.goToLoginWithIntent = Signal.merge(
       fixErroredPledgeLinkAndIsLoggedIn.filter(third >>> isFalse).mapConst(.erroredPledge),
-      goToLogin.mapConst(.generic)
+      goToLogin.mapConst(.generic),
+      self.goToLoginSignupProperty.signal.skipNil()
     )
 
     self.goToMessageThread = deepLink
@@ -575,8 +595,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           .fetchCommentReplies(
             id: commentId,
             cursor: nil,
-            limit: CommentRepliesEnvelope.paginationLimit,
-            withStoredCards: false
+            limit: CommentRepliesEnvelope.paginationLimit
           )
           .demoteErrors()
           .observeForUI()
@@ -610,7 +629,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     let surveyUrlFromProjectLink = deepLink
       .map { link -> String? in
-        if case let .project(_, .surveyWebview(surveyUrl), _) = link {
+        if case let .project(_, .surveyWebview(surveyUrl), _, _) = link {
           return surveyUrl
         }
         return nil
@@ -676,8 +695,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
           .fetchCommentReplies(
             id: commentId,
             cursor: nil,
-            limit: CommentRepliesEnvelope.paginationLimit,
-            withStoredCards: false
+            limit: CommentRepliesEnvelope.paginationLimit
           )
           .demoteErrors()
           .observeForUI()
@@ -715,23 +733,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
 
     self.configureFirebase = self.applicationLaunchOptionsProperty.signal.ignoreValues()
 
-    self.configureAppCenterWithData = Signal.merge(
-      self.applicationLaunchOptionsProperty.signal.ignoreValues(),
-      self.userSessionStartedProperty.signal,
-      self.userSessionEndedProperty.signal
-    )
-    .filter { !AppEnvironment.current.mainBundle.isDebug && !AppEnvironment.current.mainBundle.isRelease }
-    .map { _ -> AppCenterConfigData? in
-      guard let appCenterAppSecret = AppEnvironment.current.mainBundle.appCenterAppSecret else { return nil }
-
-      return AppCenterConfigData(
-        appSecret: appCenterAppSecret,
-        userId: (AppEnvironment.current.currentUser?.id).map(String.init) ?? "0",
-        userName: AppEnvironment.current.currentUser?.name ?? "anonymous"
-      )
-    }
-    .skipNil()
-
     self.setApplicationShortcutItems = currentUserEvent
       .values()
       .switchMap(shortcutItems(forUser:))
@@ -767,6 +768,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .skipNil()
       .map { _ in .displayInAppMessageNow }
 
+    /// Request AppTransparencyTracking outside of onboarding.
     self.requestATTrackingAuthorizationStatus = Signal
       .combineLatest(
         self.applicationDidFinishLaunchingReturnValueProperty.signal.ignoreValues(),
@@ -775,13 +777,19 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
       .map(second)
       .skipRepeats()
       .ksr_delay(.seconds(1), on: AppEnvironment.current.scheduler)
-      .filter(isTrue)
+      .filter { applicationIsActive in
+        /// Only attempt to request authorization outside of onboarding if the application is active and the user has seen the onboarding flow.
+        /// We don't want to request authorzation in the onboarding flow unless they've tapped the "all tracking" CTA.
+        let hasSeenOnboarding = AppEnvironment.current.userDefaults.hasSeenOnboarding == true
+
+        return applicationIsActive && hasSeenOnboarding
+      }
       .map { _ in AppEnvironment.current.appTrackingTransparency }
       .map { appTrackingTransparency in
         if
           appTrackingTransparency.advertisingIdentifier == nil &&
           appTrackingTransparency.shouldRequestAuthorizationStatus() {
-          appTrackingTransparency.requestAndSetAuthorizationStatus()
+          appTrackingTransparency.requestAndSetAuthorizationStatus(nil)
         }
         return ()
       }
@@ -889,6 +897,11 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
     self.foundRedirectUrlProperty.value = url
   }
 
+  private let goToLoginSignupProperty = MutableProperty<LoginIntent?>(nil)
+  public func goToLoginSignup(from intent: LoginIntent) {
+    self.goToLoginSignupProperty.value = intent
+  }
+
   fileprivate typealias ApplicationOpenUrl = (
     application: UIApplication?,
     url: URL,
@@ -935,7 +948,6 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   }
 
   public let applicationIconBadgeNumber: Signal<Int, Never>
-  public let configureAppCenterWithData: Signal<AppCenterConfigData, Never>
   public let configureFirebase: Signal<(), Never>
   public let configureSegmentWithBraze: Signal<String, Never>
   public let continueUserActivityReturnValue = MutableProperty(false)
@@ -961,6 +973,7 @@ public final class AppDelegateViewModel: AppDelegateViewModelType, AppDelegateVi
   public let showAlert: Signal<Notification, Never>
   public let synchronizeUbiquitousStore: Signal<(), Never>
   public let trackingAuthorizationStatus: SignalProducer<AppTrackingAuthorization, Never>
+  public let triggerOnboardingFlow: Signal<(), Never>
   public let unregisterForRemoteNotifications: Signal<(), Never>
   public let updateCurrentUserInEnvironment: Signal<User, Never>
   public let updateConfigInEnvironment: Signal<Config, Never>
@@ -1077,7 +1090,7 @@ private func navigation(fromPushEnvelope envelope: PushEnvelope) -> Navigation? 
     case .follow:
       return .tab(.activity)
 
-    case .funding, .unknown, .watch:
+    case .funding, .shipped, .unknown, .watch:
       return nil
     }
   }

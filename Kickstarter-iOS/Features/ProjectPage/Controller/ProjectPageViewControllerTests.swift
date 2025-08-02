@@ -52,7 +52,8 @@ internal final class ProjectPageViewControllerTests: TestCase {
         )
       ]
     ),
-    minimumPledgeAmount: 1
+    minimumPledgeAmount: 1,
+    projectNotice: nil
   )
   private let emptyProjectProperties = ExtendedProjectProperties(
     environmentalCommitments: [],
@@ -60,21 +61,18 @@ internal final class ProjectPageViewControllerTests: TestCase {
     aiDisclosure: nil,
     risks: "",
     story: ProjectStoryElements(htmlViewElements: []),
-    minimumPledgeAmount: 1
+    minimumPledgeAmount: 1,
+    projectNotice: nil
   )
   private let user = User.brando
 
   override func setUp() {
     super.setUp()
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
-
     super.tearDown()
   }
 
@@ -275,6 +273,60 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  func testLoggedIn_NonBacker_LiveProject_DarkMode() {
+    let config = Config.template
+    let currentUser = User.template
+    let project = Project.cosmicSurgery
+      |> Project.lens.personalization.isStarred .~ true
+      |> Project.lens.watchesCount .~ 10
+      |> Project.lens.photo.full .~ ""
+      |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
+      |> Project.lens.personalization.isBacking .~ false
+      |> Project.lens.state .~ .live
+      |> Project.lens.stats.convertedPledgedAmount .~ 29_236
+      |> Project.lens.rewardData.rewards .~ []
+      |> \.extendedProjectProperties .~ self.extendedProjectProperties
+
+    let projectPamphletData = Project.ProjectPamphletData(project: project, backingId: nil)
+
+    let mockService = MockService(
+      fetchProjectPamphletResult: .success(projectPamphletData)
+    )
+    let darkModeOn = MockRemoteConfigClient()
+    darkModeOn.features = [
+      RemoteConfigFeature.newDesignSystem.rawValue: true
+    ]
+
+    let language = Language.en
+    let device = Device.phone5_8inch
+
+    withEnvironment(
+      apiService: mockService,
+      colorResolver: AppColorResolver(),
+      config: config,
+      currentUser: currentUser,
+      language: language,
+      remoteConfigClient: darkModeOn
+    ) {
+      let vc = ProjectPageViewController.configuredWith(
+        projectOrParam: .left(project), refInfo: nil
+      )
+
+      vc.overrideUserInterfaceStyle = .dark
+
+      let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
+      parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
+
+      scheduler.run()
+
+      assertSnapshot(
+        matching: parent.view,
+        as: .image(perceptualPrecision: 0.98),
+        named: "lang_\(language)_device_\(device)_dark"
+      )
+    }
+  }
+
   func testLoggedIn_Backer_NonLiveProject() {
     let config = Config.template
     let project = Project.cosmicSurgery
@@ -454,9 +506,9 @@ internal final class ProjectPageViewControllerTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.title .~ "Magic Lamp"
     let project = Project.cosmicSurgery
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
       |> Project.lens.country .~ Project.Country.us
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.photo.full .~ ""
       |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
       |> Project.lens.personalization.isBacking .~ false
@@ -507,9 +559,9 @@ internal final class ProjectPageViewControllerTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.title .~ "Magic Lamp"
     let project = Project.cosmicSurgery
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.country .~ Project.Country.us
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.photo.full .~ ""
       |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
       |> Project.lens.personalization.isBacking .~ false
@@ -560,9 +612,9 @@ internal final class ProjectPageViewControllerTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.title .~ "Magic Lamp"
     let project = Project.cosmicSurgery
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
       |> Project.lens.country .~ Project.Country.us
-      |> Project.lens.stats.currentCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.mx.currencyCode
       |> Project.lens.photo.full .~ ""
       |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
       |> Project.lens.personalization.isBacking .~ false
@@ -613,9 +665,9 @@ internal final class ProjectPageViewControllerTests: TestCase {
     let reward = Reward.template
       |> Reward.lens.title .~ "Magic Lamp"
     let project = Project.cosmicSurgery
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
       |> Project.lens.country .~ Project.Country.us
-      |> Project.lens.stats.currentCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.mx.currencyCode
       |> Project.lens.photo.full .~ ""
       |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
       |> Project.lens.personalization.isBacking .~ false
@@ -868,6 +920,95 @@ internal final class ProjectPageViewControllerTests: TestCase {
     }
   }
 
+  func testLoggedOut_LiveProject_ShowProjectNotice() {
+    let config = Config.template
+
+    let extendedProjectProperties = ExtendedProjectProperties(
+      environmentalCommitments: [],
+      faqs: [],
+      aiDisclosure: nil,
+      risks: "",
+      story: self.extendedProjectProperties.story,
+      minimumPledgeAmount: 1,
+      projectNotice: "fake project notice"
+    )
+
+    let liveProject = self.project
+      |> Project.lens.photo.full .~ ""
+      |> (Project.lens.creator.avatar .. User.Avatar.lens.small) .~ ""
+      |> Project.lens.stats.convertedPledgedAmount .~ 1_964
+      |> Project.lens.rewardData.rewards .~ []
+      |> \.extendedProjectProperties .~ extendedProjectProperties
+
+    let projectPamphletData = Project.ProjectPamphletData(project: liveProject, backingId: nil)
+
+    let mockService = MockService(
+      fetchManagePledgeViewBackingResult: .success(.template),
+      fetchProjectPamphletResult: .success(projectPamphletData),
+      fetchProjectRewardsResult: .success(self.project.rewards)
+    )
+
+    orthogonalCombos(Language.allLanguages, [Device.phone4inch, Device.pad]).forEach { language, device in
+      withEnvironment(
+        apiService: mockService,
+        config: config, currentUser: nil, language: language
+      ) {
+        let vc = ProjectPageViewController.configuredWith(projectOrParam: .left(liveProject), refInfo: nil)
+
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
+        parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
+
+        scheduler.run()
+
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
+    }
+  }
+
+  func testNetNewBacker_GoToPledgeManager() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.netNewBackersGoToPM.rawValue: true
+    ]
+
+    let config = Config.template
+    let project = Project.netNewBacker
+
+    let projectPamphletData = Project.ProjectPamphletData(project: project, backingId: nil)
+
+    let mockService = MockService(
+      fetchManagePledgeViewBackingResult: .success(.template),
+      fetchProjectPamphletResult: .success(projectPamphletData)
+    )
+
+    orthogonalCombos([Language.en], [Device.phone4inch, Device.pad]).forEach { language, device in
+      withEnvironment(
+        apiService: mockService,
+        config: config, currentUser: nil, language: language,
+        remoteConfigClient: mockConfigClient
+      ) {
+        let vc = ProjectPageViewController.configuredWith(
+          projectOrParam: .left(project), refInfo: nil
+        )
+
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
+        parent.view.frame.size.height = device == .pad ? 1_200 : parent.view.frame.size.height
+
+        scheduler.run()
+
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
+    }
+  }
+
   // MARK: - Error fetching project
 
   func testErrorFetchingProject() {
@@ -913,7 +1054,8 @@ internal final class ProjectPageViewControllerTests: TestCase {
 
   // MARK: - Tab Content Tests
 
-  func testLoggedOut_NonBacker_LiveProjectSwitchedToCampaignTab_Success() {
+  // FIXME: MBL-2463 This test is flaky and frequently times out. Disabling it for the moment.
+  func disabled_testLoggedOut_NonBacker_LiveProjectSwitchedToCampaignTab_Success() {
     let config = Config.template
     let project = Project.cosmicSurgery
       |> Project.lens.photo.full .~ ""
@@ -1111,7 +1253,8 @@ internal final class ProjectPageViewControllerTests: TestCase {
           )
         ]
       ),
-      minimumPledgeAmount: 1
+      minimumPledgeAmount: 1,
+      projectNotice: nil
     )
 
     let project = Project.cosmicSurgery

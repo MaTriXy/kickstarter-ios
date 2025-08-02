@@ -20,6 +20,7 @@ struct PPOProjectCard: View {
       self.divider
       self.addressDetails(leadingColumnWidth: self.parentSize.width * Constants.firstColumnWidth)
       self.actionButtons
+      self.actionDetails
     }
     .padding(.vertical)
     .frame(maxWidth: .infinity)
@@ -66,7 +67,10 @@ struct PPOProjectCard: View {
   private var flagList: some View {
     if self.viewModel.card.alerts.isEmpty == false {
       HStack {
-        VStack(alignment: .leading) {
+        FlowLayout(
+          spacing: PPOStyles.flagSpacing,
+          alignment: .leading
+        ) {
           ForEach(self.viewModel.card.alerts) { alert in
             PPOAlertFlag(alert: alert)
           }
@@ -79,27 +83,33 @@ struct PPOProjectCard: View {
 
   @ViewBuilder
   private func projectDetails(leadingColumnWidth: CGFloat) -> some View {
-    PPOProjectDetails(
-      image: self.viewModel.card.image,
-      title: self.viewModel.card.projectName,
-      pledge: self.viewModel.card.pledge,
-      leadingColumnWidth: leadingColumnWidth
-    )
-    .padding([.horizontal])
-    .onTapGesture {
-      self.viewModel.viewBackingDetails()
+    Button { [weak viewModel] () in
+      viewModel?.viewBackingDetails()
+    } label: {
+      PPOProjectDetails(
+        image: self.viewModel.card.image,
+        title: self.viewModel.card.projectName,
+        pledge: self.viewModel.card.pledge,
+        leadingColumnWidth: leadingColumnWidth
+      )
+      .padding([.horizontal])
     }
+    // MBL-2020: Keeps the button action from being triggered by other taps in the card.
+    .buttonStyle(BorderlessButtonStyle())
   }
 
   @ViewBuilder
   private var projectCreator: some View {
-    PPOProjectCreator(
-      creatorName: self.viewModel.card.creatorName,
-      onSendMessage: { [weak viewModel] () in
-        viewModel?.sendCreatorMessage()
-      }
-    )
-    .padding([.horizontal])
+    Button { [weak viewModel] () in
+      viewModel?.sendCreatorMessage()
+    } label: {
+      PPOProjectCreator(
+        creatorName: self.viewModel.card.creatorName
+      )
+      .padding([.horizontal])
+    }
+    // MBL-2020: Keeps the button action from being triggered by other taps in the card.
+    .buttonStyle(BorderlessButtonStyle())
   }
 
   @ViewBuilder
@@ -123,21 +133,21 @@ struct PPOProjectCard: View {
       switch action.style {
       case .green:
         self.baseButton(for: action)
-          .buttonStyle(GreenButtonStyle())
+          .buttonStyle(KSRButtonStyleModifier(style: .green))
       case .red:
         self.baseButton(for: action)
-          .buttonStyle(RedButtonStyle())
+          .buttonStyle(KSRButtonStyleModifier(style: .filledDestructive))
       case .black:
         self.baseButton(for: action)
-          .buttonStyle(BlackButtonStyle())
+          .buttonStyle(KSRButtonStyleModifier(style: .filled))
       }
 
-      if self.viewModel.isLoading {
+      if self.viewModel.buttonState == .loading {
         ProgressView()
           .progressViewStyle(CircularProgressViewStyle(tint: .white))
       }
     }
-    .disabled(self.viewModel.isLoading)
+    .disabled(self.viewModel.buttonState == .loading || self.viewModel.buttonState == .disabled)
   }
 
   @ViewBuilder
@@ -153,13 +163,27 @@ struct PPOProjectCard: View {
   }
 
   @ViewBuilder
+  private var actionDetails: some View {
+    if let actionDetails = self.viewModel.actionDetails {
+      Text(actionDetails)
+        .font(Font(PPOStyles.subtitle.font))
+        .frame(
+          maxWidth: .infinity,
+          alignment: .leading
+        )
+        .foregroundStyle(Color(PPOStyles.subtitle.color))
+        .padding([.horizontal])
+    }
+  }
+
+  @ViewBuilder
   private var divider: some View {
     Divider()
   }
 
   private enum Constants {
     static let cornerRadius: CGFloat = Styles.cornerRadius * 2
-    static let borderColor = UIColor.ksr_support_300
+    static let borderColor = LegacyColors.ksr_support_300.uiColor()
     static let borderWidth: CGFloat = 1
     static let badgeAlignment = Alignment(horizontal: .trailing, vertical: .top)
     static let badgeSize: CGFloat = Styles.grid(2)

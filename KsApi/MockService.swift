@@ -1,6 +1,8 @@
 #if DEBUG
+  import Apollo
   import Combine
   import Foundation
+  import GraphAPI
   import Prelude
   import ReactiveSwift
 
@@ -17,6 +19,8 @@
     fileprivate let addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>?
 
     fileprivate let addPaymentSheetPaymentSourceResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>?
+
+    fileprivate let addUserToSecretRewardGroup: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
     fileprivate let blockUserResult: Result<EmptyResponseEnvelope, ErrorEnvelope>?
 
@@ -61,6 +65,8 @@
 
     fileprivate let facebookConnectResponse: User?
     fileprivate let facebookConnectError: ErrorEnvelope?
+
+    fileprivate let fetchGraphQLResponses: [(any GraphQLQuery.Type, any GraphAPI.SelectionSet)]?
 
     fileprivate let fetchActivitiesResponse: [Activity]?
     fileprivate let fetchActivitiesError: ErrorEnvelope?
@@ -122,6 +128,11 @@
     fileprivate let fetchProjectEnvelopeResult: Result<Project, ErrorEnvelope>?
     fileprivate let fetchProjectPamphletEnvelopeResult: Result<Project.ProjectPamphletData, ErrorEnvelope>?
     fileprivate let fetchProjectFriendsEnvelopeResult: Result<[User], ErrorEnvelope>?
+    fileprivate let fetchProjectRewardsAndPledgeOverTimeDataResult: Result<
+      RewardsAndPledgeOverTimeEnvelope,
+
+      ErrorEnvelope
+    >?
     fileprivate let fetchProjectRewardsEnvelopeResult: Result<[Reward], ErrorEnvelope>?
     fileprivate let fetchProjectsResponse: [Project]?
     fileprivate let fetchProjectsError: ErrorEnvelope?
@@ -234,6 +245,7 @@
       deviceIdentifier: String = "DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFBEEF",
       addNewCreditCardResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>? = nil,
       addPaymentSheetPaymentSourceResult: Result<CreatePaymentSourceEnvelope, ErrorEnvelope>? = nil,
+      addUserToSecretRewardGroup: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
       apolloClient: ApolloClientType? = nil,
       blockUserResult: Result<EmptyResponseEnvelope, ErrorEnvelope>? = nil,
       buildPaymentPlanResult: Result<GraphAPI.BuildPaymentPlanQuery.Data, ErrorEnvelope>? = nil,
@@ -259,6 +271,7 @@
       clearUserUnseenActivityResult: Result<ClearUserUnseenActivityEnvelope, ErrorEnvelope>? = nil,
       facebookConnectResponse: User? = nil,
       facebookConnectError: ErrorEnvelope? = nil,
+      fetchGraphQLResponses: [(any GraphQLQuery.Type, any GraphAPI.SelectionSet)]? = nil,
       fetchActivitiesResponse: [Activity]? = nil,
       fetchActivitiesError: ErrorEnvelope? = nil,
       fetchBackingResponse: Backing = .template,
@@ -298,6 +311,11 @@
       fetchProjectResult: Result<Project, ErrorEnvelope>? = nil,
       fetchProjectPamphletResult: Result<Project.ProjectPamphletData, ErrorEnvelope>? = nil,
       fetchProjectFriendsResult: Result<[User], ErrorEnvelope>? = nil,
+      fetchProjectRewardsAndPledgeOverTimeDataResult: Result<
+        RewardsAndPledgeOverTimeEnvelope,
+
+        ErrorEnvelope
+      >? = nil,
       fetchProjectRewardsResult: Result<[Reward], ErrorEnvelope>? = nil,
       fetchProjectActivitiesResponse: [Activity]? = nil,
       fetchProjectActivitiesError: ErrorEnvelope? = nil,
@@ -356,6 +374,8 @@
 
       self.addPaymentSheetPaymentSourceResult = addPaymentSheetPaymentSourceResult
 
+      self.addUserToSecretRewardGroup = addUserToSecretRewardGroup
+
       self.apolloClient = apolloClient ?? MockGraphQLClient.shared.client
 
       self.blockUserResult = blockUserResult
@@ -398,6 +418,8 @@
 
       self.facebookConnectResponse = facebookConnectResponse
       self.facebookConnectError = facebookConnectError
+
+      self.fetchGraphQLResponses = fetchGraphQLResponses
 
       self.fetchActivitiesResponse = fetchActivitiesResponse ?? [
         .template,
@@ -488,6 +510,7 @@
       self.fetchProjectEnvelopeResult = fetchProjectResult
       self.fetchProjectPamphletEnvelopeResult = fetchProjectPamphletResult
       self.fetchProjectFriendsEnvelopeResult = fetchProjectFriendsResult
+      self.fetchProjectRewardsAndPledgeOverTimeDataResult = fetchProjectRewardsAndPledgeOverTimeDataResult
       self.fetchProjectRewardsEnvelopeResult = fetchProjectRewardsResult
 
       self.fetchProjectStatsResponse = fetchProjectStatsResponse
@@ -584,6 +607,18 @@
       return client.performWithResult(mutation: mutation, result: self.addPaymentSheetPaymentSourceResult)
     }
 
+    public func addUserToSecretRewardGroup(input: AddUserToSecretRewardGroupInput)
+      -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let mutation = GraphAPI
+        .AddUserToSecretRewardGroupMutation(input: GraphAPI.AddUserToSecretRewardGroupInput.from(input))
+
+      return client.performWithResult(mutation: mutation, result: self.addUserToSecretRewardGroup)
+    }
+
     public func blockUser(input: BlockUserInput)
       -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
@@ -604,7 +639,11 @@
         return .empty
       }
 
-      let query = GraphAPI.BuildPaymentPlanQuery(slug: projectSlug, amount: pledgeAmount)
+      let query = GraphAPI.BuildPaymentPlanQuery(
+        slug: projectSlug,
+        amount: pledgeAmount,
+        includeRefundedAmount: false
+      )
 
       return client.fetchWithResult(query: query, result: self.buildPaymentPlanResult)
     }
@@ -703,10 +742,10 @@
         input: GraphAPI
           .CreateCheckoutInput(
             projectId: input.projectId,
-            amount: input.amount,
-            locationId: input.locationId,
-            rewardIds: input.rewardIds,
-            refParam: input.refParam
+            amount: GraphQLNullable.someOrNil(input.amount),
+            locationId: GraphQLNullable.someOrNil(input.locationId),
+            rewardIds: GraphQLNullable.someOrNil(input.rewardIds),
+            refParam: GraphQLNullable.someOrNil(input.refParam)
           )
       )
 
@@ -747,7 +786,7 @@
         .CreatePaymentIntentMutation(input: GraphAPI.CreatePaymentIntentInput(
           projectId: input.projectId,
           amount: input.amountDollars,
-          digitalMarketingAttributed: input.digitalMarketingAttributed
+          digitalMarketingAttributed: GraphQLNullable.someOrNil(input.digitalMarketingAttributed)
         ))
 
       return client.performWithResult(mutation: mutation, result: self.createPaymentIntentResult)
@@ -804,8 +843,7 @@
     func fetchProjectComments(
       slug: String,
       cursor: String?,
-      limit: Int?,
-      withStoredCards: Bool
+      limit: Int?
     ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return .empty
@@ -813,9 +851,8 @@
 
       let fetchProjectCommentsQuery = GraphAPI.FetchProjectCommentsQuery(
         slug: slug,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: GraphQLNullable.someOrNil(limit)
       )
 
       return client
@@ -825,8 +862,7 @@
     func fetchUpdateComments(
       id: String,
       cursor: String?,
-      limit: Int?,
-      withStoredCards: Bool
+      limit: Int?
     ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return .empty
@@ -834,9 +870,8 @@
 
       let fetchUpdateCommentsQuery = GraphAPI.FetchUpdateCommentsQuery(
         postId: id,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: GraphQLNullable.someOrNil(limit)
       )
 
       return client
@@ -846,8 +881,7 @@
     func fetchCommentReplies(
       id: String,
       cursor: String?,
-      limit: Int,
-      withStoredCards: Bool
+      limit: Int
     ) -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return .empty
@@ -855,9 +889,8 @@
 
       let fetchCommentRepliesQuery = GraphAPI.FetchCommentRepliesQuery(
         commentId: id,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: limit
       )
 
       return client
@@ -908,6 +941,15 @@
           |> \.id .~ id
           |> \.isFriend .~ true
       )
+    }
+
+    internal func fetch<Q: GraphQLQuery>(query _: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
+      for (queryType, result) in self.fetchGraphQLResponses ?? [] {
+        if queryType == Q.self, let response = result as? Q.Data {
+          return SignalProducer(value: response)
+        }
+      }
+      return SignalProducer(error: ErrorEnvelope.graphError("Unimplemented mock"))
     }
 
     internal func fetchGraphCategories()
@@ -1099,6 +1141,11 @@
       return producer(for: self.fetchManagePledgeViewBackingResult)
     }
 
+    func fetchBackingWithIncrementsRefundedAmount(id _: Int, withStoredCards _: Bool)
+      -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
+      return producer(for: self.fetchManagePledgeViewBackingResult)
+    }
+
     func fetchRewardAddOnsSelectionViewRewards(slug: String, shippingEnabled: Bool, locationId: String?)
       -> SignalProducer<Project, ErrorEnvelope> {
       guard let client = self.apolloClient else {
@@ -1108,7 +1155,7 @@
       let fetchRewardAddOnsSelectionViewRewardsQuery = GraphAPI.FetchAddOnsQuery(
         projectSlug: slug,
         shippingEnabled: shippingEnabled,
-        locationId: locationId,
+        locationId: GraphQLNullable.someOrNil(locationId),
         withStoredCards: false,
         includeShippingRules: true,
         includeLocalPickup: true
@@ -1344,6 +1391,30 @@
       }
     }
 
+    func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
+      -> SignalProducer<
+        RewardsAndPledgeOverTimeEnvelope,
+        ErrorEnvelope
+      > {
+      guard let client = self.apolloClient else {
+        return .empty
+      }
+
+      let query = GraphAPI
+        .FetchProjectRewardsByIdQuery(
+          projectId: projectId,
+          includeShippingRules: false,
+          includeLocalPickup: true,
+          includePledgeOverTime: true
+        )
+
+      return client
+        .fetchWithResult(
+          query: query,
+          result: self.fetchProjectRewardsAndPledgeOverTimeDataResult
+        )
+    }
+
     internal func fetchProjectRewards(projectId: Int) -> SignalProducer<[Reward], ErrorEnvelope> {
       guard let client = self.apolloClient else {
         return .empty
@@ -1353,7 +1424,8 @@
         .FetchProjectRewardsByIdQuery(
           projectId: projectId,
           includeShippingRules: false,
-          includeLocalPickup: true
+          includeLocalPickup: true,
+          includePledgeOverTime: false
         )
 
       return client
@@ -1523,7 +1595,7 @@
       return producer(for: self.fetchUserResult)
     }
 
-    internal func incrementVideoCompletion(forProject _: Project) ->
+    internal func incrementVideoCompletion(for _: any HasProjectWebURL) ->
       SignalProducer<VoidEnvelope, ErrorEnvelope> {
       if let error = incrementVideoCompletionError {
         return .init(error: error)
@@ -1532,7 +1604,7 @@
       }
     }
 
-    internal func incrementVideoStart(forProject _: Project) ->
+    internal func incrementVideoStart(forProject _: any HasProjectWebURL) ->
       SignalProducer<VoidEnvelope, ErrorEnvelope> {
       if let error = incrementVideoStartError {
         return .init(error: error)
@@ -1974,32 +2046,33 @@
     case let .failure(error): return .init(error: error)
     }
   }
+
+  private extension Result {
+    var value: Success? {
+      switch self {
+      case let .success(value): return value
+      case .failure: return nil
+      }
+    }
+
+    var error: Failure? {
+      switch self {
+      case .success: return nil
+      case let .failure(error): return error
+      }
+    }
+  }
+
+  extension GraphAPI.CompleteOnSessionCheckoutMutation.Data: Decodable {
+    public init(from _: Decoder) throws {
+      fatalError("The test code should not actually be decoding this object.")
+    }
+  }
+
+  extension GraphAPI.BuildPaymentPlanQuery.Data: Decodable {
+    public init(from _: Decoder) throws {
+      fatalError("The test code should not actually be decoding this object.")
+    }
+  }
+
 #endif
-
-private extension Result {
-  var value: Success? {
-    switch self {
-    case let .success(value): return value
-    case .failure: return nil
-    }
-  }
-
-  var error: Failure? {
-    switch self {
-    case .success: return nil
-    case let .failure(error): return error
-    }
-  }
-}
-
-extension GraphAPI.CompleteOnSessionCheckoutMutation.Data: Decodable {
-  public init(from _: Decoder) throws {
-    fatalError("The test code should not actually be decoding this object.")
-  }
-}
-
-extension GraphAPI.BuildPaymentPlanQuery.Data: Decodable {
-  public init(from _: Decoder) throws {
-    fatalError("The test code should not actually be decoding this object.")
-  }
-}

@@ -5,7 +5,11 @@ import UIKit
 
 internal protocol ProjectPamphletMainCellDelegate: VideoViewControllerDelegate {
   func projectPamphletMainCell(_ cell: ProjectPamphletMainCell, addChildController child: UIViewController)
-  func projectPamphletMainCell(_ cell: ProjectPamphletMainCell, goToCreatorForProject project: Project)
+  func projectPamphletMainCell(
+    _ cell: ProjectPamphletMainCell,
+    goToCreatorForProject project: any ProjectPamphletMainCellConfiguration
+  )
+  func projectPamphletMainCellGoToProjectNotice(_ cell: ProjectPamphletMainCell)
 }
 
 internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
@@ -53,6 +57,8 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
   @IBOutlet fileprivate var backingContainerViewLeadingConstraint: NSLayoutConstraint!
   @IBOutlet fileprivate var backingLabel: UILabel!
 
+  private var alertBanner = AlertBanner(frame: CGRectZero)
+
   internal override func awakeFromNib() {
     super.awakeFromNib()
 
@@ -61,6 +67,15 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       action: #selector(self.creatorButtonTapped),
       for: .touchUpInside
     )
+
+    self.alertBanner.configureWith(
+      title: Strings.project_project_notices_header(),
+      subtitle: Strings.project_project_notices_notice_intro(),
+      buttonTitle: Strings.project_project_notices_notice_cta()
+    ) { [weak self] in
+      self?.alertBannerLearnMoreTapped()
+    }
+    self.contentStackView.insertArrangedSubview(self.alertBanner, at: 1)
 
     self.viewModel.inputs.awakeFromNib()
   }
@@ -98,12 +113,14 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       |> UITableViewCell.lens.clipsToBounds .~ true
       |> UITableViewCell.lens.accessibilityElements .~ self.subviews
 
+    self.contentStackView.backgroundColor = LegacyColors.ksr_white.uiColor()
+
     let subtitleLabelStyling = UILabel.lens.font .~ .ksr_caption1(size: 13)
       <> UILabel.lens.numberOfLines .~ 1
-      <> UILabel.lens.backgroundColor .~ .ksr_white
+      <> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = [self.backersSubtitleLabel, self.deadlineSubtitleLabel]
-      ||> UILabel.lens.textColor .~ .ksr_support_400
+      ||> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
       ||> subtitleLabelStyling
 
     _ = self.pledgeSubtitleLabel |> subtitleLabelStyling
@@ -111,36 +128,35 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
     _ = [self.backersTitleLabel, self.deadlineTitleLabel, self.pledgedTitleLabel]
       ||> UILabel.lens.font .~ .ksr_headline(size: 13)
       ||> UILabel.lens.numberOfLines .~ 1
-      ||> UILabel.lens.backgroundColor .~ .ksr_white
+      ||> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.categoryStackView
       |> UIStackView.lens.spacing .~ Styles.grid(1)
 
     _ = self.categoryIconImageView
       |> UIImageView.lens.contentMode .~ .scaleAspectFit
-      |> UIImageView.lens.tintColor .~ .ksr_support_400
-      |> UIImageView.lens.image .~ UIImage(named: "category-icon")
-      |> UIImageView.lens.backgroundColor .~ .ksr_white
+      |> UIImageView.lens.tintColor .~ LegacyColors.ksr_support_400.uiColor()
+      |> UIImageView.lens.image .~ Library.image(named: "category-icon")
+      |> UIImageView.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.categoryNameLabel
-      |> UILabel.lens.textColor .~ .ksr_support_400
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
       |> UILabel.lens.font .~ .ksr_body(size: 12)
-      |> UILabel.lens.backgroundColor .~ .ksr_white
+      |> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     let isIpad = self.traitCollection.isRegularRegular == true
     let leftRightInsetValue: CGFloat = isIpad ? Styles.grid(16) : Styles.grid(4)
 
-    _ = self.categoryAndLocationStackView
-      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
-      |> UIStackView.lens.layoutMargins .~ UIEdgeInsets(
-        leftRight: leftRightInsetValue
-      )
-
     _ = self.contentStackView
       |> UIStackView.lens.layoutMargins %~~ { _, _ in
         isIpad
-          ? .init(topBottom: Styles.grid(6))
-          : .init(top: Styles.grid(4), left: 0, bottom: Styles.grid(3), right: 0)
+          ? .init(topBottom: Styles.grid(6), leftRight: leftRightInsetValue)
+          : .init(
+            top: Styles.grid(4),
+            left: leftRightInsetValue,
+            bottom: Styles.grid(3),
+            right: leftRightInsetValue
+          )
       }
       |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
       |> UIStackView.lens.spacing .~ verticalSpacing
@@ -154,14 +170,14 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
     _ = self.blurbStackView
       |> UIStackView.lens.layoutMargins .~ UIEdgeInsets(
         top: 0,
-        left: leftRightInsetValue,
+        left: 0,
         bottom: verticalSpacing, // Double spacing below blurb.
-        right: leftRightInsetValue
+        right: 0
       )
       |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.conversionLabel
-      |> UILabel.lens.textColor .~ .ksr_support_400
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
       |> UILabel.lens.font .~ UIFont.ksr_caption2().italicized
       |> UILabel.lens.numberOfLines .~ 2
 
@@ -173,27 +189,27 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       |> UIImageView.lens.contentMode .~ .scaleAspectFill
 
     _ = self.creatorLabel
-      |> UILabel.lens.textColor .~ .ksr_support_700
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
       |> UILabel.lens.font .~ .ksr_headline(size: 13)
-      |> UILabel.lens.backgroundColor .~ .ksr_white
+      |> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.creatorStackView
       |> UIStackView.lens.alignment .~ .center
       |> UIStackView.lens.spacing .~ Styles.grid(1)
 
     _ = self.fundingProgressContainerView
-      |> UIView.lens.backgroundColor .~ .ksr_support_300
+      |> UIView.lens.backgroundColor .~ LegacyColors.ksr_support_300.uiColor()
 
     _ = self.locationImageView
       |> UIImageView.lens.contentMode .~ .scaleAspectFit
-      |> UIImageView.lens.tintColor .~ .ksr_support_400
-      |> UIImageView.lens.image .~ UIImage(named: "location-icon")
-      |> UIImageView.lens.backgroundColor .~ .ksr_white
+      |> UIImageView.lens.tintColor .~ LegacyColors.ksr_support_400.uiColor()
+      |> UIImageView.lens.image .~ Library.image(named: "location-icon")
+      |> UIImageView.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.locationNameLabel
-      |> UILabel.lens.textColor .~ .ksr_support_400
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
       |> UILabel.lens.font .~ .ksr_body(size: 12)
-      |> UILabel.lens.backgroundColor .~ .ksr_white
+      |> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.locationStackView
       |> UIStackView.lens.spacing .~ Styles.grid(1)
@@ -204,14 +220,12 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
           ? .ksr_body(size: 18)
           : .ksr_body(size: 15)
       }
-      |> UILabel.lens.textColor .~ .ksr_support_400
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_400.uiColor()
       |> UILabel.lens.numberOfLines .~ 0
-      |> UILabel.lens.backgroundColor .~ .ksr_white
+      |> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.projectNameAndCreatorStackView
       |> UIStackView.lens.spacing .~ (verticalSpacing / 2)
-      |> UIStackView.lens.layoutMargins .~ UIEdgeInsets(leftRight: leftRightInsetValue)
-      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
 
     _ = self.projectNameLabel
       |> UILabel.lens.font %~~ { _, _ in
@@ -219,13 +233,11 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
           ? .ksr_title3(size: 28)
           : .ksr_title3(size: 20)
       }
-      |> UILabel.lens.textColor .~ .ksr_support_700
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
       |> UILabel.lens.numberOfLines .~ 0
-      |> UILabel.lens.backgroundColor .~ .ksr_white
+      |> UILabel.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.progressBarAndStatsStackView
-      |> UIStackView.lens.layoutMargins .~ UIEdgeInsets(leftRight: leftRightInsetValue)
-      |> UIStackView.lens.isLayoutMarginsRelativeArrangement .~ true
       |> UIStackView.lens.spacing .~ verticalSpacing
 
     _ = self.stateLabel
@@ -234,18 +246,18 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
 
     _ = self.statsStackView
       |> UIStackView.lens.isAccessibilityElement .~ true
-      |> UIStackView.lens.backgroundColor .~ .ksr_white
+      |> UIStackView.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.backingContainerViewLeadingConstraint
       |> \.constant .~ leftRightInsetValue
 
     _ = self.backingContainerView
       |> roundedStyle(cornerRadius: 2)
-      |> UIView.lens.backgroundColor .~ .ksr_create_700
+      |> UIView.lens.backgroundColor .~ LegacyColors.ksr_create_700.uiColor()
       |> UIView.lens.layoutMargins .~ .init(topBottom: Styles.grid(1), leftRight: Styles.gridHalf(3))
 
     _ = self.backingLabel
-      |> UILabel.lens.textColor .~ .ksr_white
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_white.uiColor()
       |> UILabel.lens.font .~ .ksr_headline(size: 12)
   }
 
@@ -279,6 +291,7 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
     self.backingContainerView.rac.hidden = self.viewModel.outputs.backingLabelHidden
     self.progressBarAndStatsStackView.rac.hidden = self.viewModel.outputs.isPrelaunchProject
     self.backingLabel.rac.text = self.viewModel.outputs.prelaunchProjectBackingText
+    self.alertBanner.rac.hidden = self.viewModel.outputs.projectNoticeBannerHidden
 
     self.viewModel.outputs.configureVideoPlayerController
       .observeForUI()
@@ -295,6 +308,13 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       .observeValues { [weak self] in
         guard let self = self else { return }
         self.delegate?.projectPamphletMainCell(self, goToCreatorForProject: $0)
+      }
+
+    self.viewModel.outputs.notifyDelegateToGoToProjectNotice
+      .observeForControllerAction()
+      .observeValues { [weak self] in
+        guard let self = self else { return }
+        self.delegate?.projectPamphletMainCellGoToProjectNotice(self)
       }
 
     self.viewModel.outputs.opacityForViews
@@ -323,7 +343,9 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
       }
   }
 
-  fileprivate func configureVideoPlayerController(forProject project: Project) {
+  fileprivate func configureVideoPlayerController(
+    forProject project: any ProjectPamphletMainCellConfiguration
+  ) {
     let vc = VideoViewController.configuredWith(project: project)
     vc.delegate = self
     vc.view.translatesAutoresizingMaskIntoConstraints = false
@@ -339,6 +361,10 @@ internal final class ProjectPamphletMainCell: UITableViewCell, ValueCell {
     self.delegate?.projectPamphletMainCell(self, addChildController: vc)
     self.videoController = vc
     self.videoController?.playbackDelegate = vc
+  }
+
+  private func alertBannerLearnMoreTapped() {
+    self.viewModel.inputs.projectNoticeLearnMoreTapped()
   }
 
   @objc fileprivate func creatorButtonTapped() {

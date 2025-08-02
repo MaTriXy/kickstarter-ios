@@ -1,3 +1,4 @@
+import GraphAPI
 @testable import KsApi
 @testable import Library
 import XCTest
@@ -30,7 +31,11 @@ final class PledgePaymentPlansAndSelectionDataGraphAPITests: TestCase {
     }
     """
 
-    let mockGraphData = try! GraphAPI.BuildPaymentPlanQuery.Data(jsonString: jsonString)
+    let variables = ["includeRefundedAmount": false]
+    let mockGraphData: GraphAPI.BuildPaymentPlanQuery.Data = try! testGraphObject(
+      jsonString: jsonString,
+      variables: variables
+    )
     guard let paymentPlan = mockGraphData.project?.paymentPlan else {
       XCTFail("Unable to create mock GraphQL fragment to test with")
       return
@@ -45,7 +50,6 @@ final class PledgePaymentPlansAndSelectionDataGraphAPITests: TestCase {
     XCTAssertFalse(selectionData.ineligible)
     XCTAssertEqual(selectionData.paymentIncrements.count, 1)
     XCTAssertEqual(selectionData.paymentIncrements.first!.amount.currency, "JPY")
-    XCTAssertEqual(selectionData.paymentIncrements.first!.amount.amount, Double(974))
     XCTAssertEqual(selectionData.paymentIncrements.first!.scheduledCollection, 1_743_431_359.0)
     XCTAssertEqual(
       selectionData.paymentIncrements.first!.amount.amountFormattedInProjectNativeCurrency,

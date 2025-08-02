@@ -1,3 +1,4 @@
+import GraphAPI
 import KsApi
 import Library
 import SwiftUI
@@ -24,12 +25,12 @@ struct ReportProjectFormView: View {
           if let retrievedEmail = viewModel.retrievedEmail, !retrievedEmail.isEmpty {
             Text(retrievedEmail)
               .font(Font(UIFont.ksr_body()))
-              .foregroundColor(Color(.ksr_support_400))
+              .foregroundColor(LegacyColors.ksr_support_400.swiftUIColor())
               .disabled(true)
           } else {
             Text(Strings.Loading())
               .font(Font(UIFont.ksr_body()))
-              .foregroundColor(Color(.ksr_support_400))
+              .foregroundColor(LegacyColors.ksr_support_400.swiftUIColor())
               .italic()
               .disabled(true)
           }
@@ -38,7 +39,7 @@ struct ReportProjectFormView: View {
         SwiftUI.Section(Strings.Project_url()) {
           Text(self.projectURL)
             .font(Font(UIFont.ksr_body()))
-            .foregroundColor(Color(.ksr_support_400))
+            .foregroundColor(LegacyColors.ksr_support_400.swiftUIColor())
             .disabled(true)
         }
 

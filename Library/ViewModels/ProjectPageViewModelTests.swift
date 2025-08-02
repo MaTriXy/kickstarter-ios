@@ -20,11 +20,12 @@ final class ProjectPageViewModelTests: TestCase {
       aiDisclosure: nil,
       risks: "",
       story: ProjectStoryElements(htmlViewElements: []),
-      minimumPledgeAmount: 1
+      minimumPledgeAmount: 1,
+      projectNotice: nil
     )
 
   private let configureDataSourceNavigationSection = TestObserver<NavigationSection, Never>()
-  private let configureDataSourceProject = TestObserver<Project, Never>()
+  private let configureDataSourceProject = TestObserver<Either<Project, any ProjectPageParam>, Never>()
   private let configureChildViewControllersWithProject = TestObserver<Project, Never>()
   private let configureChildViewControllersWithRefTag = TestObserver<RefTag?, Never>()
   private let configurePledgeCTAViewErrorEnvelope = TestObserver<ErrorEnvelope, Never>()
@@ -36,8 +37,11 @@ final class ProjectPageViewModelTests: TestCase {
   private let didBlockUserError = TestObserver<(), Never>()
   private let dismissManagePledgeAndShowMessageBannerWithMessage = TestObserver<String, Never>()
   private let goToComments = TestObserver<Project, Never>()
+  private let goToLoginWithIntent = TestObserver<LoginIntent, Never>()
   private let goToManagePledgeProjectParam = TestObserver<Param, Never>()
   private let goToManagePledgeBackingParam = TestObserver<Param?, Never>()
+  private let goToPledgeManagementViewPledge = TestObserver<String, Never>()
+  private let goToPledgeManager = TestObserver<String, Never>()
   private let goToReportProject = TestObserver<(Bool, String, String), Never>()
   private let goToRewardsProject = TestObserver<Project, Never>()
   private let goToRewardsRefTag = TestObserver<RefTag?, Never>()
@@ -104,8 +108,11 @@ final class ProjectPageViewModelTests: TestCase {
     self.vm.outputs.dismissManagePledgeAndShowMessageBannerWithMessage
       .observe(self.dismissManagePledgeAndShowMessageBannerWithMessage.observer)
     self.vm.outputs.goToComments.observe(self.goToComments.observer)
+    self.vm.outputs.goToLoginWithIntent.observe(self.goToLoginWithIntent.observer)
     self.vm.outputs.goToManagePledge.map(first).observe(self.goToManagePledgeProjectParam.observer)
     self.vm.outputs.goToManagePledge.map(second).observe(self.goToManagePledgeBackingParam.observer)
+    self.vm.outputs.goToPledgeManagementPledgeView.observe(self.goToPledgeManagementViewPledge.observer)
+    self.vm.outputs.goToPledgeManager.observe(self.goToPledgeManager.observer)
     self.vm.outputs.goToReportProject.observe(self.goToReportProject.observer)
     self.vm.outputs.goToRewards.map(first).observe(self.goToRewardsProject.observer)
     self.vm.outputs.goToRewards.map(second).observe(self.goToRewardsRefTag.observer)
@@ -226,7 +233,7 @@ final class ProjectPageViewModelTests: TestCase {
       fetchProjectFriendsResult: .success(friends),
       fetchProjectRewardsResult: .success([.template])
     )) {
-      self.vm.inputs.configureWith(projectOrParam: .right(.id(project.id)), refInfo: nil)
+      self.vm.inputs.configureWith(projectOrParam: .right(Param.id(project.id)), refInfo: nil)
       self.vm.inputs.viewDidLoad()
       self.vm.inputs.viewDidAppear(animated: false)
 
@@ -279,7 +286,7 @@ final class ProjectPageViewModelTests: TestCase {
   func testConfigureProjectPageViewControllerDataSourceProject_US_ProjectCurrency_US_ProjectCountry() {
     let USCurrencyProject = self.projectWithEmptyProperties
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     let backing = Backing.template
       |> Backing.lens.id .~ 543
@@ -309,11 +316,11 @@ final class ProjectPageViewModelTests: TestCase {
       self.scheduler.advance()
 
       XCTAssertEqual(
-        self.configureDataSourceProject.lastValue?.stats.currency,
+        self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
         Project.Country.us.currencyCode
       )
       XCTAssertEqual(
-        self.configureDataSourceProject.lastValue?.country,
+        self.configureDataSourceProject.lastValue?.left?.country,
         Project.Country.us
       )
     }
@@ -369,7 +376,7 @@ final class ProjectPageViewModelTests: TestCase {
   func testConfigureProjectPageViewControllerDataSourceProject_NonUS_ProjectCurrency_US_ProjectCountry() {
     let USCurrencyProject = self.projectWithEmptyProperties
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
 
     let backing = Backing.template
       |> Backing.lens.id .~ 543
@@ -399,11 +406,11 @@ final class ProjectPageViewModelTests: TestCase {
       self.scheduler.advance()
 
       XCTAssertEqual(
-        self.configureDataSourceProject.lastValue?.stats.currency,
+        self.configureDataSourceProject.lastValue?.left?.stats.projectCurrency,
         Project.Country.mx.currencyCode
       )
       XCTAssertEqual(
-        self.configureDataSourceProject.lastValue?.country,
+        self.configureDataSourceProject.lastValue?.left?.country,
         Project.Country.us
       )
     }
@@ -593,6 +600,73 @@ final class ProjectPageViewModelTests: TestCase {
       XCTAssertEqual(
         [
           RefTag.category.stringTag,
+          RefTag.recommended.stringTag
+        ],
+        self.segmentTrackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
+        "The new ref tag is tracked in an event."
+      )
+      XCTAssertEqual(
+        1, self.cookieStorage.cookies?.count,
+        "A single cookie has been set."
+      )
+    }
+  }
+
+  // Tests that ref tags for similar projects and referral credit cookies are tracked and saved like we expect.
+  func testTracksRefTag_SimilarProjects() {
+    let project = Project.template
+    let projectPamphletData = Project.ProjectPamphletData(project: .template, backingId: nil)
+
+    withEnvironment(apiService: MockService(
+      fetchProjectPamphletResult: .success(projectPamphletData),
+      fetchProjectRewardsResult: .success([
+        Reward.noReward,
+        Reward.template
+      ])
+    )) {
+      self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.similarProjects))
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.viewDidAppear(animated: false)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(
+        ["Page Viewed"],
+        self.segmentTrackingClient.events, "A project page event is tracked."
+      )
+
+      XCTAssertEqual(
+        [RefTag.similarProjects.stringTag],
+        self.segmentTrackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
+        "The ref tag is tracked in the event."
+      )
+      XCTAssertEqual(
+        1, self.cookieStorage.cookies?.count,
+        "A single cookie is set"
+      )
+      XCTAssertEqual(
+        "ref_\(project.id)", self.cookieStorage.cookies?.last?.name,
+        "A referral cookie is set for the project."
+      )
+
+      // Start up another view model with the same project
+      let newVm: ProjectPageViewModelType = ProjectPageViewModel()
+      newVm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.recommended))
+      newVm.inputs.viewDidLoad()
+      newVm.inputs.viewDidAppear(animated: true)
+
+      self.scheduler.advance()
+
+      XCTAssertEqual(
+        [
+          "Page Viewed", "Page Viewed"
+        ],
+        self.segmentTrackingClient.events, "A project page event is tracked."
+      )
+
+      XCTAssertEqual(
+        [
+          RefTag.similarProjects.stringTag,
           RefTag.recommended.stringTag
         ],
         self.segmentTrackingClient.properties.compactMap { $0["session_ref_tag"] as? String },
@@ -824,8 +898,8 @@ final class ProjectPageViewModelTests: TestCase {
     XCTAssertEqual(self.goToReportProject.lastValue?.2, project.urls.web.project)
   }
 
-  func testGoToRewards() {
-    withEnvironment(config: .template, mainBundle: self.releaseBundle) {
+  func testGoToRewards_withUserLoggedIn() {
+    withEnvironment(config: .template, currentUser: .template, mainBundle: self.releaseBundle) {
       let project = Project.template
 
       self.configureInitialState(.left(project))
@@ -859,6 +933,121 @@ final class ProjectPageViewModelTests: TestCase {
         [.discovery, .discovery, .discovery],
         "Tapping 'View your rewards' emits the refTag"
       )
+    }
+  }
+
+  func testGoToRewards_withUserLoggedOut() {
+    withEnvironment(config: .template, currentUser: nil, mainBundle: self.releaseBundle) {
+      let project = Project.template
+
+      self.configureInitialState(.left(project))
+
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      self.goToRewardsProject.assertValues([project], "Tapping 'Back this project' emits the project")
+      self.goToRewardsRefTag.assertValues([.discovery], "Tapping 'Back this project' emits the refTag")
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewRewards)
+
+      self.goToRewardsProject.assertValues(
+        [project, project],
+        "Tapping 'View rewards' emits the project"
+      )
+      self.goToRewardsRefTag.assertValues(
+        [.discovery, .discovery],
+        "Tapping 'View rewards' emits the refTag"
+      )
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewYourRewards)
+
+      self.goToRewardsProject.assertValues(
+        [project, project, project],
+        "Tapping 'View your rewards' emits the project"
+      )
+      self.goToRewardsRefTag.assertValues(
+        [.discovery, .discovery, .discovery],
+        "Tapping 'View your rewards' emits the refTag"
+      )
+    }
+  }
+
+  func testSecretRewards_GoToRewards() {
+    withEnvironment(config: .template, currentUser: .template, mainBundle: self.releaseBundle) {
+      let project = Project.template
+
+      self.configureInitialState(.left(project), secretRewardToken: "secret-reward-token")
+
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+      self.goToLoginWithIntent.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      self.goToRewardsProject.assertValues([project], "Tapping 'Back this project' emits the project")
+      self.goToRewardsRefTag.assertValues([.discovery], "Tapping 'Back this project' emits the refTag")
+      self.goToLoginWithIntent.assertDidNotEmitValue()
+    }
+  }
+
+  func testSecretRewards_GoToLogin() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.secretRewards.rawValue: true
+    ]
+
+    withEnvironment(
+      config: .template,
+      currentUser: nil,
+      mainBundle: self.releaseBundle,
+      remoteConfigClient: mockConfigClient
+    ) {
+      let project = Project.template
+
+      self.configureInitialState(.left(project), secretRewardToken: "secret-reward-token")
+
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+      self.goToLoginWithIntent.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      self.self.goToLoginWithIntent.assertValues(
+        [.backProject],
+        "Tapping 'Back this project' emits the project"
+      )
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+    }
+  }
+
+  func testSecretRewards_GoToReward_WhenFeatureFlagOff() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.secretRewards.rawValue: false
+    ]
+
+    withEnvironment(
+      config: .template,
+      currentUser: nil,
+      mainBundle: self.releaseBundle,
+      remoteConfigClient: mockConfigClient
+    ) {
+      let project = Project.template
+
+      self.configureInitialState(.left(project), secretRewardToken: "secret-reward-token")
+
+      self.goToRewardsProject.assertDidNotEmitValue()
+      self.goToRewardsRefTag.assertDidNotEmitValue()
+      self.goToLoginWithIntent.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .pledge)
+
+      self.goToRewardsProject.assertValues([project], "Tapping 'Back this project' emits the project")
+      self.goToRewardsRefTag.assertValues([.discovery], "Tapping 'Back this project' emits the refTag")
+      self.goToLoginWithIntent.assertDidNotEmitValue()
     }
   }
 
@@ -897,11 +1086,13 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.goToManagePledgeProjectParam.assertDidNotEmitValue()
       self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
 
       self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
 
       self.goToManagePledgeProjectParam.assertValues([.slug(project.slug)])
       self.goToManagePledgeBackingParam.assertValues([.id(backing.id)])
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
     }
   }
 
@@ -921,12 +1112,95 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.goToManagePledgeProjectParam.assertDidNotEmitValue()
       self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
 
       self.vm.inputs.pledgeCTAButtonTapped(with: .viewBacking)
 
       self.goToManagePledgeProjectParam.assertValues([.slug(project.slug)])
       self.goToManagePledgeBackingParam.assertValues([.id(backing.id)])
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
     }
+  }
+
+  func testGoToPledgeManagementWebview_ManagingPledge() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.netNewBackersWebView.rawValue: true
+    ]
+
+    withEnvironment(config: .template, remoteConfigClient: mockConfigClient) {
+      let reward = Project.cosmicSurgery.rewards.first!
+      let backing = Backing.templateMadeWithPledgeManagment
+        |> Backing.lens.reward .~ reward
+        |> Backing.lens.rewardId .~ reward.id
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.personalization.backing .~ backing
+        |> Project.lens.personalization.isBacking .~ true
+
+      let backingDetailsPageURL = backing.backingDetailsPageRoute
+
+      self.configureInitialState(.left(project))
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .manage)
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertLastValue(backingDetailsPageURL)
+    }
+  }
+
+  func testGoToPledgeManagementWebview_ViewingPledge() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.netNewBackersWebView.rawValue: true
+    ]
+
+    withEnvironment(config: .template, currentUser: .template, remoteConfigClient: mockConfigClient) {
+      let reward = Project.cosmicSurgery.rewards.first!
+      let backing = Backing.templateMadeWithPledgeManagment
+        |> Backing.lens.reward .~ reward
+        |> Backing.lens.rewardId .~ reward.id
+
+      let project = Project.cosmicSurgery
+        |> Project.lens.state .~ .successful
+        |> Project.lens.personalization.backing .~ backing
+        |> Project.lens.personalization.isBacking .~ true
+
+      let backingDetailsPageURL = backing.backingDetailsPageRoute
+
+      self.configureInitialState(.left(project))
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertDidNotEmitValue()
+
+      self.vm.inputs.pledgeCTAButtonTapped(with: .viewBacking)
+
+      self.goToManagePledgeProjectParam.assertDidNotEmitValue()
+      self.goToManagePledgeBackingParam.assertDidNotEmitValue()
+      self.goToPledgeManagementViewPledge.assertLastValue(backingDetailsPageURL)
+    }
+  }
+
+  func testGoToPledgeManager() {
+    let project = Project.netNewBacker
+
+    let redemptionPageUrl =
+      AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString +
+      project.redemptionPageUrl
+
+    self.configureInitialState(.left(project))
+
+    self.goToPledgeManager.assertDidNotEmitValue()
+
+    self.vm.inputs.pledgeCTAButtonTapped(with: .pledgeManager)
+
+    self.goToPledgeManager.assertLastValue(redemptionPageUrl)
   }
 
   func testGoToUpdates() {
@@ -1449,12 +1723,11 @@ final class ProjectPageViewModelTests: TestCase {
 
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
 
-    // The view model skips the first emission
-    self.updateDataSourceNavigationSection.assertDidNotEmitValue()
+    self.updateDataSourceNavigationSection.assertValueCount(1)
 
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: environmentalCommitmentsSection)
 
-    self.updateDataSourceNavigationSection.assertValues([.environmentalCommitments])
+    self.updateDataSourceNavigationSection.assertValues([.overview, .environmentalCommitments])
   }
 
   func testOutput_UpdateDataSourceProject() {
@@ -1471,8 +1744,7 @@ final class ProjectPageViewModelTests: TestCase {
     self.updateDataSourceProject.assertDidNotEmitValue()
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
 
-    // The view model skips the first emission
-    self.updateDataSourceProject.assertDidNotEmitValue()
+    self.updateDataSourceNavigationSection.assertValueCount(1)
 
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: environmentalCommitmentsSection)
 
@@ -1495,8 +1767,7 @@ final class ProjectPageViewModelTests: TestCase {
 
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
 
-      // The view model skips the first emission
-      self.updateDataSourceProject.assertDidNotEmitValue()
+      self.updateDataSourceNavigationSection.assertValueCount(1)
 
       self.vm.inputs.projectNavigationSelectorViewDidSelect(index: environmentalCommitmentsSection)
 
@@ -1524,8 +1795,7 @@ final class ProjectPageViewModelTests: TestCase {
     self.updateDataSourceImageURLS.assertDidNotEmitValue()
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
 
-    // The view model skips the first emission
-    self.updateDataSourceImageURLS.assertDidNotEmitValue()
+    self.updateDataSourceNavigationSection.assertValueCount(1)
 
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1551,7 +1821,8 @@ final class ProjectPageViewModelTests: TestCase {
             caption: nil
           )
         ]),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs
@@ -1564,8 +1835,7 @@ final class ProjectPageViewModelTests: TestCase {
     self.updateDataSourceImageURLS.assertDidNotEmitValue()
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: overviewSection)
 
-    // The view model skips the first emission
-    self.updateDataSourceImageURLS.assertDidNotEmitValue()
+    self.updateDataSourceNavigationSection.assertValueCount(1)
 
     self.vm.inputs.projectNavigationSelectorViewDidSelect(index: campaignSection)
 
@@ -1594,7 +1864,8 @@ final class ProjectPageViewModelTests: TestCase {
             caption: nil
           )
         ]),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let projectFullAndEnvelope = ProjectAndBackingEnvelope(project: projectFull, backing: .template)
     let projectFullPamphletData = Project.ProjectPamphletData(project: projectFull, backingId: nil)
@@ -1644,7 +1915,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let projectFullAndEnvelope = ProjectAndBackingEnvelope(project: projectFull, backing: .template)
     let projectFullPamphletData = Project.ProjectPamphletData(project: projectFull, backingId: nil)
@@ -1706,7 +1978,8 @@ final class ProjectPageViewModelTests: TestCase {
         story: ProjectStoryElements(htmlViewElements: [
           expectedAudioVideoElement
         ]),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let projectFullAndEnvelope = ProjectAndBackingEnvelope(project: projectFull, backing: .template)
     let projectFullPamphletData = Project.ProjectPamphletData(project: projectFull, backingId: nil)
@@ -1759,7 +2032,8 @@ final class ProjectPageViewModelTests: TestCase {
         story: ProjectStoryElements(htmlViewElements: [
           expectedImageViewElement
         ]),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
     let projectFullAndEnvelope = ProjectAndBackingEnvelope(project: projectFull, backing: .template)
     let projectFullPamphletData = Project.ProjectPamphletData(project: projectFull, backingId: nil)
@@ -1826,7 +2100,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -1877,7 +2152,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -1906,7 +2182,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -1931,7 +2208,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -1967,7 +2245,8 @@ final class ProjectPageViewModelTests: TestCase {
         aiDisclosure: nil,
         risks: "",
         story: ProjectStoryElements(htmlViewElements: []),
-        minimumPledgeAmount: 1
+        minimumPledgeAmount: 1,
+        projectNotice: nil
       )
 
     self.vm.inputs.configureWith(projectOrParam: .left(project), refInfo: RefInfo(.category))
@@ -2026,10 +2305,68 @@ final class ProjectPageViewModelTests: TestCase {
     }
   }
 
+  func testPrefetchImageURLsOnFirstLoad_LoadingViaParam_Success() {
+    // Given a mock API that returns a project with an image in its HTML content
+    let imageUrl = URL(string: "https://placecats.com/millie/300/150")!
+    let projectWithImageElement = Project.template
+      |> \.extendedProjectProperties .~ ExtendedProjectProperties(
+        environmentalCommitments: [],
+        faqs: [],
+        aiDisclosure: nil,
+        risks: "",
+        story: ProjectStoryElements(htmlViewElements: [
+          ImageViewElement(
+            src: imageUrl.absoluteString,
+            href: nil,
+            caption: nil
+          )
+        ]),
+        minimumPledgeAmount: 1,
+        projectNotice: nil
+      )
+
+    let projectPamphletData = Project.ProjectPamphletData(project: projectWithImageElement, backingId: nil)
+
+    let prefetchImageElementsOnFirstLoad = TestObserver<[ImageViewElement], Never>()
+    self.vm.outputs.prefetchImageURLsOnFirstLoad.observe(prefetchImageElementsOnFirstLoad.observer)
+
+    withEnvironment(apiService: MockService(
+      fetchProjectPamphletResult: .success(projectPamphletData),
+      fetchProjectRewardsResult: .success([.template])
+    )) {
+      // When we configure with a project ID parameter and load the view
+      self.vm.inputs.configureWith(projectOrParam: .right(Param.id(42)), refInfo: nil)
+      self.vm.inputs.viewDidLoad()
+
+      prefetchImageElementsOnFirstLoad.assertDidNotEmitValue()
+
+      // When the API response is processed
+      self.scheduler.advance()
+
+      // Then the prefetch signal emits with the correct image element
+      XCTAssertEqual(prefetchImageElementsOnFirstLoad.values.count, 1, "Should emit image elements once")
+
+      let emittedElements = prefetchImageElementsOnFirstLoad.values.first ?? []
+      XCTAssertEqual(emittedElements.count, 1, "Should contain exactly one image element")
+
+      let imageElement = emittedElements.first
+      XCTAssertEqual(imageElement?.src, imageUrl.absoluteString, "Should emit the correct image URL")
+      XCTAssertNil(imageElement?.href, "Image should not have a link")
+      XCTAssertNil(imageElement?.caption, "Image should not have a caption")
+    }
+  }
+
   // MARK: - Functions
 
-  private func configureInitialState(_ projectOrParam: Either<Project, Param>) {
-    self.vm.inputs.configureWith(projectOrParam: projectOrParam, refInfo: RefInfo(.discovery))
+  private func configureInitialState(
+    _ projectOrParam: Either<Project, any ProjectPageParam>,
+    secretRewardToken: String? = nil
+  ) {
+    self.vm.inputs.configureWith(
+      projectOrParam: projectOrParam,
+      refInfo: RefInfo(.discovery),
+      secretRewardToken: secretRewardToken
+    )
     self.vm.inputs.viewDidLoad()
     self.vm.inputs.viewDidAppear(animated: false)
   }

@@ -12,6 +12,8 @@ final class SurveyResponseViewModelTests: TestCase {
   fileprivate let goToPledge = TestObserver<Param, Never>()
   fileprivate let goToProjectParam = TestObserver<Param, Never>()
   fileprivate let goToUpdate = TestObserver<(Project, Update), Never>()
+  fileprivate let goToLoginSignup = TestObserver<LoginIntent, Never>()
+  fileprivate let title = TestObserver<String?, Never>()
   fileprivate let webViewLoadRequestIsPrepared = TestObserver<Bool, Never>()
   fileprivate let webViewLoadRequest = TestObserver<URLRequest, Never>()
 
@@ -22,6 +24,8 @@ final class SurveyResponseViewModelTests: TestCase {
     self.vm.outputs.goToPledge.observe(self.goToPledge.observer)
     self.vm.outputs.goToProject.map { $0.0 }.observe(self.goToProjectParam.observer)
     self.vm.outputs.goToUpdate.observe(self.goToUpdate.observer)
+    self.vm.outputs.goToLoginSignup.observe(self.goToLoginSignup.observer)
+    self.vm.outputs.title.observe(self.title.observer)
     self.vm.outputs.webViewLoadRequest
       .map { AppEnvironment.current.apiService.isPrepared(request: $0) }
       .observe(self.webViewLoadRequestIsPrepared.observer)
@@ -118,6 +122,27 @@ final class SurveyResponseViewModelTests: TestCase {
     self.dismissViewController.assertValueCount(1)
   }
 
+  func testTitle() {
+    let project = Project.template
+    let basicBackingUrl = "\(project.urls.web.project)/backing/"
+
+    let backingDetailsAction = navigationData(basicBackingUrl + "details")
+    _ = self.vm.inputs.decidePolicyFor(navigationAction: backingDetailsAction)
+    self.title.assertLastValue(nil)
+
+    let redeemAction = navigationData(basicBackingUrl + "redeem")
+    _ = self.vm.inputs.decidePolicyFor(navigationAction: redeemAction)
+    self.title.assertLastValue("Pledge Manager")
+
+    let pledgeManagementAction = navigationData(basicBackingUrl + "pledge_management")
+    _ = self.vm.inputs.decidePolicyFor(navigationAction: pledgeManagementAction)
+    self.title.assertLastValue(nil)
+
+    let surveyAction = navigationData(basicBackingUrl + "survey_responses")
+    _ = self.vm.inputs.decidePolicyFor(navigationAction: surveyAction)
+    self.title.assertLastValue(nil)
+  }
+
   // MARK: - Test links
 
   func testGoToPledge() {
@@ -203,6 +228,36 @@ final class SurveyResponseViewModelTests: TestCase {
       let (projectResult, updateResult) = self.goToUpdate.lastValue!
       XCTAssertEqual(project, projectResult, "Update project is wrong.")
       XCTAssertEqual(update, updateResult, " Update is wrong.")
+    }
+  }
+
+  // MARK: - Test login
+
+  func testGoToLoginSignup() {
+    withEnvironment(currentUser: nil) {
+      let surveyResponse = SurveyResponse.template
+
+      self.vm.inputs.configureWith(surveyUrl: surveyResponse.urls.web.survey)
+      self.vm.inputs.viewDidLoad()
+
+      self.goToLoginSignup.assertValue(.generic)
+    }
+  }
+
+  func testLoginSuccess() {
+    withEnvironment(currentUser: nil) {
+      let surveyResponse = SurveyResponse.template
+
+      self.vm.inputs.configureWith(surveyUrl: surveyResponse.urls.web.survey)
+      self.vm.inputs.viewDidLoad()
+
+      // Request should not send when user is logged out.
+      self.webViewLoadRequest.assertValueCount(0)
+
+      self.vm.inputs.userSessionStarted()
+
+      // Request should be sent as soon as user has logged in.
+      self.webViewLoadRequest.assertValueCount(1)
     }
   }
 

@@ -16,10 +16,12 @@ public struct ManagePledgeSummaryViewData: Equatable {
   public let omitUSCurrencyCode: Bool
   public let pledgeAmount: Double
   public let pledgedOn: TimeInterval
-  public let projectCurrencyCountry: Project.Country
+  public let currencyCode: String
   public let projectDeadline: TimeInterval
   public let projectState: Project.State
   public let rewardMinimum: Double
+  public let rewardReceivedViewControllerViewIsHidden: Bool
+  public let rewardReceivedWithData: ManageViewPledgeRewardReceivedViewData
   public let shippingAmount: Double?
   public let shippingAmountHidden: Bool
   public let rewardIsLocalPickup: Bool
@@ -42,6 +44,8 @@ public protocol ManagePledgeSummaryViewModelOutputs {
   var circleAvatarViewHidden: Signal<Bool, Never> { get }
   var configurePledgeAmountSummaryViewWithData: Signal<PledgeAmountSummaryViewData, Never> { get }
   var configurePledgeStatusLabelViewWithProject: Signal<PledgeStatusLabelViewData, Never> { get }
+  var configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never> { get }
+  var rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> { get }
   var totalAmountText: Signal<NSAttributedString, Never> { get }
 }
 
@@ -75,6 +79,9 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
     self.backerNameLabelHidden = userAndIsBackingProject.map(second).negate()
     self.circleAvatarViewHidden = userAndIsBackingProject.map(second).negate()
 
+    self.configureRewardReceivedWithData = data.map(\.rewardReceivedWithData)
+    self.rewardReceivedViewControllerViewIsHidden = data.map(\.rewardReceivedViewControllerViewIsHidden)
+
     let userBackingProject = userAndIsBackingProject
       .filter(second >>> isTrue)
       .map(first)
@@ -94,10 +101,10 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
     self.backingDateText = data.map(\.pledgedOn)
       .map(formattedPledgeDate)
 
-    self.totalAmountText = data.map { ($0.projectCurrencyCountry, $0.pledgeAmount, $0.omitUSCurrencyCode) }
-      .map { projectCurrencyCountry, pledgeAmount, omitUSCurrencyCode in
+    self.totalAmountText = data.map { ($0.currencyCode, $0.pledgeAmount, $0.omitUSCurrencyCode) }
+      .map { currencyCode, pledgeAmount, omitUSCurrencyCode in
         attributedCurrency(
-          with: projectCurrencyCountry,
+          with: currencyCode,
           amount: pledgeAmount,
           omitUSCurrencyCode: omitUSCurrencyCode
         )
@@ -123,6 +130,8 @@ public class ManagePledgeSummaryViewModel: ManagePledgeSummaryViewModelType,
   public let circleAvatarViewHidden: Signal<Bool, Never>
   public let configurePledgeStatusLabelViewWithProject: Signal<PledgeStatusLabelViewData, Never>
   public let configurePledgeAmountSummaryViewWithData: Signal<PledgeAmountSummaryViewData, Never>
+  public let configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never>
+  public let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never>
   public let totalAmountText: Signal<NSAttributedString, Never>
 
   public var inputs: ManagePledgeSummaryViewModelInputs { return self }
@@ -143,7 +152,7 @@ private func pledgeAmountSummaryViewData(
     isNoReward: data.isNoReward,
     locationName: data.locationName,
     omitUSCurrencyCode: data.omitUSCurrencyCode,
-    projectCurrencyCountry: data.projectCurrencyCountry,
+    currencyCode: data.currencyCode,
     pledgedOn: data.pledgedOn,
     rewardMinimum: data.rewardMinimum,
     shippingAmount: data.shippingAmount,
@@ -157,7 +166,7 @@ private func pledgeStatusLabelViewData(with data: ManagePledgeSummaryViewData) -
     currentUserIsCreatorOfProject: data.currentUserIsCreatorOfProject,
     needsConversion: data.needsConversion,
     pledgeAmount: data.pledgeAmount,
-    projectCurrencyCountry: data.projectCurrencyCountry,
+    currencyCode: data.currencyCode,
     projectDeadline: data.projectDeadline,
     projectState: data.projectState,
     backingState: data.backingState,
@@ -167,17 +176,17 @@ private func pledgeStatusLabelViewData(with data: ManagePledgeSummaryViewData) -
 }
 
 private func attributedCurrency(
-  with country: Project.Country,
+  with currencyCode: String,
   amount: Double,
   omitUSCurrencyCode: Bool
 ) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_700])
+    .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_700.uiColor()])
   let superscriptAttributes = checkoutCurrencySuperscriptAttributes()
   guard
     let attributedCurrency = Format.attributedCurrency(
       amount,
-      country: country,
+      currencyCode: currencyCode,
       omitCurrencyCode: omitUSCurrencyCode,
       defaultAttributes: defaultAttributes,
       superscriptAttributes: superscriptAttributes

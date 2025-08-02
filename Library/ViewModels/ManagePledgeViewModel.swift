@@ -10,6 +10,7 @@ public typealias ManagePledgeViewParamConfigData = (
 )
 
 public enum ManagePledgeAlertAction: CaseIterable {
+  case editPledgeOverTimePledge
   case changePaymentMethod
   case chooseAnotherReward
   case contactCreator
@@ -32,20 +33,18 @@ public protocol ManagePledgeViewModelInputs {
 public protocol ManagePledgeViewModelOutputs {
   var configurePaymentMethodView: Signal<ManagePledgePaymentMethodViewData, Never> { get }
   var configurePledgeSummaryView: Signal<ManagePledgeSummaryViewData, Never> { get }
-  var configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never> { get }
   var endRefreshing: Signal<Void, Never> { get }
   var goToCancelPledge: Signal<CancelPledgeViewData, Never> { get }
   var goToChangePaymentMethod: Signal<PledgeViewData, Never> { get }
   var goToContactCreator: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never> { get }
   var goToFixPaymentMethod: Signal<PledgeViewData, Never> { get }
   var goToRewards: Signal<Project, Never> { get }
+  var goToEditPledgeOverTime: Signal<Project, Never> { get }
   var loadProjectAndRewardsIntoDataSource: Signal<(Project, [Reward]), Never> { get }
   var loadPullToRefreshHeaderView: Signal<(), Never> { get }
   var notifyDelegateManagePledgeViewControllerFinishedWithMessage: Signal<String?, Never> { get }
   var paymentMethodViewHidden: Signal<Bool, Never> { get }
   var pledgeDetailsSectionLabelText: Signal<String, Never> { get }
-  var pledgeDisclaimerViewHidden: Signal<Bool, Never> { get }
-  var rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> { get }
   var rightBarButtonItemHidden: Signal<Bool, Never> { get }
   var showActionSheetMenuWithOptions: Signal<[ManagePledgeAlertAction], Never> { get }
   var showErrorBannerWithMessage: Signal<String, Never> { get }
@@ -53,7 +52,7 @@ public protocol ManagePledgeViewModelOutputs {
   var showWebHelp: Signal<HelpType, Never> { get }
   var startRefreshing: Signal<(), Never> { get }
   var title: Signal<String, Never> { get }
-  var configurePlotPaymentScheduleView: Signal<([PledgePaymentIncrement], Project), Never> { get }
+  var configurePlotPaymentScheduleView: Signal<[PledgePaymentIncrement], Never> { get }
   var plotPaymentScheduleViewHidden: Signal<Bool, Never> { get }
 }
 
@@ -93,7 +92,12 @@ public final class ManagePledgeViewModel:
         AppEnvironment.current.apiService.fetchProject(param: param)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .switchMap { project in
-            fetchProjectRewards(project: project)
+            // Only fetch pledge over time data if the feature flag is enabled
+            if featureEditPledgeOverTimeEnabled() {
+              return fetchProjectRewardsAndPledgeOverTimeData(project: project)
+            }
+
+            return fetchProjectRewards(project: project)
           }
           .materialize()
       }
@@ -124,7 +128,7 @@ public final class ManagePledgeViewModel:
       .skipNil()
       .switchMap { backingId in
         AppEnvironment.current.apiService
-          .fetchBacking(id: backingId, withStoredCards: false)
+          .fetchBackingWithIncrementsRefundedAmount(id: backingId, withStoredCards: false)
           .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
           .materialize()
       }
@@ -177,10 +181,6 @@ public final class ManagePledgeViewModel:
 
     self.configurePaymentMethodView = backing.map(managePledgePaymentMethodViewData)
 
-    self.configurePledgeSummaryView = Signal.combineLatest(projectAndReward, backing)
-      .map(unpack)
-      .compactMap(managePledgeSummaryViewData)
-
     let projectOrBackingFailedToLoad = Signal.merge(
       fetchProjectEvent.map { $0.error as Error? },
       graphBackingEvent.map { $0.error as Error? }
@@ -211,7 +211,7 @@ public final class ManagePledgeViewModel:
     )
     .skipRepeats()
 
-    self.pledgeDisclaimerViewHidden = Signal.combineLatest(
+    let pledgeDisclaimerViewHidden = Signal.combineLatest(
       self.loadProjectAndRewardsIntoDataSource,
       userIsCreatorOfProject
     )
@@ -255,19 +255,21 @@ public final class ManagePledgeViewModel:
       return Strings.About_reward_amount(reward_amount: range)
     }
 
-    self.configureRewardReceivedWithData = Signal.combineLatest(
+    let rewardReceivedWithData = Signal.combineLatest(
       project,
       backing,
       latestRewardDeliveryDate,
-      estimatedShipping
+      estimatedShipping,
+      pledgeDisclaimerViewHidden
     )
-    .map { project, backing, latestRewardDeliveryDate, estimatedShipping in
+    .map { project, backing, latestRewardDeliveryDate, estimatedShipping, pledgeDisclaimerViewHidden in
       ManageViewPledgeRewardReceivedViewData(
         project: project,
         backerCompleted: backing.backerCompleted ?? false,
         estimatedDeliveryOn: latestRewardDeliveryDate,
         backingState: backing.status,
-        estimatedShipping: estimatedShipping
+        estimatedShipping: estimatedShipping,
+        pledgeDisclaimerViewHidden: pledgeDisclaimerViewHidden
       )
     }
 
@@ -283,6 +285,9 @@ public final class ManagePledgeViewModel:
 
     self.goToRewards = project
       .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .chooseAnotherReward || $0 == .viewRewards })
+
+    self.goToEditPledgeOverTime = project
+      .takeWhen(self.menuOptionSelectedSignal.filter { $0 == .editPledgeOverTimePledge })
 
     let cancelPledgeSelected = self.menuOptionSelectedSignal
       .filter { $0 == .cancelPledge }
@@ -316,7 +321,16 @@ public final class ManagePledgeViewModel:
       backing.skip(first: 1).mapConst(nil)
     )
 
-    self.rewardReceivedViewControllerViewIsHidden = latestRewardDeliveryDate.map { $0 == 0 }
+    let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never> = latestRewardDeliveryDate
+      .map { $0 == 0 }
+
+    self.configurePledgeSummaryView = Signal.combineLatest(
+      projectAndReward,
+      backing,
+      rewardReceivedWithData,
+      rewardReceivedViewControllerViewIsHidden
+    )
+    .compactMap(managePledgeSummaryViewData)
 
     self.showSuccessBannerWithMessage = self.pledgeViewControllerDidUpdatePledgeWithMessageSignal
 
@@ -376,12 +390,9 @@ public final class ManagePledgeViewModel:
 
     self.plotPaymentScheduleViewHidden = pledgeOverTimeEnabled.negate()
 
-    self.configurePlotPaymentScheduleView = project
-      .combineLatest(with: backing)
+    self.configurePlotPaymentScheduleView = backing
       .filterWhenLatestFrom(pledgeOverTimeEnabled, satisfies: { $0 })
-      .map { project, backing in
-        (backing.paymentIncrements, project)
-      }
+      .map { $0.paymentIncrements }
 
     self.showWebHelp = self.termsOfUseTappedSignal
   }
@@ -438,22 +449,20 @@ public final class ManagePledgeViewModel:
 
   public let configurePaymentMethodView: Signal<ManagePledgePaymentMethodViewData, Never>
   public let configurePledgeSummaryView: Signal<ManagePledgeSummaryViewData, Never>
-  public let configurePlotPaymentScheduleView: Signal<([PledgePaymentIncrement], Project), Never>
-  public let configureRewardReceivedWithData: Signal<ManageViewPledgeRewardReceivedViewData, Never>
+  public let configurePlotPaymentScheduleView: Signal<[PledgePaymentIncrement], Never>
   public let endRefreshing: Signal<Void, Never>
   public let goToCancelPledge: Signal<CancelPledgeViewData, Never>
   public let goToChangePaymentMethod: Signal<PledgeViewData, Never>
   public let goToContactCreator: Signal<(MessageSubject, KSRAnalytics.MessageDialogContext), Never>
   public let goToFixPaymentMethod: Signal<PledgeViewData, Never>
   public let goToRewards: Signal<Project, Never>
+  public let goToEditPledgeOverTime: Signal<Project, Never>
   public let loadProjectAndRewardsIntoDataSource: Signal<(Project, [Reward]), Never>
   public let loadPullToRefreshHeaderView: Signal<(), Never>
   public let paymentMethodViewHidden: Signal<Bool, Never>
   public let pledgeDetailsSectionLabelText: Signal<String, Never>
-  public let pledgeDisclaimerViewHidden: Signal<Bool, Never>
   public let plotPaymentScheduleViewHidden: Signal<Bool, Never>
   public let notifyDelegateManagePledgeViewControllerFinishedWithMessage: Signal<String?, Never>
-  public let rewardReceivedViewControllerViewIsHidden: Signal<Bool, Never>
   public let rightBarButtonItemHidden: Signal<Bool, Never>
   public let showActionSheetMenuWithOptions: Signal<[ManagePledgeAlertAction], Never>
   public let showSuccessBannerWithMessage: Signal<String, Never>
@@ -474,17 +483,48 @@ private func fetchProjectRewards(project: Project) -> SignalProducer<Project, Er
     .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
     .switchMap { projectRewards -> SignalProducer<Project, ErrorEnvelope> in
 
-      var allRewards = projectRewards
+      let projectUpdated = projectWithUpdatedRewards(project, rewards: projectRewards)
 
-      if let noRewardReward = project.rewardData.rewards.first {
-        allRewards.insert(noRewardReward, at: 0)
-      }
-
-      let projectWithBackingAndRewards = project
-        |> Project.lens.rewardData.rewards .~ allRewards
-
-      return SignalProducer(value: projectWithBackingAndRewards)
+      return SignalProducer(value: projectUpdated)
     }
+}
+
+private func fetchProjectRewardsAndPledgeOverTimeData(project: Project)
+  -> SignalProducer<Project, ErrorEnvelope> {
+  return AppEnvironment.current.apiService
+    .fetchProjectRewardsAndPledgeOverTimeData(projectId: project.id)
+    .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
+    .switchMap { envelope -> SignalProducer<Project, ErrorEnvelope> in
+
+      var projectUpdated = projectWithUpdatedRewards(project, rewards: envelope.rewards)
+
+      projectUpdated = projectUpdated
+        |> Project.lens.isPledgeOverTimeAllowed .~ envelope.isPledgeOverTimeAllowed
+        |> Project.lens
+        .pledgeOverTimeCollectionPlanChargeExplanation .~ envelope
+        .pledgeOverTimeCollectionPlanChargeExplanation
+        |> Project.lens
+        .pledgeOverTimeCollectionPlanChargedAsNPayments .~ envelope
+        .pledgeOverTimeCollectionPlanChargedAsNPayments
+        |> Project.lens
+        .pledgeOverTimeCollectionPlanShortPitch .~ envelope.pledgeOverTimeCollectionPlanShortPitch
+        |> Project.lens.pledgeOverTimeMinimumExplanation .~ envelope.pledgeOverTimeMinimumExplanation
+
+      return SignalProducer(value: projectUpdated)
+    }
+}
+
+private func projectWithUpdatedRewards(_ project: Project, rewards: [Reward]) -> Project {
+  let rewardsIncludingNoReward: [Reward]
+
+  if let noReward = project.rewardData.rewards.first {
+    rewardsIncludingNoReward = [noReward] + rewards
+  } else {
+    rewardsIncludingNoReward = rewards
+  }
+
+  return project
+    |> Project.lens.rewardData.rewards .~ rewardsIncludingNoReward
 }
 
 private func pledgeViewData(
@@ -496,6 +536,7 @@ private func pledgeViewData(
   return PledgeViewData(
     project: project,
     rewards: rewards,
+    bonusSupport: nil,
     selectedShippingRule: nil,
     selectedQuantities: selectedRewardQuantities(in: backing),
     selectedLocationId: backing.locationId,
@@ -521,10 +562,17 @@ private func actionSheetMenuOptionsFor(
     return [.contactCreator]
   }
 
-  var actions = ManagePledgeAlertAction.allCases.filter { $0 != .viewRewards }
+  var actions = ManagePledgeAlertAction.allCases
+    .filter { $0 != .viewRewards && $0 != .editPledgeOverTimePledge }
 
-  if isPledgeOverTime(with: backing) {
+  /// Enable the 'Edit pledge' option for all PLOT-enabled projects.
+  if isPledgeOverTime(with: backing) || project.isPledgeOverTimeAllowed == true {
     actions = actions.filter { $0 != .chooseAnotherReward }
+
+    /// If the Edit Pledge Over Time feature flag is `true`, replace 'Edit reward" with 'Edit pledge'.
+    if featureEditPledgeOverTimeEnabled() == true {
+      actions.insert(.editPledgeOverTimePledge, at: 1)
+    }
   }
 
   return actions
@@ -544,6 +592,7 @@ private func navigationBarTitle(
 private func managePledgeMenuCTAType(for managePledgeAlertAction: ManagePledgeAlertAction)
   -> KSRAnalytics.ManagePledgeMenuCTAType {
   switch managePledgeAlertAction {
+  case .editPledgeOverTimePledge: return .editPledgeOverTimePledge
   case .cancelPledge: return .cancelPledge
   case .changePaymentMethod: return .changePaymentMethod
   case .chooseAnotherReward: return .chooseAnotherReward
@@ -583,16 +632,17 @@ private func isPledgeOverTime(with backing: Backing) -> Bool {
 }
 
 private func managePledgeSummaryViewData(
-  with project: Project,
-  backedReward: Reward,
-  backing: Backing
+  with projectAndReward: (Project, Reward),
+  backing: Backing,
+  rewardReceivedWithData: ManageViewPledgeRewardReceivedViewData,
+  rewardReceivedViewControllerViewIsHidden: Bool
 ) -> ManagePledgeSummaryViewData? {
+  let (project, backedReward) = projectAndReward
+
   guard let backer = backing.backer,
         let deadline = project.dates.deadline else { return nil }
 
   let isRewardLocalPickup = isRewardLocalPickup(backing.reward)
-
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
 
   return ManagePledgeSummaryViewData(
     backerId: backer.id,
@@ -607,10 +657,12 @@ private func managePledgeSummaryViewData(
     omitUSCurrencyCode: project.stats.omitUSCurrencyCode,
     pledgeAmount: backing.amount,
     pledgedOn: backing.pledgedAt,
-    projectCurrencyCountry: projectCurrencyCountry,
+    currencyCode: project.statsCurrency,
     projectDeadline: deadline,
     projectState: project.state,
     rewardMinimum: backing.rewardsAmount ?? allRewardsTotal(for: backing),
+    rewardReceivedViewControllerViewIsHidden: rewardReceivedViewControllerViewIsHidden,
+    rewardReceivedWithData: rewardReceivedWithData,
     shippingAmount: backing.shippingAmount.flatMap(Double.init),
     shippingAmountHidden: backing.reward?.shipping.enabled == false || backing.shippingAmount == 0,
     rewardIsLocalPickup: isRewardLocalPickup,

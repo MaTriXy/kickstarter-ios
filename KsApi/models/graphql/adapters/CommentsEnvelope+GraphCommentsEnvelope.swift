@@ -1,4 +1,5 @@
 import Foundation
+import GraphAPI
 
 extension CommentsEnvelope {
   /**
@@ -7,7 +8,8 @@ extension CommentsEnvelope {
   static func commentsEnvelope(from data: GraphAPI.FetchProjectCommentsQuery.Data) -> CommentsEnvelope? {
     guard let comments = data.project?.comments?.edges?
       .compactMap({ $0?.node?.fragments.commentFragment })
-      .compactMap(Comment.comment(from:))
+      .compactMap({
+        Comment.comment(from: $0.fragments.commentBaseFragment, replyCount: $0.replies?.totalCount) })
     else { return nil }
 
     return CommentsEnvelope(
@@ -26,7 +28,8 @@ extension CommentsEnvelope {
   static func commentsEnvelope(from data: GraphAPI.FetchUpdateCommentsQuery.Data) -> CommentsEnvelope? {
     guard let comments = data.post?.asFreeformPost?.comments?.edges?
       .compactMap({ $0?.node?.fragments.commentFragment })
-      .compactMap(Comment.comment(from:))
+      .compactMap({
+        Comment.comment(from: $0.fragments.commentBaseFragment, replyCount: $0.replies?.totalCount) })
     else { return nil }
 
     return CommentsEnvelope(

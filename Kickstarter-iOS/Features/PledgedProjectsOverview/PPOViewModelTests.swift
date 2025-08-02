@@ -1,6 +1,8 @@
 import Combine
+import GraphAPI
 @testable import Kickstarter_Framework
 @testable import KsApi
+@testable import Library
 import XCTest
 
 class PPOViewModelTests: XCTestCase {
@@ -52,7 +54,7 @@ class PPOViewModelTests: XCTestCase {
 
   func testInitialLoading_Twice() throws {
     let expectation = XCTestExpectation(description: "Initial loading twice")
-    expectation.expectedFulfillmentCount = 3
+    expectation.expectedFulfillmentCount = 5
 
     var values: [PPOViewModelPaginator.Results] = []
     self.viewModel.$results
@@ -71,12 +73,12 @@ class PPOViewModelTests: XCTestCase {
 
     wait(for: [expectation], timeout: 0.1)
 
-    XCTAssertEqual(values.count, 3)
+    XCTAssertEqual(values.count, 5)
 
     guard
       case .unloaded = values[0],
       case .loading = values[1],
-      case let .allLoaded(data, _) = values[2]
+      case let .allLoaded(data, _) = values[4]
     else {
       return XCTFail()
     }
@@ -270,7 +272,8 @@ class PPOViewModelTests: XCTestCase {
       event: .confirmAddress(
         backingId: template.backingGraphId,
         addressId: addressId,
-        address: address
+        address: address,
+        onProgress: { _ in }
       )
     )
   }
@@ -315,12 +318,120 @@ class PPOViewModelTests: XCTestCase {
     )
   }
 
+  func testNavigationManagePledge() {
+    self.verifyNavigationEvent(
+      { self.viewModel.managePledge(from: PPOProjectCardModel.managePledgeTemplate) },
+      event: .managePledge(url: PPOProjectCardModel.managePledgeTemplate.backingDetailsUrl)
+    )
+  }
+
   func testNavigationViewBackingDetails() {
     self.verifyNavigationEvent(
       // This could be tested with any template. All cards allow the user to view backing details.
       { self.viewModel.openSurvey(from: PPOProjectCardModel.fixPaymentTemplate) },
       event: .survey(url: PPOProjectCardModel.fixPaymentTemplate.backingDetailsUrl)
     )
+  }
+
+  func testAnalyticsEvents_NotTriggeredOnRefresh() async throws {
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
+    appTrackingTransparency.shouldRequestAuthStatus = true
+    appTrackingTransparency.updateAdvertisingIdentifier()
+
+    let mockTrackingClient = MockTrackingClient()
+    let analytics = KSRAnalytics(
+      segmentClient: mockTrackingClient,
+      appTrackingTransparency: appTrackingTransparency
+    )
+
+    let mockService = MockService(
+      fetchPledgedProjectsResult: Result.success(try self.pledgedProjectsData(cursors: 1...3))
+    )
+
+    let reloadedMockService = MockService(
+      fetchPledgedProjectsResult: Result.success(try self.pledgedProjectsData(cursors: 4...6))
+    )
+
+    let initialLoadExpectation = XCTestExpectation(description: "Initial load")
+    initialLoadExpectation.expectedFulfillmentCount = 3
+    let refreshExpectation = XCTestExpectation(description: "Refresh complete")
+    refreshExpectation.expectedFulfillmentCount = 4
+
+    var values: [PPOViewModelPaginator.Results] = []
+    self.viewModel.$results
+      .sink { value in
+        values.append(value)
+        initialLoadExpectation.fulfill()
+        refreshExpectation.fulfill()
+      }
+      .store(in: &self.cancellables)
+
+    await withEnvironment(
+      apiService: mockService,
+      appTrackingTransparency: appTrackingTransparency,
+      ksrAnalytics: analytics
+    ) { () async in
+      self.viewModel.viewDidAppear()
+
+      // Trigger some actions that generate analytics
+      self.viewModel.openSurvey(from: PPOProjectCardModel.completeSurveyTemplate)
+      self.viewModel.fixPaymentMethod(from: PPOProjectCardModel.fixPaymentTemplate)
+      self.viewModel.contactCreator(from: PPOProjectCardModel.addressLockTemplate)
+
+      await fulfillment(of: [initialLoadExpectation], timeout: 0.1)
+
+      // Store analytics event counts before refresh
+      let trackCountBefore = mockTrackingClient.tracks.count
+      XCTAssertEqual(trackCountBefore, 4)
+
+      await withEnvironment(
+        apiService: reloadedMockService,
+        appTrackingTransparency: appTrackingTransparency,
+        ksrAnalytics: analytics
+      ) { () async in
+        await self.viewModel.refresh()
+      }
+
+      await fulfillment(of: [refreshExpectation], timeout: 0.1)
+
+      // Verify analytics events weren't triggered again
+      XCTAssertEqual(mockTrackingClient.tracks.count, trackCountBefore)
+    }
+  }
+
+  func testInitialLoading_Empty() throws {
+    let expectation = XCTestExpectation(description: "Initial loading empty")
+    expectation.expectedFulfillmentCount = 3
+
+    var values: [PPOViewModelPaginator.Results] = []
+    self.viewModel.$results
+      .sink { value in
+        values.append(value)
+        expectation.fulfill()
+      }
+      .store(in: &self.cancellables)
+
+    withEnvironment(apiService: MockService(
+      fetchPledgedProjectsResult: Result.success(try self.pledgedProjectsData(
+        cursors: nil,
+        hasNextPage: false
+      ))
+    )) {
+      self.viewModel.viewDidAppear()
+    }
+
+    wait(for: [expectation], timeout: 0.1)
+
+    XCTAssertEqual(values.count, 3)
+
+    guard
+      case .unloaded = values[0],
+      case .loading = values[1],
+      case .empty = values[2]
+    else {
+      return XCTFail()
+    }
   }
 
   // Setup the view model to monitor navigation events, then run the closure, then check to make sure only that one event fired
@@ -353,23 +464,23 @@ class PPOViewModelTests: XCTestCase {
   }
 
   private func pledgedProjectsData(
-    cursors: ClosedRange<Int> = 1...3,
+    cursors: ClosedRange<Int>? = 1...3,
     hasNextPage: Bool = false
   ) throws -> GraphAPI.FetchPledgedProjectsQuery.Data {
-    let edges = cursors.map { index in self.projectEdgeJSON(cursor: "\(index)") }
+    let edges = cursors?.map { index in self.projectEdgeJSON(cursor: "\(index)") } ?? []
     let edgesJson = "[\(edges.joined(separator: ", "))]"
-    return try GraphAPI.FetchPledgedProjectsQuery.Data(jsonString: """
+    let result: GraphAPI.FetchPledgedProjectsQuery.Data = try testGraphObject(jsonString: """
     {
       "pledgeProjectsOverview": {
         "__typename": "PledgeProjectsOverview",
         "pledges": {
           "__typename": "PledgedProjectsOverviewPledgesConnection",
-          "totalCount": \(cursors.count),
+          "totalCount": \(edges.count),
           "edges": \(edgesJson),
           "pageInfo": {
             "__typename": "PageInfo",
             "hasNextPage": \(String(hasNextPage)),
-            "endCursor": \(hasNextPage ? "\"\(cursors.upperBound)\"" : "null"),
+            "endCursor": \(hasNextPage ? "\"\(cursors?.upperBound ?? 0)\"" : "null"),
             "hasPreviousPage": false,
             "startCursor": "1"
           }
@@ -377,6 +488,8 @@ class PPOViewModelTests: XCTestCase {
       }
     }
     """)
+
+    return result
   }
 
   private func projectEdgeJSON(
@@ -503,7 +616,8 @@ class PPOViewModelTests: XCTestCase {
         }
       ],
 
-      "tierType": "Tier1PaymentFailed"
+      "tierType": "Tier1PaymentFailed",
+      "webviewUrl": null
     }
     """
   }

@@ -349,7 +349,7 @@ internal final class DiscoveryPageViewController: UITableViewController {
   }
 
   fileprivate func goTo(project: Project, refTag: RefTag) {
-    let projectParam = Either<Project, Param>(left: project)
+    let projectParam = Either<Project, any ProjectPageParam>(left: project)
     let vc = ProjectPageViewController.configuredWith(
       projectOrParam: projectParam,
       refInfo: RefInfo(refTag)
@@ -362,7 +362,7 @@ internal final class DiscoveryPageViewController: UITableViewController {
   }
 
   fileprivate func goTo(project: Project, initialPlaylist _: [Project], refTag: RefTag) {
-    let projectParam = Either<Project, Param>(left: project)
+    let projectParam = Either<Project, any ProjectPageParam>(left: project)
     let vc = ProjectPageViewController.configuredWith(
       projectOrParam: projectParam,
       refInfo: RefInfo(refTag)
@@ -509,7 +509,7 @@ private extension UIView {
 
 private let headerLabelStyle: LabelStyle = { label in
   label
-    |> \.textColor .~ UIColor.ksr_trust_700
+    |> \.textColor .~ LegacyColors.ksr_trust_700.uiColor()
     |> \.font .~ UIFont.ksr_subhead().bolded
     |> \.lineBreakMode .~ .byWordWrapping
     |> \.numberOfLines .~ 0

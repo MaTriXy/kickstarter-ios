@@ -1,3 +1,4 @@
+import GraphAPI
 @testable import Kickstarter_Framework
 @testable import KsApi
 @testable import Library
@@ -12,7 +13,6 @@ final class AppDelegateViewModelTests: TestCase {
   var vm: AppDelegateViewModelType!
 
   private let applicationIconBadgeNumber = TestObserver<Int, Never>()
-  private let configureAppCenterWithData = TestObserver<AppCenterConfigData, Never>()
   private let configureFirebase = TestObserver<(), Never>()
   private let configureSegmentWithBraze = TestObserver<String, Never>()
   private let didAcceptReceivingRemoteNotifications = TestObserver<(), Never>()
@@ -36,6 +36,7 @@ final class AppDelegateViewModelTests: TestCase {
   private let segmentIsEnabled = TestObserver<Bool, Never>()
   private let showAlert = TestObserver<Notification, Never>()
   private let trackingAuthorizationStatus = TestObserver<AppTrackingAuthorization, Never>()
+  private let triggerOnboardingFlow = TestObserver<(), Never>()
   private let unregisterForRemoteNotifications = TestObserver<(), Never>()
   private let updateCurrentUserInEnvironment = TestObserver<User, Never>()
   private let updateConfigInEnvironment = TestObserver<Config, Never>()
@@ -57,7 +58,6 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm = AppDelegateViewModel()
 
     self.vm.outputs.applicationIconBadgeNumber.observe(self.applicationIconBadgeNumber.observer)
-    self.vm.outputs.configureAppCenterWithData.observe(self.configureAppCenterWithData.observer)
     self.vm.outputs.configureFirebase.observe(self.configureFirebase.observer)
     self.vm.outputs.configureSegmentWithBraze.observe(self.configureSegmentWithBraze.observer)
     self.vm.outputs.emailVerificationCompleted.map(first)
@@ -85,6 +85,7 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.outputs.segmentIsEnabled.observe(self.segmentIsEnabled.observer)
     self.disposables
       .append(self.vm.outputs.trackingAuthorizationStatus.start(self.trackingAuthorizationStatus.observer))
+    self.vm.outputs.triggerOnboardingFlow.observe(self.triggerOnboardingFlow.observer)
     self.vm.outputs.unregisterForRemoteNotifications.observe(self.unregisterForRemoteNotifications.observer)
     self.vm.outputs.updateCurrentUserInEnvironment.observe(self.updateCurrentUserInEnvironment.observer)
     self.vm.outputs.updateConfigInEnvironment.observe(self.updateConfigInEnvironment.observer)
@@ -142,151 +143,6 @@ final class AppDelegateViewModelTests: TestCase {
     self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
 
     self.configureFirebase.assertValueCount(1)
-  }
-
-  // MARK: - AppCenter
-
-  func testConfigureAppCenter_AlphaApp_LoggedOut() {
-    let alphaBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.alpha.rawValue, lang: "en")
-
-    withEnvironment(mainBundle: alphaBundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([
-        AppCenterConfigData(
-          appSecret: KsApi.Secrets.AppCenter.alpha,
-          userId: "0",
-          userName: "anonymous"
-        )
-      ])
-    }
-  }
-
-  func testConfigureAppCenter_AlphaApp_LoggedIn() {
-    let alphaBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.alpha.rawValue, lang: "en")
-    let currentUser = User.template
-
-    withEnvironment(
-      currentUser: .template,
-      mainBundle: alphaBundle
-    ) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([
-        AppCenterConfigData(
-          appSecret: KsApi.Secrets.AppCenter.alpha,
-          userId: String(currentUser.id),
-          userName: currentUser.name
-        )
-      ])
-    }
-  }
-
-  func testConfigureAppCenter_DebugApp() {
-    let debugBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.debug.rawValue, lang: "en")
-
-    withEnvironment(mainBundle: debugBundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertDidNotEmitValue()
-    }
-  }
-
-  func testConfigureAppCenter_BetaApp_LoggedOut() {
-    let betaBundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.beta.rawValue, lang: "en")
-
-    withEnvironment(mainBundle: betaBundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([
-        AppCenterConfigData(
-          appSecret: KsApi.Secrets.AppCenter.beta,
-          userId: "0",
-          userName: "anonymous"
-        )
-      ])
-    }
-  }
-
-  func testConfigureAppCenter_BetaApp_LoggedIn() {
-    let currentUser = User.template
-    withEnvironment(
-      currentUser: .template,
-      mainBundle: MockBundle(bundleIdentifier: KickstarterBundleIdentifier.beta.rawValue, lang: "en")
-    ) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([
-        AppCenterConfigData(
-          appSecret: KsApi.Secrets.AppCenter.beta,
-          userId: String(currentUser.id),
-          userName: currentUser.name
-        )
-      ])
-    }
-  }
-
-  func testConfigureAppCenter_ProductionApp_LoggedOut() {
-    let bundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.release.rawValue, lang: "en")
-    withEnvironment(mainBundle: bundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([])
-    }
-  }
-
-  func testConfigureAppCenter_ProductionApp_LoggedIn() {
-    let bundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.release.rawValue, lang: "en")
-
-    withEnvironment(currentUser: .template, mainBundle: bundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([])
-    }
-  }
-
-  func testConfigureAppCenter_SessionChanges() {
-    let bundle = MockBundle(bundleIdentifier: KickstarterBundleIdentifier.release.rawValue, lang: "en")
-
-    withEnvironment(mainBundle: bundle) {
-      self.vm.inputs.applicationDidFinishLaunching(
-        application: UIApplication.shared,
-        launchOptions: [:]
-      )
-
-      self.configureAppCenterWithData.assertValues([])
-
-      AppEnvironment.login(AccessTokenEnvelope(accessToken: "deadbeef", user: .template))
-      self.vm.inputs.userSessionStarted()
-
-      self.configureAppCenterWithData.assertValues([])
-
-      AppEnvironment.logout()
-      self.vm.inputs.userSessionStarted()
-
-      self.configureAppCenterWithData.assertValues([])
-    }
   }
 
   func testCurrentUserUpdating_NothingHappensWhenLoggedOut() {
@@ -1090,6 +946,35 @@ final class AppDelegateViewModelTests: TestCase {
   func testRegisterPushNotifications_PreviouslyAccepted() {
     let segmentClient = MockTrackingClient()
 
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
+    MockPushRegistration.registerProducer = .init(value: true)
+
+    withEnvironment(
+      apiService: MockService(),
+      currentUser: .template,
+      ksrAnalytics: KSRAnalytics(segmentClient: segmentClient),
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.pushRegistrationStarted.assertValueCount(0)
+      self.pushTokenSuccessfullyRegistered.assertValueCount(0)
+
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: [:])
+      self.vm.inputs.userSessionStarted()
+
+      self.pushRegistrationStarted.assertValueCount(1)
+
+      self.vm.inputs.didRegisterForRemoteNotifications(withDeviceTokenData: "token".data(using: .utf8)!)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.pushTokenSuccessfullyRegistered.assertValueCount(1)
+
+      XCTAssertEqual([], segmentClient.events)
+    }
+  }
+
+  func testRegisterPushNotifications_WhenNotPreviouslyAccepted() {
+    let segmentClient = MockTrackingClient()
     MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
     MockPushRegistration.registerProducer = .init(value: true)
 
@@ -1969,6 +1854,15 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
+  func testGoToLoginWithIntent_EmitsCorrectIntents() {
+    self.goToLoginWithIntent.assertDidNotEmitValue()
+
+    self.vm.inputs.goToLoginSignup(from: .generic)
+    self.vm.inputs.goToLoginSignup(from: .onboarding)
+
+    XCTAssertEqual(self.goToLoginWithIntent.values, [.generic, .onboarding])
+  }
+
   func testUserSurveyDeepLink() {
     self.vm.inputs.applicationDidFinishLaunching(
       application: UIApplication.shared,
@@ -1995,8 +1889,13 @@ final class AppDelegateViewModelTests: TestCase {
     )
 
     userDefaults.set(["message"], forKey: "com.kickstarter.KeyValueStoreType.deniedNotificationContexts")
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
 
-    withEnvironment(currentUser: .template, userDefaults: userDefaults) {
+    withEnvironment(
+      currentUser: .template,
+      pushRegistrationType: MockPushRegistration.self,
+      userDefaults: userDefaults
+    ) {
       self.vm.inputs.applicationWillEnterForeground()
       self.vm.inputs.didReceive(remoteNotification: updatePushData)
       self.vm.inputs.showNotificationDialog(notification: notification)
@@ -2297,11 +2196,13 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_ShowsConsentDialogAndUpdatesAdId(
+  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_ShowsConsentDialogAndUpdatesAdId_whenHasSeenOnboardingIsTrue(
   ) {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = true
+
+    userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
 
     withEnvironment(
       appTrackingTransparency: appTrackingTransparency
@@ -2321,11 +2222,61 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
+  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_ShowsConsentDialogAndUpdatesAdId_WhenHasSeenOnboardingIsFalse(
+  ) {
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = true
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency
+    ) {
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(1))
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+    }
+  }
+
+  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusTrue_RequestAllowed_DoesNot_ShowConsentDialogAndUpdateAdId(
+  ) {
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = true
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency
+    ) {
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(1))
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+    }
+  }
+
   func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusFalse_RequestAllowed_DoesNotShowConsentDialogAndDoesNotUpdateAdId(
   ) {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
     appTrackingTransparency.shouldRequestAuthStatus = false
+
+    userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
 
     withEnvironment(
       appTrackingTransparency: appTrackingTransparency
@@ -2345,7 +2296,188 @@ final class AppDelegateViewModelTests: TestCase {
     }
   }
 
-  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenConsentManagementFeatureFlagOn_WhenShouldRequestAuthorizationStatusTrue_RequestDenied_DoesNotShowConsentDialogAndDoesNotUpdateAdId(
+  func testTriggerOnboardingFlow_WhenUserHasNotDeterminedPushNotificationsOrATTPermissions(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: true)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = true
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      self.pushTokenSuccessfullyRegistered.assertValueCount(0)
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+
+      self.triggerOnboardingFlow.assertValueCount(1)
+    }
+  }
+
+  func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedPushNotifications_ButNotATTPermissions(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: true)
+    MockPushRegistration.registerProducer = .init(value: true)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
+    appTrackingTransparency.shouldRequestAuthStatus = false
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.triggerOnboardingFlow.assertValueCount(0)
+    }
+  }
+
+  func testTriggerOnboardingFlow_IsNotCalled_WhenUserHasAuthorizedATTPermissions_ButNotPushNotifications(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: false)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = false
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.triggerOnboardingFlow.assertValueCount(0)
+    }
+  }
+
+  func testTriggerOnboardingFlow_IsNotCalled_WhenOnboardingFlowFeatureFlagDisabled(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: false)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
+    appTrackingTransparency.shouldRequestAuthStatus = false
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.triggerOnboardingFlow.assertValueCount(0)
+    }
+  }
+
+  func testTriggerOnboardingFlow_IsNotCalled_UserDefaultsHasSeenOnboardingIsTrue(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: true)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = true
+
+    userDefaults.set(true, forKey: AppKeys.hasSeenOnboarding.rawValue)
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      self.pushTokenSuccessfullyRegistered.assertValueCount(0)
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      XCTAssertEqual(appTrackingTransparency.advertisingIdentifier, "advertisingIdentifier")
+      self.requestATTrackingAuthorizationStatus.assertValueCount(1)
+
+      self.triggerOnboardingFlow.assertValueCount(0)
+    }
+  }
+
+  func testTriggerOnboardingFlow_WhenUserDefaultsHasSeenOnboardingIsFalse(
+  ) {
+    MockPushRegistration.hasAuthorizedNotificationsProducer = .init(value: false)
+    MockPushRegistration.registerProducer = .init(value: true)
+
+    let appTrackingTransparency = MockAppTrackingTransparency()
+    appTrackingTransparency.requestAndSetAuthorizationStatusFlag = true
+    appTrackingTransparency.shouldRequestAuthStatus = true
+
+    withEnvironment(
+      appTrackingTransparency: appTrackingTransparency,
+      pushRegistrationType: MockPushRegistration.self
+    ) {
+      self.triggerOnboardingFlow.assertValueCount(0)
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      self.pushTokenSuccessfullyRegistered.assertValueCount(0)
+
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+
+      self.vm.inputs.applicationActive(state: false)
+      self.vm.inputs.applicationDidFinishLaunching(application: UIApplication.shared, launchOptions: nil)
+      self.vm.inputs.applicationActive(state: true)
+
+      self.scheduler.advance(by: .seconds(5))
+
+      self.pushRegistrationStarted.assertValueCount(0)
+      XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
+
+      XCTAssertFalse(userDefaults.bool(forKey: AppKeys.hasSeenOnboarding.rawValue))
+
+      self.triggerOnboardingFlow.assertValueCount(1)
+    }
+  }
+
+  func testRequestATTrackingAuthorizationStatus_WhenAppBecomesActive_WhenAdvertisingIdentifierNil_WhenShouldRequestAuthorizationStatusTrue_RequestDenied_DoesNotShowConsentDialogAndDoesNotUpdateAdId(
   ) {
     let appTrackingTransparency = MockAppTrackingTransparency()
     appTrackingTransparency.requestAndSetAuthorizationStatusFlag = false
@@ -2365,7 +2497,7 @@ final class AppDelegateViewModelTests: TestCase {
       self.scheduler.advance(by: .seconds(1))
 
       XCTAssertNil(appTrackingTransparency.advertisingIdentifier)
-      self.requestATTrackingAuthorizationStatus.assertValueCount(1)
+      self.requestATTrackingAuthorizationStatus.assertValueCount(0)
     }
   }
 
@@ -2468,15 +2600,12 @@ final class AppDelegateViewModelTests: TestCase {
   }
 
   func testUserSessionStarted_fetchesUserEmail_andClearsOnLogout() {
-    let fetchUserSetupQueryData = GraphAPI.FetchUserSetupQuery
-      .Data(
-        unsafeResultMap: [
-          "me": [
-            "email": "user@example.com",
-            "enabledFeatures": []
-          ]
-        ]
+    let fetchUserSetupQueryData = GraphAPI.FetchUserSetupQuery.Data(
+      me: GraphAPI.FetchUserSetupQuery.Data.Me(
+        email: "user@example.com",
+        enabledFeatures: []
       )
+    )
 
     guard let envelope = UserEnvelope<GraphUserSetup>.userEnvelope(from: fetchUserSetupQueryData) else {
       XCTFail()

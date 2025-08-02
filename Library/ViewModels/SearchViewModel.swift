@@ -1,23 +1,31 @@
 import Foundation
+import GraphAPI
 import KsApi
 import Prelude
 import ReactiveSwift
 
+public typealias SearchResultCard = ProjectCardProperties
+public typealias SearchResult = GraphAPI.SearchQuery.Data.Projects.Node
+
+public struct SearchResults {
+  public let isProjectsTitleVisible: Bool
+  public let count: Int
+  public let projects: [BackerDashboardProjectCellViewModel.ProjectCellModel]
+
+  public init(
+    isProjectsTitleVisible: Bool,
+    count: Int,
+    projects: [BackerDashboardProjectCellViewModel.ProjectCellModel]
+  ) {
+    self.isProjectsTitleVisible = isProjectsTitleVisible
+    self.count = count
+    self.projects = projects
+  }
+}
+
 public protocol SearchViewModelInputs {
-  /// Call when the cancel button is pressed.
-  func cancelButtonPressed()
-
-  /// Call when the search clear button is tapped.
-  func clearSearchText()
-
-  /// Call when the search field begins editing.
-  func searchFieldDidBeginEditing()
-
   /// Call when the user enters a new search term.
   func searchTextChanged(_ searchText: String)
-
-  /// Call when the user taps the return key.
-  func searchTextEditingDidEnd()
 
   /// Call when the view loads.
   func viewDidLoad()
@@ -26,7 +34,19 @@ public protocol SearchViewModelInputs {
   func viewWillAppear(animated: Bool)
 
   /// Call when a project is tapped.
-  func tapped(project: Project)
+  func tapped(projectAtIndex index: Int)
+
+  /// Call this when the user taps on a button to show one of the sort options.
+  func tappedButton(forFilterType type: SearchFilterPill.FilterType)
+
+  /// Call this when the user updates a sort or filter option
+  func selectedFilter(_ event: SearchFilterEvent)
+
+  /// Call this when the user types a location query string in the location filter
+  func searchedForLocations(_ query: String)
+
+  /// Call this when the user taps reset on a filter modal
+  func resetFilters(for: SearchFilterModalType)
 
   /**
    Call from the controller's `tableView:willDisplayCell:forRowAtIndexPath` method.
@@ -38,33 +58,27 @@ public protocol SearchViewModelInputs {
 }
 
 public protocol SearchViewModelOutputs {
-  /// Emits booleans that determines if the search field should be focused or not, and whether that focus
-  /// should be animated.
-  var changeSearchFieldFocus: Signal<(focused: Bool, animate: Bool), Never> { get }
+  /// Emits a project ID  and ref tag when the project page should be opened.
+  var goToProject: Signal<(Int, RefTag), Never> { get }
 
-  /// Emits a project, playlist and ref tag when the projet navigator should be opened.
-  var goToProject: Signal<(Project, [Project], RefTag), Never> { get }
-
-  /// Emits true when the popular title should be shown, and false otherwise.
-  var isPopularTitleVisible: Signal<Bool, Never> { get }
-
-  /// Emits when loading indicator should be animated.
-  var popularLoaderIndicatorIsAnimating: Signal<Bool, Never> { get }
-
-  /// Emits an array of projects when they should be shown on the screen.
-  var projects: Signal<[Project], Never> { get }
-
-  /// Emits when the search field should resign focus.
-  var resignFirstResponder: Signal<(), Never> { get }
-
-  /// Emits a string that should be filled into the search field.
-  var searchFieldText: Signal<String, Never> { get }
+  /// Used to power the datasource. Emits projects, whether or not to show the "Popular" title, and the results count. May emit an array of empty projects if the page was cleared and new results are loading.
+  var searchResults: Signal<SearchResults, Never> { get }
 
   /// Emits when loading indicator should be hidden.
   var searchLoaderIndicatorIsAnimating: Signal<Bool, Never> { get }
 
   /// Emits true when no search results should be shown, and false otherwise.
   var showEmptyState: Signal<(DiscoveryParams, Bool), Never> { get }
+
+  /// Emits true when there are search or discover results, and we should show the UI to sort and filter those results.
+  var showSortAndFilterHeader: Signal<Bool, Never> { get }
+
+  /// Sends a model object which can be used to display all filter options, and a type describing which filters to display.
+  var showFilters: Signal<SearchFilterModalType, Never> { get }
+
+  /// An @ObservableObject model which SwiftUI can use to display the search filters modals and header.
+  /// Owned and automatically updated by the `SearchFiltersUseCase`.
+  var searchFilters: SearchFilters { get }
 }
 
 public protocol SearchViewModelType {
@@ -74,36 +88,62 @@ public protocol SearchViewModelType {
 
 public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, SearchViewModelOutputs {
   public init() {
+    self.categoriesUseCase = FetchCategoriesUseCase(
+      initialSignal: self.viewDidLoadProperty.signal
+    )
+
+    self.locationsUseCase = FetchLocationsUseCase(
+      initialSignal:
+      self.viewDidLoadProperty.signal
+    )
+
+    self.searchFiltersUseCase = SearchFiltersUseCase(
+      initialSignal: self.viewDidLoadProperty.signal,
+      categories: self.categoriesUseCase.dataOutputs.categories,
+      defaultLocations: self.locationsUseCase.dataOutputs.defaultLocations,
+      suggestedLocations: self.locationsUseCase.dataOutputs.suggestedLocations
+    )
+
     let viewWillAppearNotAnimated = self.viewWillAppearAnimatedProperty.signal.filter(isTrue).ignoreValues()
 
-    let query = Signal
+    // What the user has typed in the search bar (or empty, if they've cleared their search).
+    let queryText = Signal
       .merge(
         self.searchTextChangedProperty.signal,
-        viewWillAppearNotAnimated.mapConst("").take(first: 1),
-        self.cancelButtonPressedProperty.signal.mapConst(""),
-        self.clearSearchTextProperty.signal.mapConst("")
+        viewWillAppearNotAnimated.mapConst("").take(first: 1)
       )
 
-    let popularEvent = viewWillAppearNotAnimated
-      .switchMap {
-        AppEnvironment.current.apiService
-          .fetchDiscovery(params: .defaults |> DiscoveryParams.lens.sort .~ .popular)
-          .ksr_delay(AppEnvironment.current.apiDelayInterval, on: AppEnvironment.current.scheduler)
-          .map { $0.projects }
-          .materialize()
-      }
+    // DiscoveryParams using the users currently selected query text, sort and filters.
+    let queryParams: Signal<DiscoveryParams, Never> = Signal.combineLatest(
+      queryText,
+      self.searchFiltersUseCase.dataOutputs.selectedSort,
+      self.searchFiltersUseCase.dataOutputs.selectedCategory,
+      self.searchFiltersUseCase.dataOutputs.selectedState,
+      self.searchFiltersUseCase.dataOutputs.selectedPercentRaisedBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedLocation,
+      self.searchFiltersUseCase.dataOutputs.selectedAmountRaisedBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedGoalBucket,
+      self.searchFiltersUseCase.dataOutputs.selectedToggles
+    )
+    .map { query, sort, category, state, percentRaised, location, amountRaised, goal, toggles in
+      DiscoveryParams.withQuery(
+        query,
+        sort: sort,
+        category: category.category,
+        state: state,
+        percentRaised: percentRaised,
+        location: location,
+        amountRaised: amountRaised,
+        goal: goal,
+        toggles: toggles
+      )
+    }
 
-    let popular = popularEvent.values()
+    // Every time the user changes their query, sort or filters, we set an empty
+    // results set to clear out the page. The user will just see the spinner.
+    let clears = queryParams.mapConst([SearchResult]())
 
-    let clears = query.mapConst([Project]())
-
-    self.isPopularTitleVisible = Signal.combineLatest(query, popular)
-      .map { query, _ in query.isEmpty }
-      .skipRepeats()
-
-    let requestFirstPageWith: Signal<DiscoveryParams, Never> = query
-      .filter { !$0.isEmpty }
-      .map { .defaults |> DiscoveryParams.lens.query .~ $0 }
+    let requestFirstPageWith: Signal<DiscoveryParams, Never> = queryParams
 
     let isCloseToBottom = self.willDisplayRowProperty.signal.skipNil()
       .map { row, total in
@@ -113,81 +153,141 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       .filter(isTrue)
       .ignoreValues()
 
-    let requestFromParamsWithDebounce: (DiscoveryParams)
-      -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> = { params in
+    var firstRequest = true
+    let requestFromOptionsWithDebounce: (DiscoveryParams)
+      -> SignalProducer<GraphAPI.SearchQuery.Data, ErrorEnvelope> = { params in
         SignalProducer<(), ErrorEnvelope>(value: ())
           .switchMap {
-            AppEnvironment.current.apiService.fetchDiscovery(params: params)
+            let query = GraphAPI.SearchQuery.from(discoveryParams: params)
+            let request = AppEnvironment.current.apiService.fetch(query: query)
+            // Don't debounce if the page is empty and this is the first request.
+            let debounce = firstRequest ? DispatchTimeInterval.seconds(0) : AppEnvironment.current
+              .debounceInterval
+
+            if firstRequest {
+              firstRequest = false
+            }
+
+            return request
               .ksr_debounce(
-                AppEnvironment.current.debounceInterval, on: AppEnvironment.current.scheduler
+                debounce, on: AppEnvironment.current.scheduler
               )
           }
       }
 
     let statsProperty = MutableProperty<Int>(0)
+    let optionsProperty = MutableProperty<DiscoveryParams?>(nil)
+    optionsProperty <~ requestFirstPageWith // Bound to the SearchOptions for the current query
 
     let (paginatedProjects, isLoading, page, _) = paginate(
       requestFirstPageWith: requestFirstPageWith,
       requestNextPageWhen: isCloseToBottom,
       clearOnNewRequest: false,
       skipRepeats: false,
-      valuesFromEnvelope: { [statsProperty] result -> [Project] in
-        statsProperty.value = result.stats.count
-        return result.projects
+      valuesFromEnvelope: { [statsProperty] (data: GraphAPI.SearchQuery.Data) -> [
+        SearchResult
+      ] in
+        statsProperty.value = data.projects?.totalCount ?? 0
+        return data.projects?.nodes?.compact() ?? []
       },
-      cursorFromEnvelope: { $0.urls.api.moreProjects },
-      requestFromParams: requestFromParamsWithDebounce,
-      requestFromCursor: { AppEnvironment.current.apiService.fetchDiscovery(paginationUrl: $0) }
+      cursorFromEnvelope: { data in
+        guard let pageInfo = data.projects?.pageInfo else {
+          return nil
+        }
+
+        return pageInfo.hasNextPage ? pageInfo.endCursor : nil
+      },
+      requestFromParams: requestFromOptionsWithDebounce,
+      requestFromCursor: { [optionsProperty] (maybeCursor: String?) -> SignalProducer<
+        GraphAPI.SearchQuery.Data,
+        ErrorEnvelope
+      > in
+        guard let options = optionsProperty.value, let cursor = maybeCursor else {
+          return SignalProducer.empty
+        }
+
+        let query = GraphAPI.SearchQuery.from(discoveryParams: options, withCursor: cursor)
+        return AppEnvironment.current.apiService.fetch(query: query)
+      }
     )
 
     let stats = statsProperty.signal
 
     self.searchLoaderIndicatorIsAnimating = isLoading
 
-    self.projects = Signal.combineLatest(
-      self.isPopularTitleVisible,
-      popular,
-      .merge(clears, paginatedProjects)
-    )
-    .map { showPopular, popular, searchResults in showPopular ? popular : searchResults }
-    .skipRepeats(==)
+    let searchResults: Signal<[SearchResult], Never> = Signal.merge(clears, paginatedProjects)
+      .skipRepeats(==)
 
-    let shouldShowEmptyState = Signal.merge(
-      query.mapConst(false),
+    // Show the 'Discover projects' title if we're showing 'Discover' results (i.e. no query)
+    let isProjectsTitleVisible = Signal.combineLatest(queryText, searchResults)
+      .map { query, projects in query.isEmpty && !projects.isEmpty }
+      .skipRepeats()
+
+    self.projects = searchResults
+      .map { (nodes: [SearchResult]) -> [SearchResultCard] in
+        nodes.compactMap { node in
+          let fragment = node.fragments.projectCardFragment
+          return ProjectCardProperties(fragment)
+        }
+      }
+
+    let shouldShowOldEmptyState = Signal.merge(
+      queryText.mapConst(false),
       paginatedProjects.map { $0.isEmpty }
     )
     .skipRepeats()
     .skip(first: 1)
 
+    let shouldShowNewEmptyState = Signal.combineLatest(paginatedProjects, isLoading)
+      .map { projects, isLoading in
+        if isLoading { return false }
+        return projects.isEmpty
+      }
+      .skipRepeats()
+
+    // This pattern is a little convoluted but the logic for the new empty state needs to take
+    // filters into account (which the old empty state does not). For rollback safety, the old
+    // logic is unchanged. The `compactMap`s ensure that we're using the most recent value of the
+    // feature flag, in order to keep this and the check in the view controller in sync.
+    // This code will be cleaned up when the feature flag is deleted.
+    let shouldShowEmptyState = Signal.merge(
+      shouldShowNewEmptyState.compactMap {
+        if featureSearchNewEmptyState() { return $0 }
+        return nil
+      },
+      shouldShowOldEmptyState.compactMap {
+        if featureSearchNewEmptyState() { return nil }
+        return $0
+      }
+    )
+
     self.showEmptyState = requestFirstPageWith
       .takePairWhen(shouldShowEmptyState)
 
-    self.changeSearchFieldFocus = Signal.merge(
-      viewWillAppearNotAnimated.mapConst((false, false)),
-      self.cancelButtonPressedProperty.signal.mapConst((false, true)),
-      self.searchFieldDidBeginEditingProperty.signal.mapConst((true, true))
-    )
+    self.goToProject = Signal.combineLatest(searchResults, queryText)
+      .takePairWhen(self.tappedProjectIndexSignal)
+      .map { ($0.0, $0.1, $1) } // ((a, b) c) -> (a, b, c)
+      .map { projects, query, index in
 
-    self.searchFieldText = self.cancelButtonPressedProperty.signal.mapConst("")
+        guard index >= 0, index < projects.count else {
+          let emptyResult: (Int, RefTag)? = nil
+          assert(false, "Tapped card out of bounds.")
+          return emptyResult
+        }
 
-    self.resignFirstResponder = Signal
-      .merge(
-        self.searchTextEditingDidEndProperty.signal,
-        self.cancelButtonPressedProperty.signal
-      )
+        let project = projects[index]
+        let graphQLID = project.fragments.backerDashboardProjectCellFragment.projectId
 
-    self.popularLoaderIndicatorIsAnimating = Signal.merge(
-      self.viewDidLoadProperty.signal.mapConst(true),
-      popularEvent.filter { $0.isTerminating }.mapConst(false)
-    )
+        guard let projectId = decompose(id: graphQLID) else {
+          let emptyResult: (Int, RefTag)? = nil
+          return emptyResult
+        }
 
-    self.goToProject = Signal.combineLatest(self.projects, query)
-      .takePairWhen(self.tappedProjectProperty.signal.skipNil())
-      .map { projectsAndQuery, tappedProject in
-        let (projects, query) = projectsAndQuery
+        let refTag = refTag(query: query, projects: projects, project: project)
 
-        return (tappedProject, projects, refTag(query: query, projects: projects, project: tappedProject))
+        return (projectId, refTag)
       }
+      .skipNil()
 
     // Tracking
 
@@ -198,11 +298,10 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       viewWillAppearNotAnimated.mapConst(0).take(first: 1)
     )
 
-    Signal.combineLatest(query, viewWillAppearSearchResultsCount)
+    Signal.combineLatest(queryText, queryParams, viewWillAppearSearchResultsCount)
       .takeWhen(viewWillAppearNotAnimated)
-      .observeValues { query, searchResults in
+      .observeValues { query, params, searchResults in
         let results = query.isEmpty ? 0 : searchResults
-        let params = .defaults |> DiscoveryParams.lens.query .~ query
         AppEnvironment.current.ksrAnalytics
           .trackProjectSearchView(params: params, results: results)
       }
@@ -223,7 +322,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
       viewWillAppearSearchResultsCount.takeWhen(firstPageResults)
     )
 
-    Signal.combineLatest(query, requestFirstPageWith)
+    Signal.combineLatest(queryText, requestFirstPageWith)
       .takePairWhen(newQuerySearchResultsCount)
       .map(unpack)
       .filter { query, _, _ in !query.isEmpty }
@@ -232,48 +331,67 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
           .trackProjectSearchView(params: params, results: stats)
       }
 
-    Signal.combineLatest(self.tappedProjectProperty.signal, requestFirstPageWith)
-      .observeValues { project, params in
-        guard let project = project else { return }
+    Signal.combineLatest(requestFirstPageWith, searchResults)
+      .takePairWhen(self.tappedProjectIndexSignal)
+      .map { ($0.0, $0.1, $1) } // ((a, b), c) -> (a, b, c)
+      .observeValues { params, results, index in
+
+        guard index >= 0, index < results.count else {
+          assert(false, "Tapped card out of bounds.")
+          return
+        }
+
+        let projectAnalytics = results[index].fragments.projectAnalyticsFragment
 
         AppEnvironment.current.ksrAnalytics.trackProjectCardClicked(
           page: .search,
-          project: project,
+          project: projectAnalytics,
           typeContext: .results,
           location: .searchResults,
           params: params
         )
       }
-  }
 
-  fileprivate let cancelButtonPressedProperty = MutableProperty(())
-  public func cancelButtonPressed() {
-    self.cancelButtonPressedProperty.value = ()
-  }
+    self.showSortAndFilterHeader = self.projects
+      .map { results in
+        featureSearchNewEmptyState() || results.count > 0
+      }
 
-  fileprivate let clearSearchTextProperty = MutableProperty(())
-  public func clearSearchText() {
-    self.clearSearchTextProperty.value = ()
-  }
+    let emptyResultsOnFirstAppearance = viewWillAppearNotAnimated
+      .take(first: 1)
+      .mapConst(
+        SearchResults(
+          isProjectsTitleVisible: false,
+          count: 0,
+          projects: []
+        )
+      )
 
-  fileprivate let searchFieldDidBeginEditingProperty = MutableProperty(())
-  public func searchFieldDidBeginEditing() {
-    self.searchFieldDidBeginEditingProperty.value = ()
+    self.searchResults = Signal.combineLatest(
+      isProjectsTitleVisible,
+      stats,
+      self.projects
+    ).map { isProjectsTitleVisible, resultCount, projects in
+      SearchResults(
+        isProjectsTitleVisible: isProjectsTitleVisible,
+        count: resultCount,
+        projects: projects.map { $0.projectCellModel }
+      )
+    }.merge(with: emptyResultsOnFirstAppearance)
   }
 
   fileprivate let searchTextChangedProperty = MutableProperty("")
   public func searchTextChanged(_ searchText: String) {
     self.searchTextChangedProperty.value = searchText
+
+    if searchText.isEmpty {
+      self.searchFiltersUseCase.inputs.clearedQueryText()
+    }
   }
 
-  fileprivate let searchTextEditingDidEndProperty = MutableProperty(())
-  public func searchTextEditingDidEnd() {
-    self.searchTextEditingDidEndProperty.value = ()
-  }
-
-  fileprivate let tappedProjectProperty = MutableProperty<Project?>(nil)
-  public func tapped(project: Project) {
-    self.tappedProjectProperty.value = project
+  fileprivate let (tappedProjectIndexSignal, tappedProjectIndexObserver) = Signal<Int, Never>.pipe()
+  public func tapped(projectAtIndex index: Int) {
+    self.tappedProjectIndexObserver.send(value: index)
   }
 
   fileprivate let viewDidLoadProperty = MutableProperty(())
@@ -291,15 +409,40 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
     self.willDisplayRowProperty.value = (row, totalRows)
   }
 
-  public let changeSearchFieldFocus: Signal<(focused: Bool, animate: Bool), Never>
-  public let goToProject: Signal<(Project, [Project], RefTag), Never>
-  public let isPopularTitleVisible: Signal<Bool, Never>
-  public let popularLoaderIndicatorIsAnimating: Signal<Bool, Never>
-  public let projects: Signal<[Project], Never>
-  public let resignFirstResponder: Signal<(), Never>
-  public let searchFieldText: Signal<String, Never>
+  public func tappedButton(forFilterType type: SearchFilterPill.FilterType) {
+    self.searchFiltersUseCase.inputs.tappedButton(forFilterType: type)
+  }
+
+  public func resetFilters(for type: SearchFilterModalType) {
+    self.searchFiltersUseCase.inputs.resetFilters(for: type)
+  }
+
+  private let categoriesUseCase: FetchCategoriesUseCase
+  private let searchFiltersUseCase: SearchFiltersUseCase
+  private let locationsUseCase: FetchLocationsUseCase
+
+  public let goToProject: Signal<(Int, RefTag), Never>
+  public let projects: Signal<[SearchResultCard], Never>
   public let searchLoaderIndicatorIsAnimating: Signal<Bool, Never>
   public let showEmptyState: Signal<(DiscoveryParams, Bool), Never>
+  public let showSortAndFilterHeader: Signal<Bool, Never>
+  public let searchResults: Signal<SearchResults, Never>
+
+  public var showFilters: Signal<SearchFilterModalType, Never> {
+    return self.searchFiltersUseCase.showFilters
+  }
+
+  public func selectedFilter(_ event: SearchFilterEvent) {
+    self.searchFiltersUseCase.selectedFilter(event)
+  }
+
+  public func searchedForLocations(_ query: String) {
+    self.locationsUseCase.searchedForLocations(query)
+  }
+
+  public var searchFilters: SearchFilters {
+    return self.searchFiltersUseCase.searchFilters
+  }
 
   public var inputs: SearchViewModelInputs { return self }
   public var outputs: SearchViewModelOutputs { return self }
@@ -307,7 +450,7 @@ public final class SearchViewModel: SearchViewModelType, SearchViewModelInputs, 
 
 /// Calculates a ref tag from the search query, the list of displayed projects, and the project
 /// tapped.
-private func refTag(query: String, projects: [Project], project: Project) -> RefTag {
+private func refTag(query: String, projects: [SearchResult], project: SearchResult) -> RefTag {
   if project == projects.first, query.isEmpty {
     return RefTag.searchPopularFeatured
   } else if project == projects.first, !query.isEmpty {
@@ -316,5 +459,29 @@ private func refTag(query: String, projects: [Project], project: Project) -> Ref
     return RefTag.searchPopular
   } else {
     return RefTag.search
+  }
+}
+
+private struct ProjectCardPropertiesProjectCellModel: BackerDashboardProjectCellViewModel.ProjectCellModel {
+  private let properties: ProjectCardProperties
+  init(_ properties: ProjectCardProperties) {
+    self.properties = properties
+  }
+
+  var name: String { self.properties.name }
+  var state: KsApi.Project.State { self.properties.state }
+  var imageURL: String? { self.properties.image.url?.absoluteString }
+  var fundingProgress: Float { Float(self.properties.percentFunded) / 100 }
+  var percentFunded: Int { self.properties.percentFunded }
+  var displayPrelaunch: Bool? { self.properties.shouldDisplayPrelaunch }
+  var prelaunchActivated: Bool? { self.properties.isPrelaunchActivated }
+  var launchedAt: TimeInterval? { self.properties.launchedAt?.timeIntervalSince1970 }
+  var deadline: TimeInterval? { self.properties.deadlineAt?.timeIntervalSince1970 }
+  var isStarred: Bool? { self.properties.isStarred }
+}
+
+extension ProjectCardProperties: BackerDashboardProjectCellViewModel.HasProjectCellModel {
+  public var projectCellModel: any BackerDashboardProjectCellViewModel.ProjectCellModel {
+    ProjectCardPropertiesProjectCellModel(self)
   }
 }

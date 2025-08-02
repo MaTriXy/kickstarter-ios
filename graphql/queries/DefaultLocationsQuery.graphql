@@ -1,0 +1,7 @@
+query DefaultLocations($first: Int) {
+  locations(useSessionLocation: true, discoverable: true, first: $first) {
+    nodes {
+      ...LocationFragment
+    }
+  }
+}

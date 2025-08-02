@@ -1,0 +1,10 @@
+query FetchBacking($id: ID!, $withStoredCards: Boolean!, $includeShippingRules: Boolean!, $includeLocalPickup: Boolean!, $includeRefundedAmount: Boolean!) {
+  backing(id: $id) {
+    addOns {
+      nodes {
+        ...RewardFragment
+      }
+    }
+    ...BackingFragment
+  }
+}

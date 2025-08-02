@@ -88,7 +88,9 @@ public protocol RootViewModelInputs {
   /// Call when we should switch to the search tab.
   func switchToSearch()
 
-  /// Call when the a user locale preference has changed
+  /// Call when the a user locale preference has changed.
+  /// Used to blow away and re-generate all the tabs, so the entire app reflects changes in user language or currency.
+  /// See PR #576.
   func userLocalePreferencesChanged()
 
   /// Call when the controller has received a user session ended notification.
@@ -149,18 +151,44 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       }
       .skipRepeats(==)
 
+    let lifecycleEvents = Signal.merge(
+      self.viewDidLoadProperty.signal,
+      self.applicationWillEnterForegroundSignal
+    )
+
     let standardViewControllers = loginState.map { isLoggedIn -> [RootViewControllerData] in
       generateViewControllers(isLoggedIn: isLoggedIn)
     }
+
+    // We could detect when this feature changes in more places - like listening for notifications
+    // that the remote config loaded - but that might change the tab bar at a strange time.
+    // Updating this just on app foreground keeps the change invisible to the user.
+    // Conveniently, the activity badge is also updated on app foreground.
+    let featuredFlagChanged =
+      Signal.merge(
+        self.viewDidLoadProperty.signal,
+        self.applicationWillEnterForegroundSignal.signal
+      )
+      // Currently we have no tabs that reload based on feature flags -
+      // but if we need that feature again, this is where you put it.
+      //  .map { _ in myFeatureFlagEnabled()}
+      .map { _ in false }
+      .skipRepeats()
+      .skip(first: 1) // Only fire if applicationWillEnterForeground changes the original values in viewDidLoadProperty.
 
     self.setViewControllers = Signal.merge(
       standardViewControllers,
       // FIXME: Look at moving the userLocalePreferencesChangedProperty signal into the currentUser signal
       // https://kickstarter.atlassian.net/browse/MBL-2053
-      loginState.takeWhen(self.userLocalePreferencesChangedProperty.signal)
-        .map { isLoggedIn in
-          generateViewControllers(isLoggedIn: isLoggedIn)
-        }
+      loginState.takeWhen(
+        Signal.merge(
+          self.userLocalePreferencesChangedProperty.signal,
+          featuredFlagChanged.ignoreValues()
+        )
+      )
+      .map { isLoggedIn in
+        generateViewControllers(isLoggedIn: isLoggedIn)
+      }
     )
 
     let vcCount = self.setViewControllers.map { $0.count }
@@ -201,11 +229,6 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       .map { $0.firstIndex(where: \.isActivity) }
       .skipNil()
       .map { $0 as RootViewControllerIndex }
-
-    let lifecycleEvents = Signal.merge(
-      self.viewDidLoadProperty.signal,
-      self.applicationWillEnterForegroundSignal
-    )
 
     let updateBadgeValueOnLifecycleEvents = activityViewControllerIndex
       .takeWhen(lifecycleEvents)
@@ -281,10 +304,14 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
       .filter { prev, next in prev == next }
       .map { $1 }
 
+    // FIXME: This signal always needs to happen when setViewControllers happens.
+    // Should they be combined into one signal with a tuple? Explicitly made dependent on one another?
+    // See https://kickstarter.atlassian.net/browse/MBL-2053
     self.tabBarItemsData = Signal.combineLatest(
       currentUser, .merge(
         self.viewDidLoadProperty.signal,
-        self.userLocalePreferencesChangedProperty.signal.ignoreValues()
+        self.userLocalePreferencesChangedProperty.signal,
+        featuredFlagChanged.ignoreValues()
       )
     )
     .map(first)
@@ -428,18 +455,14 @@ public final class RootViewModel: RootViewModelType, RootViewModelInputs, RootVi
 }
 
 private func currentUserActivitiesAndErroredPledgeCount() -> Int {
-  // Do not include errored pledges if PPO is enabled.
-  let errorCount = featurePledgedProjectsOverviewEnabled()
-    ? 0
-    : AppEnvironment.current.currentUser?.erroredBackingsCount ?? 0
-  return (AppEnvironment.current.currentUser?.unseenActivityCount ?? 0) + errorCount
+  return (AppEnvironment.current.currentUser?.unseenActivityCount ?? 0)
 }
 
 private func generateViewControllers(isLoggedIn: Bool) -> [RootViewControllerData] {
   var controllers: [RootViewControllerData] = []
   controllers.append(.discovery)
 
-  if featurePledgedProjectsOverviewEnabled(), isLoggedIn {
+  if isLoggedIn {
     controllers.append(.pledgedProjectsAndActivities)
   } else {
     controllers.append(.activities)
@@ -467,7 +490,7 @@ extension TabBarItemsData: Equatable {}
 extension TabBarItem: Equatable {}
 
 private func activitiesBadgeValue(with value: Int?, hasPPOAction: Bool) -> String? {
-  guard !(hasPPOAction && featurePledgedProjectsOverviewEnabled()) else {
+  guard !hasPPOAction else {
     // an empty string will show a dot as badge
     return ""
   }

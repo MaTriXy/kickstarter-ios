@@ -33,6 +33,8 @@ final class RewardAddOnCardViewModelTests: TestCase {
   private let stepperMaxValue = TestObserver<Double, Never>()
   private let stepperStackViewHidden = TestObserver<Bool, Never>()
   private let stepperValue = TestObserver<Double, Never>()
+  private let rewardImageURL = TestObserver<String, Never>()
+  private let rewardImageHidden = TestObserver<Bool, Never>()
 
   override func setUp() {
     super.setUp()
@@ -64,6 +66,8 @@ final class RewardAddOnCardViewModelTests: TestCase {
     self.vm.outputs.stepperMaxValue.observe(self.stepperMaxValue.observer)
     self.vm.outputs.stepperStackViewHidden.observe(self.stepperStackViewHidden.observer)
     self.vm.outputs.stepperValue.observe(self.stepperValue.observer)
+    self.vm.outputs.rewardImage.map { $0.url }.skipNil().observe(self.rewardImageURL.observer)
+    self.vm.outputs.rewardImageHidden.observe(self.rewardImageHidden.observer)
   }
 
   // MARK: - Reward Title
@@ -83,6 +87,42 @@ final class RewardAddOnCardViewModelTests: TestCase {
       ))
 
     self.rewardTitleLabelText.assertValues(["The thing"])
+  }
+
+  func testRewardWithImage() {
+    let imageURL = "https://ksr.com/image.jpg"
+
+    let reward = .template
+      |> Reward.lens.image .~ Reward.Image(altText: "The image", url: imageURL)
+
+    self.vm.inputs
+      .configure(with: .init(
+        project: .template,
+        reward: reward,
+        context: .pledge,
+        shippingRule: nil,
+        selectedQuantities: [:]
+      ))
+
+    self.rewardImageURL.assertValue(imageURL)
+    self.rewardImageHidden.assertValue(false)
+  }
+
+  func testRewardNotImage() {
+    let reward = .template
+      |> Reward.lens.image .~ nil
+
+    self.vm.inputs
+      .configure(with: .init(
+        project: .template,
+        reward: reward,
+        context: .pledge,
+        shippingRule: nil,
+        selectedQuantities: [:]
+      ))
+
+    self.rewardImageURL.assertDidNotEmitValue()
+    self.rewardImageHidden.assertValue(true)
   }
 
   func testTitleLabel_NoTitle() {
@@ -127,7 +167,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_US_Project_US_ProjectCurrency_US_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
@@ -150,7 +190,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_US_Project_US_ProjectCurrency_NonUS_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
@@ -173,9 +213,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NonUS_Project_NonUs_ProjectCurrency_US_User_Currency_US_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .gb
-      |> Project.lens.stats.currency .~ Project.Country.gb.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 0.5
+      |> Project.lens.stats.projectCurrency .~ Project.Country.gb.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 0.5
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
@@ -198,9 +238,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_US_Project_NonUS_ProjectCurrency_US_User_Currency_US_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.gb.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 0.5
+      |> Project.lens.stats.projectCurrency .~ Project.Country.gb.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 0.5
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
@@ -223,9 +263,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NonUs_Project_NonUS_Currency_US_UserCurrency_NonUS_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .gb
-      |> Project.lens.stats.currency .~ Project.Country.gb.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 0.5
+      |> Project.lens.stats.projectCurrency .~ Project.Country.gb.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 0.5
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "MX") {
@@ -248,7 +288,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NoReward_US_Project_US_ProjectCurrency_US_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
@@ -271,7 +311,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NoReward_US_Project_US_ProjectCurrency_NonUS_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "MX") {
@@ -294,7 +334,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NoReward_NonUS_ProjectCurrency_US_ProjectCountry_US_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "US") {
@@ -320,7 +360,7 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testMinimumLabel_NoReward_NonUS_ProjectCurrency_US_ProjectCountry_NonUS_UserLocation() {
     let project = Project.template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
     let reward = Reward.noReward
 
     withEnvironment(countryCode: "CA") {
@@ -469,8 +509,8 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testConversionLabel_US_UserCurrency_US_Location_US_Project_US_ProjectCurrency_ConfiguredWithReward() {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ "USD"
-      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.projectCurrency .~ "USD"
+      |> Project.lens.stats.userCurrency .~ "USD"
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "US") {
@@ -495,9 +535,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .ca
-      |> Project.lens.stats.currency .~ Project.Country.ca.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 2
+      |> Project.lens.stats.projectCurrency .~ Project.Country.ca.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 2
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "US") {
@@ -523,9 +563,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testConversionLabel_US_Currency_NonUS_Location_NonUS_ProjectCurrency_ConfiguredWithReward() {
     let project = .template
       |> Project.lens.country .~ .ca
-      |> Project.lens.stats.currency .~ Project.Country.ca.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 2
+      |> Project.lens.stats.projectCurrency .~ Project.Country.ca.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 2
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "MX") {
@@ -552,9 +592,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .mx
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 0.05
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 0.05
     let reward = .template |> Reward.lens.minimum .~ 10
 
     withEnvironment(countryCode: "CA") {
@@ -581,9 +621,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .hk
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 0.05
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 0.05
     let reward = .template |> Reward.lens.minimum .~ 10
 
     withEnvironment(countryCode: "CA") {
@@ -610,9 +650,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrency .~ nil
-      |> Project.lens.stats.currentCurrencyRate .~ nil
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ nil
+      |> Project.lens.stats.userCurrencyRate .~ nil
     let reward = .template |> Reward.lens.minimum .~ 1
 
     withEnvironment(countryCode: "XX") {
@@ -636,9 +676,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .ca
-      |> Project.lens.stats.currency .~ Project.Country.ca.currencyCode
-      |> Project.lens.stats.currentCurrency .~ nil
-      |> Project.lens.stats.currentCurrencyRate .~ nil
+      |> Project.lens.stats.projectCurrency .~ Project.Country.ca.currencyCode
+      |> Project.lens.stats.userCurrency .~ nil
+      |> Project.lens.stats.userCurrencyRate .~ nil
     let reward = .template
       |> Reward.lens.minimum .~ 2
 
@@ -666,9 +706,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   func testConversionLabel_NonUS_Location_NonUS_Locale_US_Project_US_ProjectCurrency_ConfiguredWithReward() {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.mx.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 2
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 2
     let reward = .template
       |> Reward.lens.minimum .~ 1
 
@@ -699,9 +739,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.mx.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 2
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 2
     let reward = .template
       |> Reward.lens.minimum .~ 1
       |> Reward.lens.shipping.enabled .~ true
@@ -733,9 +773,9 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.es.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.mx.currencyCode
-      |> Project.lens.stats.currentCurrencyRate .~ 2
+      |> Project.lens.stats.projectCurrency .~ Project.Country.es.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.userCurrencyRate .~ 2
     let reward = .template
       |> Reward.lens.minimum .~ 1
       |> Reward.lens.shipping.enabled .~ true
@@ -767,8 +807,8 @@ final class RewardAddOnCardViewModelTests: TestCase {
   ) {
     let project = .template
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
-      |> Project.lens.stats.currentCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.userCurrency .~ Project.Country.us.currencyCode
     let reward = .template |> Reward.lens.minimum .~ 1_000
 
     withEnvironment(countryCode: "GB") {

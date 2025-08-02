@@ -1,6 +1,11 @@
 import Foundation
 import KsApi
 
+private enum Constants {
+  static let backingDetailsPath = "backing/details"
+  static let fallbackBackingPath = "backing/survey_responses"
+}
+
 public enum Navigation: Equatable {
   case checkout(Int, Navigation.Checkout)
   case emailClick
@@ -8,7 +13,7 @@ public enum Navigation: Equatable {
   case profile(Profile)
   case signup
   case tab(Tab)
-  case project(Param, Navigation.Project, refInfo: RefInfo?)
+  case project(Param, Navigation.Project, refInfo: RefInfo?, secretRewardToken: String? = nil)
   case projectPreview(Param, Navigation.Project, refTag: RefTag?, token: String)
   case settings(Navigation.Settings)
   case user(Param, Navigation.User)
@@ -185,19 +190,20 @@ private let deepLinkRoutes: [String: (RouteParamsDecoded) -> Navigation?] = allR
 
 extension Navigation.Project {
   public static func withRequest(_ request: URLRequest) -> (Param, RefTag?)? {
-    guard let nav = Navigation.match(request), case let .project(project, .root, refInfo) = nav
+    guard let nav = Navigation.match(request), case let .project(project, .root, refInfo, _) = nav
     else { return nil }
     return (project, refInfo?.refTag)
   }
 
   public static func updateWithRequest(_ request: URLRequest) -> (Param, Int)? {
-    guard let nav = Navigation.match(request), case let .project(project, .update(update, .root), _) = nav
+    guard let nav = Navigation.match(request), case let .project(project, .update(update, .root), _, _) = nav
     else { return nil }
     return (project, update)
   }
 
   public static func updateCommentsWithRequest(_ request: URLRequest) -> (Param, Int)? {
-    guard let nav = Navigation.match(request), case let .project(project, .update(update, .comments), _) = nav
+    guard let nav = Navigation.match(request),
+          case let .project(project, .update(update, .comments), _, _) = nav
     else { return nil }
     return (project, update)
   }
@@ -296,7 +302,8 @@ private func project(_ params: RouteParamsDecoded) -> Navigation? {
     return nil
   } else if let projectParam = params.projectParam() {
     let refInfo = refInfoFromParams(params)
-    return Navigation.project(projectParam, .root, refInfo: refInfo)
+    let secretRewardToken = params.secretRewardToken()
+    return Navigation.project(projectParam, .root, refInfo: refInfo, secretRewardToken: secretRewardToken)
   }
 
   return nil
@@ -308,6 +315,7 @@ private func thanks(_ params: RouteParamsDecoded) -> Navigation? {
     let refInfo = refInfoFromParams(params)
     let thanks = Navigation.Project.Checkout.thanks(racing: params.racing())
     let checkout = Navigation.Project.checkout(checkoutParam, thanks)
+    let secretRewardToken = params.secretRewardToken()
     return Navigation.project(projectParam, checkout, refInfo: refInfo)
   }
 
@@ -424,7 +432,17 @@ private func posts(_ params: RouteParamsDecoded) -> Navigation? {
 
 private func projectSurvey(_ params: RouteParamsDecoded) -> Navigation? {
   if let projectParam = params.projectParam(),
-     let path = params.path() {
+     var path = params.path() {
+    // Fallback logic for deeplinks: replace `backing/details` with `backing/survey_responses`
+    // to prevent re-authentication prompts in the WebView caused by backend restrictions.
+    // This same workaround exists in the Pledge Management WebView flow:
+    // https://github.com/kickstarter/ios-oss/blob/main/KsApi/models/Backing.swift#L15
+    // https://github.com/kickstarter/ios-oss/blob/main/Library/ViewModels/ViewPledgeUseCase.swift#L43
+    // TODO: Revisit this if `backing/details` becomes accessible or authentication rules change.
+    if path.hasSuffix(Constants.backingDetailsPath) {
+      path = path.replacingOccurrences(of: Constants.backingDetailsPath, with: Constants.fallbackBackingPath)
+    }
+
     let url = AppEnvironment.current.apiService.serverConfig.webBaseUrl.absoluteString + path
     let refInfo = refInfoFromParams(params)
     let survey = Navigation.Project.surveyWebview(url)
@@ -609,6 +627,7 @@ extension RouteParamsDecoded {
     case token
     case racing
     case reply
+    case secretRewardToken = "secret_reward_token"
     case updateParam = "update_param"
     case surveyParam = "survey_param"
     case userParam = "user_param"
@@ -658,6 +677,11 @@ extension RouteParamsDecoded {
   public func userParam() -> Param? {
     let key = CodingKeys.userParam.rawValue
     return self[key].flatMap { .slug($0) }
+  }
+
+  public func secretRewardToken() -> String? {
+    let key = CodingKeys.secretRewardToken.rawValue
+    return self[key]
   }
 
   public func surveyParam() -> Int? {

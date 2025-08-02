@@ -9,6 +9,7 @@ public struct ManageViewPledgeRewardReceivedViewData: Equatable {
   public let estimatedDeliveryOn: TimeInterval
   public let backingState: Backing.Status
   public let estimatedShipping: String?
+  public let pledgeDisclaimerViewHidden: Bool
 }
 
 public protocol ManageViewPledgeRewardReceivedViewModelInputs {
@@ -24,6 +25,7 @@ public protocol ManageViewPledgeRewardReceivedViewModelOutputs {
   var estimatedShippingHidden: Signal<Bool, Never> { get }
   var layoutMargins: Signal<UIEdgeInsets, Never> { get }
   var marginWidth: Signal<CGFloat, Never> { get }
+  var pledgeDisclaimerViewHidden: Signal<Bool, Never> { get }
   var rewardReceived: Signal<Bool, Never> { get }
   var rewardReceivedHidden: Signal<Bool, Never> { get }
 }
@@ -91,6 +93,8 @@ public class ManageViewPledgeRewardReceivedViewModel:
     self.cornerRadius = self.rewardReceivedHidden.map { $0 ? 0 : Styles.grid(2) }
     self.layoutMargins = self.rewardReceivedHidden.map { $0 ? .zero : .init(all: Styles.gridHalf(5)) }
     self.marginWidth = self.rewardReceivedHidden.map { $0 ? 0 : 1 }
+
+    self.pledgeDisclaimerViewHidden = data.map(\.pledgeDisclaimerViewHidden)
   }
 
   private let configureWithDataProperty = MutableProperty<ManageViewPledgeRewardReceivedViewData?>(nil)
@@ -114,6 +118,7 @@ public class ManageViewPledgeRewardReceivedViewModel:
   public let estimatedShippingHidden: Signal<Bool, Never>
   public let layoutMargins: Signal<UIEdgeInsets, Never>
   public let marginWidth: Signal<CGFloat, Never>
+  public let pledgeDisclaimerViewHidden: Signal<Bool, Never>
   public let rewardReceived: Signal<Bool, Never>
   public let rewardReceivedHidden: Signal<Bool, Never>
 
@@ -145,7 +150,7 @@ private func attributedText(totalString: String, valueSubstring: String) -> NSAt
     attributedString: totalString
       .attributed(
         with: font,
-        foregroundColor: .ksr_support_400,
+        foregroundColor: LegacyColors.ksr_support_400.uiColor(),
         attributes: [:],
         bolding: [totalString.replacingOccurrences(of: valueSubstring, with: "")]
       )
@@ -154,7 +159,7 @@ private func attributedText(totalString: String, valueSubstring: String) -> NSAt
   attributedText.setAttributes(
     [
       .font: font,
-      .foregroundColor: UIColor.ksr_support_700
+      .foregroundColor: LegacyColors.ksr_support_700.uiColor()
     ],
     range: (totalString as NSString).range(of: valueSubstring)
   )

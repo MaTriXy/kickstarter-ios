@@ -1,12 +1,21 @@
 @testable import Kickstarter_Framework
 import Kingfisher
 @testable import KsApi
+import Library
 import SnapshotTesting
 import SwiftUI
 import XCTest
 
 final class PPOProjectCardTests: TestCase {
   let size = CGSize(width: 375, height: 700)
+
+  override func setUp() {
+    super.setUp()
+  }
+
+  override func tearDown() {
+    super.tearDown()
+  }
 
   @MainActor
   func testAddressLocks() async {
@@ -77,5 +86,47 @@ final class PPOProjectCardTests: TestCase {
     }.frame(height: 500)
     try? await Task.sleep(nanoseconds: 10_000_000)
     assertSnapshot(matching: card, as: .image, named: "surveyAvailable")
+  }
+
+  @MainActor
+  func testFinalizeYourPledge() async {
+    let card = VStack {
+      PPOProjectCard(viewModel: PPOProjectCardViewModel(
+        card: .managePledgeTemplate
+      ), parentSize: self.size)
+        .frame(width: self.size.width)
+        .frame(maxHeight: .infinity)
+        .padding()
+    }.frame(height: 500)
+    try? await Task.sleep(nanoseconds: 10_000_000)
+    assertSnapshot(matching: card, as: .image, named: "finalizeYourPledge")
+  }
+
+  @MainActor
+  func testShortTemplateText() async {
+    let card = VStack {
+      PPOProjectCard(viewModel: PPOProjectCardViewModel(
+        card: .shortTextTemplate
+      ), parentSize: self.size)
+        .frame(width: self.size.width)
+        .frame(maxHeight: .infinity)
+        .padding()
+    }.frame(height: 500)
+    try? await Task.sleep(nanoseconds: 10_000_000)
+    assertSnapshot(matching: card, as: .image, named: "testShortTemplateText")
+  }
+
+  @MainActor
+  func testLotsOfFlags() async {
+    let card = VStack {
+      PPOProjectCard(viewModel: PPOProjectCardViewModel(
+        card: .lotsOfFlagsTemplate
+      ), parentSize: self.size)
+        .frame(width: self.size.width)
+        .frame(maxHeight: .infinity)
+        .padding()
+    }.frame(height: 500)
+    try? await Task.sleep(nanoseconds: 10_000_000)
+    assertSnapshot(matching: card, as: .image, named: "testLotsOfFlags")
   }
 }

@@ -1,4 +1,5 @@
 import Apollo
+import GraphAPI
 @testable import KsApi
 
 public enum CreatePaymentSourceMutationTemplate {
@@ -8,45 +9,35 @@ public enum CreatePaymentSourceMutationTemplate {
   var data: GraphAPI.CreatePaymentSourceMutation.Data {
     switch self {
     case .valid:
-      return GraphAPI.CreatePaymentSourceMutation
-        .Data(unsafeResultMap: self.createPaymentSourceMutationResultMap)
+      return try! testGraphObject(
+        jsonString: self.createPaymentSourceMutationResult(isSuccessful: true)
+      )
     case .errored:
-      return GraphAPI.CreatePaymentSourceMutation
-        .Data(unsafeResultMap: self.createPaymentSourceMutationErroredResultMap)
+      return try! testGraphObject(
+        jsonString: self.createPaymentSourceMutationResult(isSuccessful: false)
+      )
     }
   }
 
   // MARK: Private Properties
 
-  private var createPaymentSourceMutationResultMap: [String: Any?] {
-    [
-      "createPaymentSource": [
-        "__typename": "CreatePaymentSourcePayload",
-        "clientMutationId": nil,
-        "isSuccessful": true,
-        "paymentSource": [
-          "__typename": "CreditCard",
-          "expirationDate": "2032-02-01",
-          "id": "69021299",
-          "lastFour": "4242",
-          "paymentType": GraphAPI.PaymentTypes.creditCard,
-          "state": GraphAPI.CreditCardState.active,
-          "type": GraphAPI.CreditCardTypes.visa,
-          "stripeCardId": "pm_1OtGFX4VvJ2PtfhK3Gp00SWK"
-        ]
-      ]
-    ]
-  }
-
-  private var createPaymentSourceMutationErroredResultMap: [String: Any?] {
-    guard var modifiedData = createPaymentSourceMutationResultMap["createPaymentSource"] as? [String: Any?]
-    else {
-      return self.createPaymentSourceMutationResultMap
-    }
-
-    modifiedData["isSuccessful"] = false
-    let errorData = ["createPaymentSource": modifiedData]
-
-    return errorData
+  private func createPaymentSourceMutationResult(isSuccessful: Bool) -> String {
+    """
+        {
+          "createPaymentSource": {
+            "__typename": "CreatePaymentSourcePayload",
+            "isSuccessful": \(isSuccessful),
+            "paymentSource": {
+              "__typename": "CreditCard",
+              "expirationDate": "2032-02-01",
+              "id": "69021299",
+              "lastFour": "4242",
+              "paymentType": "CREDIT_CARD",
+              "type": "VISA",
+              "stripeCardId": "pm_1OtGFX4VvJ2PtfhK3Gp00SWK"
+            }
+          }
+        }
+    """
   }
 }

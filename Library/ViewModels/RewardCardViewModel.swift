@@ -45,6 +45,9 @@ public protocol RewardCardViewModelOutputs {
   var rewardSelected: Signal<Int, Never> { get }
   var rewardTitleLabelHidden: Signal<Bool, Never> { get }
   var rewardTitleLabelAttributedText: Signal<NSAttributedString, Never> { get }
+  var rewardImage: Signal<Reward.Image, Never> { get }
+  var rewardImageHidden: Signal<Bool, Never> { get }
+  var secretRewardBadgeHidden: Signal<Bool, Never> { get }
 }
 
 public protocol RewardCardViewModelType {
@@ -71,9 +74,11 @@ public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewM
     self.conversionLabelText = projectAndReward
       .filter(first >>> needsConversion(project:))
       .map { project, reward in
-        Format.currency(
+        let userCurrencyCode = project.stats.userCurrency ?? Project.Country.us.currencyCode
+
+        return Format.currency(
           reward.convertedMinimum,
-          country: project.stats.currentCountry ?? .us,
+          currencyCode: userCurrencyCode,
           omitCurrencyCode: project.stats.omitUSCurrencyCode,
           roundingMode: .up
         )
@@ -145,6 +150,10 @@ public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewM
     .map { reward, text in
       reward.shipping.enabled == false || text == nil
     }
+
+    self.rewardImage = reward.map { $0.image }.skipNil()
+    self.rewardImageHidden = reward.map { $0.image == nil }
+    self.secretRewardBadgeHidden = reward.map { !$0.isSecretReward }
   }
 
   private let configDataProperty = MutableProperty<RewardCardViewData?>(nil)
@@ -175,6 +184,9 @@ public final class RewardCardViewModel: RewardCardViewModelType, RewardCardViewM
   public let rewardSelected: Signal<Int, Never>
   public let rewardTitleLabelHidden: Signal<Bool, Never>
   public let rewardTitleLabelAttributedText: Signal<NSAttributedString, Never>
+  public let rewardImage: Signal<Reward.Image, Never>
+  public let rewardImageHidden: Signal<Bool, Never>
+  public let secretRewardBadgeHidden: Signal<Bool, Never>
 
   public var inputs: RewardCardViewModelInputs { return self }
   public var outputs: RewardCardViewModelOutputs { return self }
@@ -232,7 +244,7 @@ private func rewardTitle(project: Project, reward: Reward) -> NSAttributedString
   let title = reward.title.coalesceWith("")
   let titleAttributed = title.attributed(
     with: UIFont.ksr_title2(),
-    foregroundColor: UIColor.ksr_support_700,
+    foregroundColor: LegacyColors.ksr_support_700.uiColor(),
     attributes: attributes,
     bolding: [title]
   )
@@ -249,7 +261,7 @@ private func rewardTitle(project: Project, reward: Reward) -> NSAttributedString
   let qty = "\(selectedQuantity) x "
   let qtyAttributed = qty.attributed(
     with: UIFont.ksr_title2(),
-    foregroundColor: UIColor.ksr_create_700,
+    foregroundColor: LegacyColors.ksr_create_700.uiColor(),
     attributes: attributes,
     bolding: [title]
   )
@@ -270,9 +282,9 @@ private func addOnsString(reward: Reward) -> RewardCardPillData? {
   guard reward.hasAddOns else { return nil }
 
   return RewardCardPillData(
-    backgroundColor: UIColor.ksr_create_700.withAlphaComponent(0.06),
+    backgroundColor: LegacyColors.Tags.Success.background.uiColor(),
     text: Strings.Add_ons(),
-    textColor: UIColor.ksr_create_700
+    textColor: LegacyColors.Tags.Success.foreground.uiColor()
   )
 }
 
@@ -292,9 +304,9 @@ private func timeLeftString(project: Project, reward: Reward) -> RewardCardPillD
     )
 
     return RewardCardPillData(
-      backgroundColor: UIColor.ksr_celebrate_100,
+      backgroundColor: LegacyColors.Tags.Warn.background.uiColor(),
       text: Strings.Time_left_left(time_left: time + " " + unit),
-      textColor: UIColor.ksr_support_400
+      textColor: LegacyColors.Tags.Warn.foreground.uiColor()
     )
   }
 
@@ -311,19 +323,19 @@ private func backerCountOrRemainingString(project: Project, reward: Reward) -> R
     let backersCount = reward.backersCount ?? 0
 
     return backersCount > 0 ? RewardCardPillData(
-      backgroundColor: UIColor.ksr_create_700.withAlphaComponent(0.06),
+      backgroundColor: LegacyColors.Tags.Success.background.uiColor(),
       text: Strings.general_backer_count_backers(backer_count: backersCount),
-      textColor: UIColor.ksr_create_700
+      textColor: LegacyColors.Tags.Success.foreground.uiColor()
     ) : nil
   }
 
   return RewardCardPillData(
-    backgroundColor: UIColor.ksr_celebrate_100,
+    backgroundColor: LegacyColors.Tags.Warn.background.uiColor(),
     text: Strings.remaining_count_left_of_limit_count(
       remaining_count: "\(remaining)",
       limit_count: "\(limit)"
     ),
-    textColor: UIColor.ksr_support_400
+    textColor: LegacyColors.Tags.Warn.foreground.uiColor()
   )
 }
 
@@ -332,9 +344,9 @@ private func shippingSummaryString(project: Project, reward: Reward) -> RewardCa
      reward.shipping.enabled,
      let shippingSummaryText = reward.shipping.summary {
     return RewardCardPillData(
-      backgroundColor: UIColor.ksr_create_700.withAlphaComponent(0.06),
+      backgroundColor: LegacyColors.Tags.Success.background.uiColor(),
       text: shippingSummaryText,
-      textColor: UIColor.ksr_create_700
+      textColor: LegacyColors.Tags.Success.foreground.uiColor()
     )
     /** FIXME: No longer used on iOS. Might still be needed on Android/Web before removing from: `Kickstarter` `config/locales/native/en.yml`
      Strings.Ships_worldwide()

@@ -69,7 +69,7 @@ final class ProjectNavigationSelectorView: UIView {
 
     _ = self
       |> \.layoutMargins .~ .init(all: ProjectNavigationSelectorViewStyles.Layout.layoutMargins)
-      |> \.backgroundColor .~ .ksr_white
+      |> \.backgroundColor .~ LegacyColors.ksr_white.uiColor()
 
     _ = self.buttonsStackView
       |> rootStackViewStyle
@@ -130,6 +130,11 @@ final class ProjectNavigationSelectorView: UIView {
       |> ksr_constrainViewToEdgesInParent()
   }
 
+  override func didMoveToSuperview() {
+    super.didMoveToSuperview()
+    self.viewModel.inputs.didMoveToSuperview()
+  }
+
   private func setupConstraints() {
     NSLayoutConstraint.activate([
       self.scrollView.topAnchor.constraint(equalTo: self.contentView.topAnchor),
@@ -165,15 +170,16 @@ final class ProjectNavigationSelectorView: UIView {
       }
 
       let navigationButton = UIButton()
-        |> UIButton.lens.backgroundColor .~ .ksr_white
+        |> UIButton.lens.backgroundColor .~ LegacyColors.ksr_white.uiColor()
         |> UIButton.lens.tag .~ sectionIndex
         |> UIButton.lens.targets .~ [
           (self, #selector(self.buttonTapped(_:)), .touchUpInside)
         ]
         |> UIButton.lens.title(for: .normal) %~ { _ in section.displayString.uppercased() }
         |> UIButton.lens.accessibilityLabel %~ { _ in section.displayString }
-        |> UIButton.lens.titleColor(for: .normal) %~ { _ in .ksr_support_400 }
-        |> UIButton.lens.titleColor(for: .selected) %~ { _ in .ksr_trust_500 }
+        |> UIButton.lens.titleColor(for: .normal) %~ { _ in LegacyColors.ksr_support_400.uiColor() }
+        |> UIButton.lens
+        .titleColor(for: .selected) %~ { _ in LegacyColors.Project.Navigation.selected.uiColor() }
         |> UIButton.lens.titleLabel.font .~ UIFont.ksr_footnote().weighted(.semibold)
         |> UIButton.lens.titleLabel.textAlignment .~ .center
 
@@ -299,7 +305,7 @@ final class ProjectNavigationSelectorView: UIView {
 
 private let selectedButtonBorderViewStyle: ViewStyle = { view in
   view
-    |> \.backgroundColor .~ .ksr_trust_500
+    |> \.backgroundColor .~ LegacyColors.Project.Navigation.selected.uiColor()
 }
 
 private let rootStackViewStyle: StackViewStyle = { stackView in

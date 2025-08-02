@@ -27,6 +27,10 @@ final class ManagePledgeSummaryViewController: UIViewController {
       |> \.translatesAutoresizingMaskIntoConstraints .~ false
   }()
 
+  private lazy var rewardReceivedViewController: ManageViewPledgeRewardReceivedViewController = {
+    ManageViewPledgeRewardReceivedViewController.instantiate()
+  }()
+
   private lazy var pledgeAmountSummaryViewController: PledgeAmountSummaryViewController = {
     PledgeAmountSummaryViewController.instantiate()
   }()
@@ -119,7 +123,13 @@ final class ManagePledgeSummaryViewController: UIViewController {
       })
       .observeValues { [weak self] url, placeholderImageName in
         self?.circleAvatarImageView
-          .ksr_setImageWithURL(url, placeholderImage: UIImage(named: placeholderImageName))
+          .ksr_setImageWithURL(url, placeholderImage: image(named: placeholderImageName))
+      }
+
+    self.viewModel.outputs.configureRewardReceivedWithData
+      .observeForControllerAction()
+      .observeValues { [weak self] data in
+        self?.rewardReceivedViewController.configureWith(data: data)
       }
 
     self.backerNameLabel.rac.hidden = self.viewModel.outputs.backerNameLabelHidden
@@ -127,6 +137,8 @@ final class ManagePledgeSummaryViewController: UIViewController {
     self.backerNumberLabel.rac.text = self.viewModel.outputs.backerNumberText
     self.backingDateLabel.rac.text = self.viewModel.outputs.backingDateText
     self.circleAvatarImageView.rac.hidden = self.viewModel.outputs.circleAvatarViewHidden
+    self.rewardReceivedViewController.view.rac.hidden = self.viewModel.outputs
+      .rewardReceivedViewControllerViewIsHidden
     self.totalAmountLabel.rac.attributedText = self.viewModel.outputs.totalAmountText
   }
 
@@ -146,11 +158,13 @@ final class ManagePledgeSummaryViewController: UIViewController {
     _ = ([self.totalLabel, self.totalAmountLabel], self.totalAmountStackView)
       |> ksr_addArrangedSubviewsToStackView()
 
+    self.addChild(self.rewardReceivedViewController)
     self.addChild(self.pledgeAmountSummaryViewController)
 
     let arrangedSubviews = [
       self.backerInfoContainerStackView,
       self.pledgeStatusLabelView,
+      self.rewardReceivedViewController.view,
       self.pledgeAmountSummaryViewController.view,
       self.totalAmountStackView
     ]
@@ -203,7 +217,7 @@ private let backerInfoStackViewStyle: StackViewStyle = { stackView in
 private let backerNumberLabelStyle: LabelStyle = { label in
   label
     |> checkoutLabelStyle
-    |> \.textColor .~ UIColor.ksr_support_700
+    |> \.textColor .~ LegacyColors.ksr_support_700.uiColor()
     |> \.font .~ UIFont.ksr_footnote()
     |> \.adjustsFontForContentSizeCategory .~ true
 }
@@ -212,7 +226,7 @@ private let backingDateLabelStyle: LabelStyle = { label in
   label
     |> checkoutLabelStyle
     |> \.font .~ UIFont.ksr_footnote()
-    |> \.textColor .~ UIColor.ksr_support_400
+    |> \.textColor .~ LegacyColors.ksr_support_400.uiColor()
     |> \.adjustsFontForContentSizeCategory .~ true
     |> \.numberOfLines .~ 0
 }
@@ -226,7 +240,7 @@ private let rootStackViewStyle: StackViewStyle = { stackView in
 private let totalLabelStyle: LabelStyle = { label in
   label
     |> checkoutLabelStyle
-    |> \.textColor .~ UIColor.ksr_black
+    |> \.textColor .~ LegacyColors.ksr_black.uiColor()
     |> \.font .~ UIFont.ksr_subhead().bolded
     |> \.adjustsFontForContentSizeCategory .~ true
     |> \.text %~ { _ in Strings.Total() }

@@ -40,6 +40,8 @@ internal final class ActivitySampleBackingCell: UITableViewCell, ValueCell {
         Strings.dashboard_tout_accessibility_hint_opens_project()
       }
 
+    self.cardView.backgroundColor = Colors.Background.Surface.primary.uiColor()
+
     _ = self.activityStackView
       |> activitySampleStackViewStyle
 
@@ -56,7 +58,7 @@ internal final class ActivitySampleBackingCell: UITableViewCell, ValueCell {
       |> activitySampleBackingTitleLabelStyle
 
     _ = self.cardView
-      |> cardStyle()
+      |> dropShadowStyleMedium()
 
     _ = self.seeAllActivityButton
       |> activitySampleSeeAllActivityButtonStyle

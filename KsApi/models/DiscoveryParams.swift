@@ -19,11 +19,17 @@ public struct DiscoveryParams {
   public var staffPicks: Bool?
   public var starred: Bool?
   public var state: State?
+  public var percentRaised: PercentRaisedBucket?
+  public var location: Location?
+  public var amountRaised: AmountRaisedBucket?
+  public var goal: GoalBucket?
 
   public enum State: String, Decodable {
     case all
     case live
     case successful
+    case late_pledge
+    case upcoming
   }
 
   public enum Sort: String, Decodable {
@@ -31,6 +37,8 @@ public struct DiscoveryParams {
     case magic
     case newest
     case popular = "popularity"
+    case most_funded
+    case most_backed
 
     public var trackingString: String {
       switch self {
@@ -38,8 +46,53 @@ public struct DiscoveryParams {
       case .magic: return "magic"
       case .newest: return "newest"
       case .popular: return "popular"
+      case .most_funded: return "most_funded"
+      case .most_backed: return "most_backed"
       }
     }
+  }
+
+  public enum PercentRaisedBucket: Int, CaseIterable {
+    /// 0 to 75%
+    case bucket_0
+    /// 75% - 100%
+    case bucket_1
+    /// 100% or more
+    case bucket_2
+  }
+
+  public enum AmountRaisedBucket: Int, CaseIterable {
+    /// Range from 0 to 1,000 USD
+    case bucket_0
+
+    /// Range from 1,000 to 10,000 USD
+    case bucket_1
+
+    /// Range from 10,000 to 100,000 USD
+    case bucket_2
+
+    /// Range from 100,000 to 1,000,000 USD
+    case bucket_3
+
+    /// Range from 1,000,000 to Infinity USD
+    case bucket_4
+  }
+
+  public enum GoalBucket: Int, CaseIterable {
+    /// Range from 0 to 1,000 USD
+    case bucket_0
+
+    /// Range from 1,000 to 10,000 USD
+    case bucket_1
+
+    /// Range from 10,000 to 100,000 USD
+    case bucket_2
+
+    /// Range from 100,000 to 1,000,000 USD
+    case bucket_3
+
+    /// Range from 1,000,000 to Infinity USD
+    case bucket_4
   }
 
   public static let defaults = DiscoveryParams(
@@ -160,4 +213,66 @@ private func stringIntToBool(_ string: String?) -> Bool? {
   return Int(string)
     .filter { $0 <= 1 && $0 >= -1 }
     .flatMap { ($0 == 0) ? nil : ($0 == 1) }
+}
+
+extension DiscoveryParams {
+  /// We're using `DiscoveryParams` in two places: Discover, which is powered by API V1,
+  /// and Search, which is now powered by GraphQL (using the `projects` query; see `SearchQuery.graphql`).
+  /// Search uses `DiscoveryParams` because our Search analytics is tightly coupled with `DiscoveryParams`,
+  /// and we haven't had the chance to fix that yet.
+  ///
+  /// This function validates that the params are only using enum values which are available in API V1, _not_ values
+  /// which were added for Search/GraphQL support.
+
+  func validForAPIV1() -> Bool {
+    if let sort = self.sort {
+      switch sort {
+      case .endingSoon:
+        break
+      case .magic:
+        break
+      case .newest:
+        break
+      case .popular:
+        break
+      case .most_funded:
+        return false
+      case .most_backed:
+        return false
+      }
+    }
+
+    if let state = self.state {
+      switch state {
+      case .all:
+        break
+      case .live:
+        break
+      case .successful:
+        break
+      case .late_pledge:
+        return false
+      case .upcoming:
+        return false
+      }
+    }
+
+    if let _ = self.percentRaised {
+      return false
+    }
+
+    if let _ = self.location {
+      return false
+    }
+
+    if let _ = self.amountRaised {
+      return false
+    }
+
+    if let _ = self.goal {
+      return false
+    }
+
+    return true
+  }
 }

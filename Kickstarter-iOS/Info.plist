@@ -33,7 +33,6 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>appcenter-$(APPCENTER_$(APPCENTER_SCHEME_NAME)_APP_SECRET)</string>
 				<string>fb69103156693</string>
 			</array>
 		</dict>
@@ -138,8 +137,6 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UIUserInterfaceStyle</key>
-	<string>Light</string>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_ANALYTICS_STORAGE</key>
 	<false/>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_STORAGE</key>
@@ -148,5 +145,10 @@
 	<false/>
 	<key>GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Inter-VariableFont.ttf</string>
+		<string>Inter-Italic-VariableFont.ttf</string>
+	</array>
 </dict>
 </plist>

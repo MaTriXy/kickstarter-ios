@@ -77,8 +77,8 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
     ])
   }
 
-  public func configure(with increments: [PledgePaymentIncrement], project: Project) {
-    self.viewModel.inputs.configure(with: increments, project: project)
+  public func configure(with increments: [PledgePaymentIncrement]) {
+    self.viewModel.inputs.configure(with: increments)
   }
 
   private func setupGestureRecognizers() {
@@ -100,7 +100,7 @@ final class PledgeOverTimePaymentScheduleViewController: UIViewController {
       itemView.configure(
         with: item.dateString,
         badgeTitle: item.stateLabel,
-        amountAttributedText: item.amountAttributedText,
+        amountString: item.amountString,
         badgeStyle: item.badgeStyle
       )
       self.paymentsScheduleStackView.addArrangedSubview(itemView)
@@ -200,20 +200,20 @@ private func applyPaymentsScheduleStackViewStyle(_ stackView: UIStackView) {
 private func applyTitleLabelStyle(_ label: UILabel) {
   label.adjustsFontForContentSizeCategory = true
   label.font = UIFont.ksr_subhead().bolded
-  label.textColor = .ksr_black
+  label.textColor = LegacyColors.ksr_black.uiColor()
 }
 
 private func applyCollapseIndicatorImageViewStyle(_ imageView: UIImageView) {
   imageView.contentMode = .scaleAspectFit
   imageView.image = UIImage(systemName: "chevron.down")
-  imageView.tintColor = .ksr_support_700
+  imageView.tintColor = LegacyColors.ksr_support_700.uiColor()
 }
 
 private func applyTermsOfUseStyle(_ button: UIButton) {
   button.configuration = {
     var config = UIButton.Configuration.borderless()
     config.contentInsets = Constants.contentInsets
-    config.baseForegroundColor = .ksr_create_700
+    config.baseForegroundColor = LegacyColors.ksr_create_700.uiColor()
     return config
   }()
 

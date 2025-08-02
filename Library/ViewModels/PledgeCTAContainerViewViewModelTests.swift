@@ -49,9 +49,9 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.personalization.backing .~ backing
-      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.userCurrency .~ "USD"
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     self.vm.inputs.configureWith(value: (.left((project, nil)), false))
     self.buttonStyleType.assertValues([ButtonStyleType.blue])
@@ -70,9 +70,9 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.personalization.backing .~ backing
-      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.userCurrency .~ "USD"
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.mx.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.mx.currencyCode
 
     self.vm.inputs.configureWith(value: (.left((project, nil)), false))
     self.buttonStyleType.assertValues([ButtonStyleType.blue])
@@ -92,9 +92,9 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     let project = Project.template
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.personalization.backing .~ backing
-      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.userCurrency .~ "USD"
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     self.vm.inputs.configureWith(value: (.left((project, nil)), false))
     self.buttonStyleType.assertValues([ButtonStyleType.blue])
@@ -114,6 +114,59 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
     self.vm.inputs.configureWith(value: (.left((project, nil)), false))
     self.buttonStyleType.assertValues([ButtonStyleType.black])
     self.buttonTitleText.assertValues([Strings.View_your_pledge()])
+    self.spacerIsHidden.assertValues([true])
+    self.stackViewIsHidden.assertValues([true])
+  }
+
+  func testPledgeCTA_NetNewBackerGoToPM() {
+    let mockConfigClient = MockRemoteConfigClient()
+
+    mockConfigClient.features = [
+      RemoteConfigFeature.netNewBackersGoToPM.rawValue: true
+    ]
+
+    withEnvironment(remoteConfigClient: mockConfigClient) {
+      let project = Project.netNewBacker
+
+      self.vm.inputs.configureWith(value: (.left((project, nil)), false))
+      self.buttonStyleType.assertValues([ButtonStyleType.black])
+      self.buttonTitleText.assertValues([Strings.Go_to_pledge_manager()])
+      self.spacerIsHidden.assertValues([true])
+      self.stackViewIsHidden.assertValues([true])
+    }
+  }
+
+  func testPledgeCTA_ExistingBackerGoToPM() {
+    let mockConfigClient = MockRemoteConfigClient()
+
+    mockConfigClient.features = [
+      RemoteConfigFeature.netNewBackersGoToPM.rawValue: true
+    ]
+
+    withEnvironment(remoteConfigClient: mockConfigClient) {
+      let project = Project.netNewBacker
+        |> Project.lens.personalization.backing .~ Backing.template
+        |> Project.lens.personalization.isBacking .~ true
+        |> Project.lens.pledgeManager .~ nil
+
+      self.vm.inputs.configureWith(value: (.left((project, nil)), false))
+      self.buttonStyleType.assertValues([ButtonStyleType.black])
+      self.buttonTitleText.assertValues([Strings.Go_to_pledge_manager()])
+      self.spacerIsHidden.assertValues([true])
+      self.stackViewIsHidden.assertValues([true])
+    }
+  }
+
+  func testPledgeCTA_dummyPledgeGoToPM() {
+    let backing = Backing.template
+      |> Backing.lens.status .~ .dummy
+    let project = Project.template
+      |> Project.lens.personalization.backing .~ backing
+      |> Project.lens.personalization.isBacking .~ true
+
+    self.vm.inputs.configureWith(value: (.left((project, nil)), false))
+    self.buttonStyleType.assertValues([ButtonStyleType.black])
+    self.buttonTitleText.assertValues([Strings.Go_to_pledge_manager()])
     self.spacerIsHidden.assertValues([true])
     self.stackViewIsHidden.assertValues([true])
   }
@@ -149,9 +202,9 @@ internal final class PledgeCTAContainerViewViewModelTests: TestCase {
       |> Project.lens.personalization.isBacking .~ true
       |> Project.lens.state .~ .live
       |> Project.lens.personalization.backing .~ backing
-      |> Project.lens.stats.currentCurrency .~ "USD"
+      |> Project.lens.stats.userCurrency .~ "USD"
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     self.vm.inputs.configureWith(value: (.left((project, nil)), false))
     self.buttonStyleType.assertValues([ButtonStyleType.blue])

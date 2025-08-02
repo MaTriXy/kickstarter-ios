@@ -7,7 +7,7 @@ public struct PledgeStatusLabelViewData {
   public let currentUserIsCreatorOfProject: Bool
   public let needsConversion: Bool
   public let pledgeAmount: Double
-  public let projectCurrencyCountry: Project.Country
+  public let currencyCode: String
   public let projectDeadline: TimeInterval
   public let projectState: Project.State
   public let backingState: Backing.Status
@@ -77,7 +77,7 @@ private func statusLabelText(with data: PledgeStatusLabelViewData) -> NSAttribut
   paragraphStyle.alignment = .center
 
   let font = UIFont.ksr_subhead()
-  let foregroundColor = UIColor.ksr_support_700
+  let foregroundColor = LegacyColors.ksr_support_700.uiColor()
   let underlineStyle = false
 
   let attributes: [NSAttributedString.Key: Any] = [
@@ -101,6 +101,8 @@ private func statusLabelText(with data: PledgeStatusLabelViewData) -> NSAttribut
   case (.canceled, false, _):
     string = Strings.You_canceled_your_pledge_for_this_project()
   case (.collected, false, _):
+    string = Strings.We_collected_your_pledge_for_this_project()
+  case (.dummy, _, _):
     string = Strings.We_collected_your_pledge_for_this_project()
   case (.dropped, false, _):
     string = Strings.Your_pledge_was_dropped_because_of_payment_errors()
@@ -157,11 +159,11 @@ private func projectStatusLabelText(with projectState: Project.State, isCreator:
 
 private func attributedConfirmationString(with data: PledgeStatusLabelViewData) -> NSAttributedString {
   let date = Format.date(secondsInUTC: data.projectDeadline, template: "MMMM d, yyyy")
-  let pledgeTotal = Format.currency(data.pledgeAmount, country: data.projectCurrencyCountry)
+  let pledgeTotal = Format.currency(data.pledgeAmount, currencyCode: data.currencyCode)
   let isCreator = data.currentUserIsCreatorOfProject
 
   let font = UIFont.ksr_subhead()
-  let foregroundColor = UIColor.ksr_support_700
+  let foregroundColor = LegacyColors.ksr_support_700.uiColor()
 
   let paragraphStyle = NSMutableParagraphStyle()
   paragraphStyle.alignment = .center
@@ -216,7 +218,7 @@ private func attributedPledgeOverTimeConfirmationString(with data: PledgeStatusL
   let paymentAmount = firstPaymentIncrement.amount.amountFormattedInProjectNativeCurrency
 
   let font = UIFont.ksr_subhead()
-  let foregroundColor = UIColor.ksr_support_700
+  let foregroundColor = LegacyColors.ksr_support_700.uiColor()
 
   let paragraphStyle = NSMutableParagraphStyle()
   paragraphStyle.alignment = .center
@@ -273,11 +275,4 @@ private func attributedPlotErroredString(
   attributedString.addAttributes(attrs, range: fullRange)
 
   return attributedString
-}
-
-private func getProjectBackingDetailsURL(with project: Project) -> URL? {
-  let urlString =
-    "\(AppEnvironment.current.apiService.serverConfig.webBaseUrl)/projects/\(project.creator.id)/\(project.slug)/backing/details"
-
-  return URL(string: urlString)
 }

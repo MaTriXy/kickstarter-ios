@@ -1,3 +1,0 @@
-fragment PPOUserSetupFragment on User {
-  ppoHasAction
-}

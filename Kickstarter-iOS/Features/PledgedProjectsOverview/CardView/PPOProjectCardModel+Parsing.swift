@@ -1,4 +1,5 @@
 import Foundation
+import GraphAPI
 import Kingfisher
 import KsApi
 import Library
@@ -9,21 +10,24 @@ private struct PPOParsedAction {
   let tierType: PPOProjectCardModel.TierType
 }
 
+// Source of truth for enum values can be found at
+// https://github.com/kickstarter/kickstarter/blob/main/app/models/open_search/pledged_projects_overview.rb
 private enum PPOProjectCardModelConstants {
   static let paymentFailed = "Tier1PaymentFailed"
   static let confirmAddress = "Tier1AddressLockingSoon"
   static let completeSurvey = "Tier1OpenSurvey"
   static let authenticationRequired = "Tier1PaymentAuthenticationRequired"
+  static let pledgeManagement = "PledgeManagement"
 }
 
 extension PPOProjectCardModel {
-  init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledge.Edge.Node) {
-    let card = node.fragments.ppoCardFragment
-    let backing = card.backing?.fragments.ppoBackingFragment
-    let ppoProject = backing?.project?.fragments.ppoProjectFragment
+  init?(node: GraphAPI.FetchPledgedProjectsQuery.Data.PledgeProjectsOverview.Pledges.Edge.Node) {
+    let card = node.fragments.pPOCardFragment
+    let backing = card.backing?.fragments.pPOBackingFragment
+    let ppoProject = backing?.project?.fragments.pPOProjectFragment
 
-    let image = ppoProject?.image?.url
-      .flatMap { URL(string: $0) }
+    let image = ppoProject?.image
+      .flatMap { URL(string: $0.url) }
       .map { Kingfisher.Source.network($0) }
 
     let projectName = ppoProject?.name
@@ -69,15 +73,20 @@ extension PPOProjectCardModel {
       actions = Self.actionsForSurvey()
     case PPOProjectCardModelConstants.authenticationRequired:
       actions = Self.actionsForAuthentication(clientSecret: backing?.clientSecret)
+    case PPOProjectCardModelConstants.pledgeManagement:
+      actions = Self.actionsForPledgeManagement()
     default:
       return nil
     }
 
     let projectAnalyticsFragment = backing?.project?.fragments.projectAnalyticsFragment
 
-    // For v1 of PPO we're just using the same url for surveys and the backing details page.
-    // This specifically links to the survey tab.
-    let backingDetailsUrl = backing?.backingDetailsPageRoute
+    // Let backingDetailsUrl default to the card-specific webviewUrl.
+    // TODO(MBL-2540): Only set this field for cards that need it, once the open backing details
+    // action is replaced by a open project page action instead.
+    let webviewUrl = card.webviewUrl
+    let backingDetailsUrl = webviewUrl ?? backing?.backingDetailsPageRoute
+
     let backingId = backing.flatMap { decompose(id: $0.id) }
     let backingGraphId = backing?.id
 
@@ -115,7 +124,13 @@ extension PPOProjectCardModel {
   private static func actionsForConfirmAddress(address: String?, addressId: String?)
     -> PPOParsedAction? {
     guard let address = address,
-          let addressId = addressId else { return nil }
+          let addressId = addressId else {
+      return PPOParsedAction(
+        primaryAction: .completeSurvey,
+        secondaryAction: nil,
+        tierType: .confirmAddress
+      )
+    }
 
     return PPOParsedAction(
       primaryAction: .confirmAddress(address: address, addressId: addressId),
@@ -129,6 +144,14 @@ extension PPOProjectCardModel {
       primaryAction: .completeSurvey,
       secondaryAction: nil,
       tierType: .openSurvey
+    )
+  }
+
+  private static func actionsForPledgeManagement() -> PPOParsedAction {
+    PPOParsedAction(
+      primaryAction: .managePledge,
+      secondaryAction: nil,
+      tierType: .pledgeManagement
     )
   }
 

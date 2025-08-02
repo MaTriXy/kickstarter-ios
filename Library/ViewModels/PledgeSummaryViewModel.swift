@@ -65,12 +65,12 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
     self.totalConversionLabelText = projectAndPledgeTotal
       .filter { project, _ in project.stats.needsConversion }
       .map { project, total in
-        let convertedTotal = total * Double(project.stats.currentCurrencyRate ?? project.stats.staticUsdRate)
-        let currentCountry = project.stats.currentCountry ?? Project.Country.us
+        let convertedTotal = total * Double(project.stats.userCurrencyRate ?? project.stats.staticUsdRate)
+        let userCurrency = project.stats.userCurrency ?? Project.Country.us.currencyCode
 
         return Format.currency(
           convertedTotal,
-          country: currentCountry,
+          currencyCode: userCurrency,
           omitCurrencyCode: project.stats.omitUSCurrencyCode,
           roundingMode: .halfUp,
           maximumFractionDigits: 2,
@@ -117,8 +117,8 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
     self.pledgeOverTimeStackViewHidden = pledgeOverTimeData.map { $0?.isPledgeOverTime ?? false }.negate()
 
     self.pledgeOverTimeChargesText = pledgeOverTimeData.skipNil()
-      .map {
-        Strings.Charged_as_number_of_payments(number: "\($0.paymentIncrements.count)")
+      .compactMap {
+        $0.project.pledgeOverTimeCollectionPlanChargedAsNPayments
       }
   }
 
@@ -157,12 +157,11 @@ public class PledgeSummaryViewModel: PledgeSummaryViewModelType,
 
 private func attributedCurrency(with project: Project, total: Double) -> NSAttributedString? {
   let defaultAttributes = checkoutCurrencyDefaultAttributes()
-    .withAllValuesFrom([.foregroundColor: UIColor.ksr_support_700])
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+    .withAllValuesFrom([.foregroundColor: LegacyColors.ksr_support_700.uiColor()])
 
   return Format.attributedCurrency(
     total,
-    country: projectCurrencyCountry,
+    currencyCode: project.statsCurrency,
     omitCurrencyCode: project.stats.omitUSCurrencyCode,
     defaultAttributes: defaultAttributes,
     superscriptAttributes: checkoutCurrencySuperscriptAttributes()
@@ -176,11 +175,10 @@ private func attributedConfirmationString(with project: Project, pledgeTotal: Do
     date = Format.date(secondsInUTC: deadline, template: Constants.dateFormat)
   }
 
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
-  let pledgeTotal = Format.currency(pledgeTotal, country: projectCurrencyCountry)
+  let pledgeTotal = Format.currency(pledgeTotal, currencyCode: project.statsCurrency)
 
   let font = UIFont.ksr_caption1()
-  let foregroundColor = UIColor.ksr_support_400
+  let foregroundColor = LegacyColors.ksr_support_400.uiColor()
 
   return Strings
     .If_the_project_reaches_its_funding_goal_you_will_be_charged_total_on_project_deadline_and_receive_proof_of_pledge(
@@ -200,11 +198,11 @@ private func attributedConfirmationPledgeOverTimeString(
 
   let date = Format.date(secondsInUTC: firstIncrement.scheduledCollection, template: Constants.dateFormat)
 
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
+  let projectCurrencyCountry = projectCountry(forCurrency: project.statsCurrency) ?? project.country
   let chargeAmount = firstIncrement.amount.amountFormattedInProjectNativeCurrency
 
   let font = UIFont.ksr_caption1()
-  let foregroundColor = UIColor.ksr_support_400
+  let foregroundColor = LegacyColors.ksr_support_400.uiColor()
 
   return Strings
     .If_the_project_reaches_its_funding_goal_the_first_charge_will_be_collected_on_project_deadline(

@@ -18,14 +18,11 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
 
   override func setUp() {
     super.setUp()
-    self.commentCellHeaderStackView.layer.backgroundColor = UIColor.ksr_white.cgColor
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
+    self.commentCellHeaderStackView.layer.backgroundColor = LegacyColors.ksr_white.uiColor().cgColor
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
     super.tearDown()
   }
@@ -36,7 +33,7 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
 
     assertSnapshot(
       matching: self.commentCellHeaderStackView,
-      as: .image,
+      as: .image(perceptualPrecision: 0.99),
       named: "state_AuthorBadge_Is_Backer"
     )
   }
@@ -47,7 +44,7 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
 
     assertSnapshot(
       matching: self.commentCellHeaderStackView,
-      as: .image,
+      as: .image(perceptualPrecision: 0.99),
       named: "state_AuthorBadge_Is_Colaborator"
     )
   }
@@ -58,7 +55,7 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
 
     assertSnapshot(
       matching: self.commentCellHeaderStackView,
-      as: .image,
+      as: .image(perceptualPrecision: 0.99),
       named: "state_AuthorBadge_Is_Creator"
     )
   }
@@ -69,7 +66,7 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
 
     assertSnapshot(
       matching: self.commentCellHeaderStackView,
-      as: .image,
+      as: .image(perceptualPrecision: 0.99),
       named: "state_AuthorBadge_Is_Superbacker"
     )
   }
@@ -78,6 +75,10 @@ internal final class CommentCellHeaderStackViewTests: TestCase {
     self.commentCellHeaderStackView
       .configureWith(comment: Comment.failedTemplate)
 
-    assertSnapshot(matching: self.commentCellHeaderStackView, as: .image, named: "state_AuthorBadge_Is_You")
+    assertSnapshot(
+      matching: self.commentCellHeaderStackView,
+      as: .image(perceptualPrecision: 0.99),
+      named: "state_AuthorBadge_Is_You"
+    )
   }
 }

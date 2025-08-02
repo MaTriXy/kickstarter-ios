@@ -73,7 +73,7 @@ public final class PledgePaymentPlansOptionViewModel:
 
     self.titleText = configData.map { getTitleText(by: $0.type) }
     self.subtitleText = configData
-      .map { getSubtitleText(by: $0.type, isSelected: $0.selectedType == $0.type) }
+      .map { getSubtitleText(by: $0.type, isSelected: $0.selectedType == $0.type, project: $0.project) }
     self.subtitleLabelHidden = self.subtitleText
       .combineLatest(with: ineligible)
       .map { subtitle, ineligible in
@@ -111,7 +111,7 @@ public final class PledgePaymentPlansOptionViewModel:
 
     self.ineligibleBadgeText = configData
       .filterWhenLatestFrom(ineligible, satisfies: { $0 == true })
-      .map { $0.project.pledgeOverTimeMinimumExplanation }
+      .compactMap { $0.project.pledgeOverTimeMinimumExplanation }
   }
 
   fileprivate let configData = MutableProperty<PledgePaymentPlanOptionData?>(nil)
@@ -156,24 +156,27 @@ private func getTitleText(by type: PledgePaymentPlansType) -> String {
   }
 }
 
-private func getSubtitleText(by type: PledgePaymentPlansType, isSelected: Bool) -> String {
+private func getSubtitleText(by type: PledgePaymentPlansType, isSelected: Bool, project: Project) -> String {
   switch type {
   case .pledgeInFull:
     return ""
   case .pledgeOverTime:
-    return makePledgeOverTimeSubtitle(isSelected: isSelected)
+    return makePledgeOverTimeSubtitle(isSelected: isSelected, project: project)
   }
 }
 
-private func makePledgeOverTimeSubtitle(isSelected: Bool) -> String {
-  let subtitle = Strings.You_will_be_charged_for_your_pledge_over_four_payments_collapsed_description()
-  guard isSelected else {
+private func makePledgeOverTimeSubtitle(isSelected: Bool, project: Project) -> String {
+  guard let subtitle = project.pledgeOverTimeCollectionPlanShortPitch else {
+    return ""
+  }
+
+  guard isSelected, let chargeExplanation = project.pledgeOverTimeCollectionPlanChargeExplanation else {
     return subtitle
   }
 
   return """
   \(subtitle)
 
-  \(Strings.The_first_charge_will_occur_when_the_project_ends_successfully())
+  \(chargeExplanation)
   """
 }

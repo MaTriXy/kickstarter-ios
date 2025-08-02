@@ -8,15 +8,11 @@ import UIKit
 final class ManagePledgeViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
-
     super.tearDown()
   }
 
@@ -106,25 +102,28 @@ final class ManagePledgeViewControllerTests: TestCase {
       fetchProjectRewardsResult: .success([reward])
     )
 
-    withEnvironment(apiService: mockService, currentUser: user, language: language) {
-      let controller = ManagePledgeViewController.instantiate()
-      controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
-      let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
+      withEnvironment(apiService: mockService, currentUser: user, language: language) {
+        let controller = ManagePledgeViewController.instantiate()
+        controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
 
-      // Network request completes
-      self.scheduler.advance()
+        // Network request completes
+        self.scheduler.advance()
 
-      // endRefreshing is delayed by 300ms for animation duration
-      self.scheduler.advance(by: .milliseconds(300))
+        // endRefreshing is delayed by 300ms for animation duration
+        self.scheduler.advance(by: .milliseconds(300))
 
-      controller.tableView.layoutIfNeeded()
-      controller.tableView.reloadData()
+        controller.tableView.layoutIfNeeded()
+        controller.tableView.reloadData()
 
-      assertSnapshot(
-        matching: parent.view,
-        as: .image(perceptualPrecision: 0.98),
-        named: "lang_\(language)_device_\(device)"
-      )
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
     }
   }
 
@@ -162,29 +161,32 @@ final class ManagePledgeViewControllerTests: TestCase {
       fetchProjectRewardsResult: .success([reward])
     )
 
-    withEnvironment(apiService: mockService, currentUser: user, language: language) {
-      let controller = ManagePledgeViewController.instantiate()
-      controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
-      let (parent, _) = traitControllers(
-        device: device,
-        orientation: .portrait,
-        child: controller
-      )
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
+      withEnvironment(apiService: mockService, currentUser: user, language: language) {
+        let controller = ManagePledgeViewController.instantiate()
+        controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
+        let (parent, _) = traitControllers(
+          device: device,
+          orientation: .portrait,
+          child: controller
+        )
 
-      // Network request completes
-      self.scheduler.advance()
+        // Network request completes
+        self.scheduler.advance()
 
-      // endRefreshing is delayed by 300ms for animation duration
-      self.scheduler.advance(by: .milliseconds(300))
+        // endRefreshing is delayed by 300ms for animation duration
+        self.scheduler.advance(by: .milliseconds(300))
 
-      controller.tableView.layoutIfNeeded()
-      controller.tableView.reloadData()
+        controller.tableView.layoutIfNeeded()
+        controller.tableView.reloadData()
 
-      assertSnapshot(
-        matching: parent.view,
-        as: .image(perceptualPrecision: 0.98),
-        named: "lang_\(language)_device_\(device)"
-      )
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
     }
   }
 
@@ -222,29 +224,85 @@ final class ManagePledgeViewControllerTests: TestCase {
       fetchProjectRewardsResult: .success([reward])
     )
 
-    withEnvironment(apiService: mockService, currentUser: user, language: language) {
-      let controller = ManagePledgeViewController.instantiate()
-      controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
-      let (parent, _) = traitControllers(
-        device: device,
-        orientation: .portrait,
-        child: controller
-      )
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+      language, device in
+      withEnvironment(apiService: mockService, currentUser: user, language: language) {
+        let controller = ManagePledgeViewController.instantiate()
+        controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
+        let (parent, _) = traitControllers(
+          device: device,
+          orientation: .portrait,
+          child: controller
+        )
 
-      // Network request completes
-      self.scheduler.advance()
+        // Network request completes
+        self.scheduler.advance()
 
-      // endRefreshing is delayed by 300ms for animation duration
-      self.scheduler.advance(by: .milliseconds(300))
+        // endRefreshing is delayed by 300ms for animation duration
+        self.scheduler.advance(by: .milliseconds(300))
 
-      controller.tableView.layoutIfNeeded()
-      controller.tableView.reloadData()
+        controller.tableView.layoutIfNeeded()
+        controller.tableView.reloadData()
 
-      assertSnapshot(
-        matching: parent.view,
-        as: .image(perceptualPrecision: 0.98),
-        named: "lang_\(language)_device_\(device)"
-      )
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
+    }
+  }
+
+  // Test SEPA, which is a bank account payment in the EU. This payment method is only available
+  // during pledge on web, but it should still show up if users look at their pledge on mobile.
+  func testView_SEPA() {
+    let user = User.template
+    let reward = Reward.template
+    let paymentSource = Backing.PaymentSource(id: "7", lastFour: "7890", paymentType: .bankAccount)
+
+    let backing = Backing.template
+      |> Backing.lens.amount .~ 22
+      |> Backing.lens.reward .~ reward
+      |> Backing.lens.rewardId .~ reward.id
+      |> Backing.lens.paymentSource .~ paymentSource
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.personalization.backing .~ backing
+
+    let env = ProjectAndBackingEnvelope(project: project, backing: backing)
+
+    let mockService = MockService(
+      fetchManagePledgeViewBackingResult: .success(env),
+      fetchProjectResult: .success(project),
+      fetchProjectRewardsResult: .success([reward])
+    )
+
+    orthogonalCombos(Language.allLanguages, [Device.phone5_8inch, Device.phone4_7inch, Device.pad]).forEach {
+      language, device in
+      withEnvironment(apiService: mockService, currentUser: user, language: language) {
+        let controller = ManagePledgeViewController.instantiate()
+        controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
+        let (parent, _) = traitControllers(
+          device: device,
+          orientation: .portrait,
+          child: controller
+        )
+
+        // Network request completes
+        self.scheduler.advance()
+
+        // endRefreshing is delayed by 300ms for animation duration
+        self.scheduler.advance(by: .milliseconds(300))
+
+        controller.tableView.layoutIfNeeded()
+        controller.tableView.reloadData()
+
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
     }
   }
 
@@ -451,7 +509,7 @@ final class ManagePledgeViewControllerTests: TestCase {
     let project = Project.cosmicSurgery
       |> Project.lens.personalization.backing .~ backing
       |> Project.lens.country .~ .us
-      |> Project.lens.stats.currency .~ Project.Country.us.currencyCode
+      |> Project.lens.stats.projectCurrency .~ Project.Country.us.currencyCode
 
     let env = ProjectAndBackingEnvelope(project: project, backing: backing)
 
@@ -476,12 +534,67 @@ final class ManagePledgeViewControllerTests: TestCase {
         let controller = ManagePledgeViewController.instantiate()
         controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
-        parent.view.frame.size.height = 1_200
+        parent.view.frame.size.height = 1_300
 
         // Network request completes
         self.scheduler.advance()
 
         controller.plotPaymentScheduleToggle()
+
+        // endRefreshing is delayed by 300ms for animation duration
+        self.scheduler.advance(by: .milliseconds(300))
+
+        controller.tableView.layoutIfNeeded()
+        controller.tableView.reloadData()
+
+        assertSnapshot(
+          matching: parent.view,
+          as: .image(perceptualPrecision: 0.98),
+          named: "lang_\(language)_device_\(device)"
+        )
+      }
+    }
+  }
+
+  func testView_CurrentUser_RewardWithImage() {
+    let user = User.template
+      |> User.lens.id .~ 1
+
+    let reward = Reward.template
+      |> Reward.lens.shipping.enabled .~ true
+      |> Reward.lens.remaining .~ 49
+      |> Reward.lens.localPickup .~ nil
+      |> Reward.lens.image .~ Reward.Image(altText: "The image", url: "https://ksr.com/image.jpg")
+
+    let addOns = [Reward.postcards |> Reward.lens.minimum .~ 10]
+
+    let backing = Backing.template
+      |> Backing.lens.addOns .~ addOns
+      |> Backing.lens.amount .~ 22
+      |> Backing.lens.reward .~ reward
+      |> Backing.lens.rewardId .~ reward.id
+      |> Backing.lens.paymentSource .~ Backing.PaymentSource.template
+
+    let project = Project.cosmicSurgery
+      |> Project.lens.personalization.backing .~ backing
+
+    let env = ProjectAndBackingEnvelope(project: project, backing: backing)
+
+    let mockService = MockService(
+      fetchManagePledgeViewBackingResult: .success(env),
+      fetchProjectResult: .success(project),
+      fetchProjectRewardsResult: .success([reward])
+    )
+
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.pad]).forEach { language, device in
+      withEnvironment(apiService: mockService, currentUser: user, language: language) {
+        let controller = ManagePledgeViewController.instantiate()
+        controller.configureWith(params: (Param.slug("project-slug"), Param.id(1)))
+        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)
+        parent.view.frame.size.height = 1_400
+
+        // Network request completes
+        self.scheduler.advance()
 
         // endRefreshing is delayed by 300ms for animation duration
         self.scheduler.advance(by: .milliseconds(300))

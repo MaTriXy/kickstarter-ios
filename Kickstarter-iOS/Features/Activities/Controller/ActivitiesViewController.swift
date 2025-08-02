@@ -57,11 +57,16 @@ internal final class ActivitiesViewController: UITableViewController {
 
     self.tableView.tableHeaderView = UIView(frame: CGRect(x: 0, y: 0, width: 0, height: Styles.gridHalf(3)))
     self.tableView.registerCellClass(ActivityErroredBackingsCell.self)
+    self.tableView.registerCellClass(RewardTrackingActivitiesCell.self)
     self.tableView.dataSource = self.dataSource
 
     let emptyVC = EmptyStatesViewController.configuredWith(emptyState: .activity)
     self.emptyStatesController = emptyVC
     emptyVC.delegate = self
+    // Because the ActivitiesViewController is a UITableViewController, it wasn't automatically accounting
+    // for the root tab bar height in this child VC. Adding the additional height makes this layout correctly.
+    emptyVC.additionalSafeAreaInsets = UIEdgeInsets(bottom: 50)
+
     self.addChild(emptyVC)
     self.view.addSubview(emptyVC.view)
     emptyVC.didMove(toParent: self)
@@ -163,6 +168,12 @@ internal final class ActivitiesViewController: UITableViewController {
         AppEnvironment.updateCurrentUser(user)
         NotificationCenter.default.post(.init(name: .ksr_userUpdated))
       }
+
+    self.viewModel.outputs.goToTrackShipping
+      .observeForUI()
+      .observeValues { [weak self] url in
+        self?.goTo(url: url)
+      }
   }
 
   internal override func tableView(
@@ -170,12 +181,17 @@ internal final class ActivitiesViewController: UITableViewController {
     willDisplay cell: UITableViewCell,
     forRowAt indexPath: IndexPath
   ) {
-    if let cell = cell as? ActivityUpdateCell, cell.delegate == nil {
-      cell.delegate = self
-    } else if let cell = cell as? ActivitySurveyResponseCell, cell.delegate == nil {
-      cell.delegate = self
-    } else if let cell = cell as? ActivityErroredBackingsCell, cell.delegate == nil {
-      cell.delegate = self
+    switch cell {
+    case let updateCell as ActivityUpdateCell:
+      updateCell.delegate = self
+    case let surveyCell as ActivitySurveyResponseCell:
+      surveyCell.delegate = self
+    case let erroredCell as ActivityErroredBackingsCell:
+      erroredCell.delegate = self
+    case let trackingCell as RewardTrackingActivitiesCell:
+      trackingCell.delegate = self
+    default:
+      break
     }
 
     self.viewModel.inputs.willDisplayRow(
@@ -197,7 +213,7 @@ internal final class ActivitiesViewController: UITableViewController {
   }
 
   fileprivate func present(project: Project, refTag: RefTag) {
-    let projectParam = Either<Project, Param>(left: project)
+    let projectParam = Either<Project, any ProjectPageParam>(left: project)
     let vc = ProjectPageViewController.configuredWith(
       projectOrParam: projectParam,
       refInfo: RefInfo(refTag)
@@ -285,5 +301,15 @@ extension ActivitiesViewController: ManagePledgeViewControllerDelegate {
     managePledgeViewControllerFinishedWithMessage _: String?
   ) {
     self.viewModel.inputs.managePledgeViewControllerDidFinish()
+  }
+
+  func managePledgeViewControllerDidDismiss(_: ManagePledgeViewController) {}
+}
+
+// MARK: - RewardTrackingDetailsViewDelegate
+
+extension ActivitiesViewController: RewardTrackingDetailsViewDelegate {
+  func didTapTrackingButton(with trackingURL: URL) {
+    self.viewModel.inputs.tappedTrackShipping(with: trackingURL)
   }
 }

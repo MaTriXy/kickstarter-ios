@@ -24,7 +24,7 @@ public final class VideoViewController: UIViewController {
   @IBOutlet fileprivate var projectImageView: UIImageView!
   @IBOutlet fileprivate var videoContainerView: UIView!
 
-  internal static func configuredWith(project: Project) -> VideoViewController {
+  internal static func configuredWith(project: any VideoViewConfiguration) -> VideoViewController {
     let vc = Storyboard.Video.instantiate(VideoViewController.self)
     vc.viewModel.inputs.configureWith(project: project)
     return vc
@@ -60,9 +60,12 @@ public final class VideoViewController: UIViewController {
   public override func bindStyles() {
     super.bindStyles()
 
+    self.view.backgroundColor = Colors.Background.Surface.primary.uiColor()
+
     _ = self.playButton
       |> UIButton.lens.image(for: .normal) .~ image(named: "play-arrow-icon")
-      <> UIButton.lens.backgroundColor(for: .highlighted) .~ UIColor.ksr_white.withAlphaComponent(0.5)
+      <> UIButton.lens.backgroundColor(for: .highlighted) .~ LegacyColors.ksr_white.uiColor()
+      .withAlphaComponent(0.5)
       <> UIButton.lens.accessibilityLabel %~ { _ in Strings.accessibility_projects_buttons_play_video() }
 
     _ = self.projectImageView

@@ -66,15 +66,19 @@ internal final class MessageDialogViewController: UIViewController {
   internal override func bindStyles() {
     super.bindStyles()
 
+    self.view.backgroundColor = Colors.Background.Surface.primary.uiColor()
+
     _ = self.cancelButton
       |> UIBarButtonItem.lens.title %~ { _ in Strings.general_navigation_buttons_cancel() }
 
     _ = self.nameLabel
-      |> UILabel.lens.textColor .~ .ksr_support_700
+      |> UILabel.lens.textColor .~ LegacyColors.ksr_support_700.uiColor()
       |> UILabel.lens.font .~ UIFont.ksr_body().bolded
 
     _ = self.postButton
       |> UIBarButtonItem.lens.title %~ { _ in Strings.social_buttons_send() }
+
+    applyBodyTextViewStyle(self.bodyTextView)
   }
 
   @IBAction fileprivate func cancelButtonPressed() {
@@ -106,4 +110,9 @@ extension MessageDialogViewController: UITextViewDelegate {
   internal func textViewDidChange(_ textView: UITextView) {
     self.viewModel.inputs.bodyTextChanged(textView.text)
   }
+}
+
+private func applyBodyTextViewStyle(_ textView: UITextView) {
+  textView.font = .ksr_body()
+  textView.backgroundColor = Colors.Background.Surface.primary.uiColor()
 }

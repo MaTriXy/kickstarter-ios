@@ -1,4 +1,5 @@
 import Foundation
+import GraphAPI
 import KsApi
 import Prelude
 
@@ -79,13 +80,13 @@ public enum Format {
    */
   public static func currency(
     _ amount: Int,
-    country: Project.Country,
+    currencyCode: String,
     omitCurrencyCode: Bool = true,
     env: Environment = AppEnvironment.current
   ) -> String {
     return Format.formattedCurrency(
       amount,
-      country: country,
+      currencyCode: currencyCode,
       omitCurrencyCode: omitCurrencyCode,
       env: env
     )
@@ -93,7 +94,7 @@ public enum Format {
 
   public static func currency(
     _ amount: Double,
-    country: Project.Country,
+    currencyCode: String,
     omitCurrencyCode: Bool = true,
     roundingMode: NumberFormatter.RoundingMode = .down,
     maximumFractionDigits: Int = 0,
@@ -102,7 +103,7 @@ public enum Format {
   ) -> String {
     return Format.formattedCurrency(
       amount,
-      country: country,
+      currencyCode: currencyCode,
       omitCurrencyCode: omitCurrencyCode,
       roundingMode: roundingMode,
       maximumFractionDigits: maximumFractionDigits,
@@ -113,7 +114,7 @@ public enum Format {
 
   public static func formattedCurrency(
     _ amount: Any,
-    country: Project.Country,
+    currencyCode: String,
     omitCurrencyCode: Bool = true,
     roundingMode: NumberFormatter.RoundingMode = .down,
     maximumFractionDigits: Int = 0,
@@ -121,7 +122,7 @@ public enum Format {
     env: Environment = AppEnvironment.current
   ) -> String {
     let symbol = currencySymbol(
-      forCountry: country,
+      forCurrencyCode: currencyCode,
       omitCurrencyCode: omitCurrencyCode,
       env: env
     )
@@ -143,7 +144,7 @@ public enum Format {
 
   public static func attributedCurrency(
     _ amount: Double,
-    country: Project.Country,
+    currencyCode: String,
     omitCurrencyCode: Bool = true,
     defaultAttributes: String.Attributes = [:],
     superscriptAttributes: String.Attributes = [:],
@@ -151,7 +152,7 @@ public enum Format {
     minimumFractionDigits: Int = 2,
     env: Environment = AppEnvironment.current
   ) -> NSAttributedString? {
-    let symbol = currencySymbol(forCountry: country, omitCurrencyCode: omitCurrencyCode, env: env)
+    let symbol = currencySymbol(forCurrencyCode: currencyCode, omitCurrencyCode: omitCurrencyCode, env: env)
     let config = NumberFormatterConfig.defaultCurrencyConfig
       |> NumberFormatterConfig.lens.locale .~ env.locale
       |> NumberFormatterConfig.lens.currencySymbol .~ symbol
@@ -189,7 +190,7 @@ public enum Format {
     dateFormat: String,
     timeZone: TimeZone? = nil,
     env: Environment = AppEnvironment.current
-  ) -> Date? {
+  ) -> Foundation.Date? {
     let formatter = DateFormatterConfig.cachedFormatter(
       forConfig: .init(
         dateFormat: dateFormat,
@@ -413,13 +414,13 @@ public enum Format {
     env: Environment = AppEnvironment.current
   ) -> String? {
     guard
-      let currencyCode = money.currency?.rawValue,
+      case let .case(currency) = money.currency,
       let amountString = money.amount,
       let decimal = try? Decimal(amountString, format: .number)
     else { return nil }
 
     return decimal.formatted(
-      .currency(code: currencyCode)
+      .currency(code: currency.rawValue)
         .locale(env.locale)
     )
   }

@@ -1,4 +1,5 @@
 import Apollo
+import GraphAPI
 @testable import KsApi
 import XCTest
 
@@ -8,9 +9,13 @@ final class Backing_BackingFragmentTests: XCTestCase {
       let variables = [
         "withStoredCards": true,
         "includeShippingRules": true,
-        "includeLocalPickup": true
+        "includeLocalPickup": true,
+        "includeRefundedAmount": true
       ]
-      let fragment = try GraphAPI.BackingFragment(jsonObject: backingDictionary(), variables: variables)
+      let fragment: GraphAPI.BackingFragment = try testGraphObject(
+        jsonObject: backingDictionary(),
+        variables: variables
+      )
       XCTAssertNotNil(fragment)
 
       guard let backing = Backing.backing(from: fragment) else {
@@ -30,8 +35,16 @@ final class Backing_BackingFragmentTests: XCTestCase {
       XCTAssertEqual(backing.isLatePledge, false)
       XCTAssertEqual(backing.locationId, decompose(id: "TG9jYXRpb24tMjM0MjQ3NzU="))
       XCTAssertEqual(backing.locationName, "Canada")
+      XCTAssertEqual(backing.order?.checkoutState, .notStarted)
+      XCTAssertEqual(backing.order?.currency, "USD")
+      XCTAssertEqual(backing.order?.total, 0)
       XCTAssertEqual(backing.paymentIncrements.count, 1)
       XCTAssertEqual(backing.paymentIncrements[0].scheduledCollection, 1_739_806_159.0)
+      XCTAssertEqual(
+        backing.paymentIncrements[0].refundedAmount?.amountFormattedInProjectNativeCurrency,
+        "$15.50"
+      )
+      XCTAssertEqual(backing.paymentIncrements[0].refundedAmount?.currency, "USD")
       XCTAssertEqual(backing.paymentSource?.type, .visa)
       XCTAssertEqual(backing.pledgedAt, 1_625_613_342.0)
       XCTAssertEqual(backing.projectCountry, "US")
@@ -41,10 +54,14 @@ final class Backing_BackingFragmentTests: XCTestCase {
       XCTAssertNotNil(backing.reward?.isAvailable)
       XCTAssertNotNil(backing.reward?.latePledgeAmount)
       XCTAssertNotNil(backing.reward?.pledgeAmount)
+      XCTAssertNotNil(backing.reward?.image)
+      XCTAssertEqual(backing.reward?.image?.altText, "Some image")
+      XCTAssertEqual(backing.reward?.image?.url, "https://www.ksr.com/image.jpg")
       XCTAssertEqual(backing.rewardsAmount, 75)
       XCTAssertEqual(backing.sequence, 148)
       XCTAssertEqual(backing.shippingAmount, 10.0)
       XCTAssertEqual(backing.status, .pledged)
+      XCTAssertEqual(backing.reward?.audienceData.isSecretReward, false)
 
       guard let reward = backing.reward else {
         XCTFail("reward should exist")
@@ -62,13 +79,14 @@ final class Backing_BackingFragmentTests: XCTestCase {
     do {
       let variables = [
         "withStoredCards": true,
-        "includeShippingRules": true
+        "includeShippingRules": true,
+        "includeRefundedAmount": true
       ]
       var dict = backingDictionary()
       dict["addOns"] = NSNull()
       dict["reward"] = NSNull()
 
-      let fragment = try GraphAPI.BackingFragment(jsonObject: dict, variables: variables)
+      let fragment: GraphAPI.BackingFragment = try testGraphObject(jsonObject: dict, variables: variables)
       XCTAssertNotNil(fragment)
 
       let backing = Backing.backing(from: fragment)
@@ -213,7 +231,16 @@ private func backingDictionary() -> [String: Any] {
               }
             }
           ],
-          "startsAt": null
+          "startsAt": null,
+          "image": {
+            "__typename": "Photo",
+            "altText": "Some image",
+            "url": "https://www.ksr.com/image.jpg"
+          },
+          "audienceData": {
+            "__typename": "ResourceAudience",
+            "secret": false
+          }
         },
         {
           "__typename": "Reward",
@@ -329,7 +356,16 @@ private func backingDictionary() -> [String: Any] {
               }
             }
           ],
-          "startsAt": null
+          "startsAt": null,
+          "image": {
+            "__typename": "Photo",
+            "altText": "Some image",
+            "url": "https://www.ksr.com/image.jpg"
+          },
+          "audienceData": {
+            "__typename": "ResourceAudience",
+            "secret": false
+          }
         },
         {
           "__typename": "Reward",
@@ -445,7 +481,16 @@ private func backingDictionary() -> [String: Any] {
               }
             }
           ],
-          "startsAt": null
+          "startsAt": null,
+          "image": {
+            "__typename": "Photo",
+            "altText": "Some image",
+            "url": "https://www.ksr.com/image.jpg"
+          },
+          "audienceData": {
+            "__typename": "ResourceAudience",
+            "secret": false
+          }
         },
         {
           "__typename": "Reward",
@@ -561,7 +606,16 @@ private func backingDictionary() -> [String: Any] {
               }
             }
           ],
-          "startsAt": null
+          "startsAt": null,
+          "image": {
+            "__typename": "Photo",
+            "altText": "Some image",
+            "url": "https://www.ksr.com/image.jpg"
+          },
+          "audienceData": {
+            "__typename": "ResourceAudience",
+            "secret": false
+          }
         }
       ]
     },
@@ -655,6 +709,7 @@ private func backingDictionary() -> [String: Any] {
       "uid": "1108924640"
     },
     "backerCompleted": false,
+    "backingDetailsPageRoute": "https://ksr.com/backing/survey_repsonses",
     "bonusAmount": {
       "__typename": "Money",
       "amount": "5.0",
@@ -662,7 +717,7 @@ private func backingDictionary() -> [String: Any] {
       "symbol": "$"
     },
     "cancelable": true,
-    "creditCard": {
+    "paymentSource": {
       "__typename": "CreditCard",
       "expirationDate": "2033-03-01",
       "id": "69021181",
@@ -687,13 +742,17 @@ private func backingDictionary() -> [String: Any] {
         "__typename": "PaymentIncrement",
         "amount": {
           "__typename": "PaymentIncrementAmount",
-          "amountAsFloat": "37.50",
           "amountFormattedInProjectNativeCurrency": "$37.50",
           "currency": "USD"
         },
         "scheduledCollection": "2025-02-17T10:29:19-05:00",
-        "state": "unattempted",
-        "stateReason": "REQUIRES_ACTION"
+        "state": "UNATTEMPTED",
+        "stateReason": "REQUIRES_ACTION",
+        "refundedAmount": {
+          "__typename": "PaymentIncrementAmount",
+          "amountFormattedInProjectNativeCurrency": "$15.50",
+          "currency": "USD"
+        }
       }
     ],
     "pledgedOn": 1625613342,
@@ -704,6 +763,9 @@ private func backingDictionary() -> [String: Any] {
           "MASTERCARD",
           "AMEX"
       ],
+      "pledgeOverTimeCollectionPlanChargeExplanation": "The first charge will occur when the project ends successfully, then every 2 weeks until fully paid. When this option is selected no further edits can be made to your pledge.",
+      "pledgeOverTimeCollectionPlanChargedAsNPayments": "charged as four payments",
+      "pledgeOverTimeCollectionPlanShortPitch": "You will be charged for your pledge over four payments, at no extra cost.",
       "pledgeOverTimeMinimumExplanation": "Available for pledges over $125",
       "backersCount": 135,
       "backing": {
@@ -881,6 +943,11 @@ private func backingDictionary() -> [String: Any] {
       "isWatched": false,
       "launchedAt": 1617886771,
       "isLaunched": true,
+      "lastWave": {
+        "__typename":"CheckoutWave",
+        "id": "Q2hlY2tvdXRXYXZlLTI1OQ==",
+        "active": true
+      },
       "location": {
         "__typename": "Location",
         "country": "US",
@@ -892,6 +959,11 @@ private func backingDictionary() -> [String: Any] {
       "maxPledge": 8500,
       "minPledge": 1,
       "name": "WEE WILLIAM WITCHLING",
+      "pledgeManager": {
+         "__typename":"PledgeManager",
+         "id": "UGxlZGdlTWFuYWdlci05MQ==",
+         "acceptsNewBackers": true
+      },
       "pid": 1596594463,
       "pledged": {
         "__typename": "Money",
@@ -906,6 +978,8 @@ private func backingDictionary() -> [String: Any] {
         "totalCount": 3
       },
       "prelaunchActivated": true,
+      "redemptionPageUrl": "https://www.kickstarter.com/projects/creator/a-fun-project/backing/redeem",
+      "projectNotice": null,
       "slug": "parliament-of-rooks/wee-william-witchling",
       "state": "LIVE",
       "stateChangedAt": 1617886773,
@@ -1010,7 +1084,10 @@ private func backingDictionary() -> [String: Any] {
           "__typename": "ProjectBackerFriendsConnection",
           "nodes": []
         },
-          "pledgeOverTimeMinimumExplanation": "Available for pledges over $125",
+        "pledgeOverTimeCollectionPlanChargeExplanation": "The first charge will occur when the project ends successfully, then every 2 weeks until fully paid. When this option is selected no further edits can be made to your pledge.",
+        "pledgeOverTimeCollectionPlanChargedAsNPayments": "charged as four payments",
+        "pledgeOverTimeCollectionPlanShortPitch": "You will be charged for your pledge over four payments, at no extra cost.",
+        "pledgeOverTimeMinimumExplanation": "Available for pledges over $125",
         "isWatched": false
       },
       "remainingQuantity": null,
@@ -1078,7 +1155,16 @@ private func backingDictionary() -> [String: Any] {
           }
         }
       ],
-      "startsAt": null
+      "startsAt": null,
+      "image": {
+        "__typename": "Photo",
+        "altText": "Some image",
+        "url": "https://www.ksr.com/image.jpg"
+      },
+      "audienceData": {
+        "__typename": "ResourceAudience",
+        "secret": false
+      }
     },
     "rewardsAmount": {
       "__typename": "Money",
@@ -1093,7 +1179,14 @@ private func backingDictionary() -> [String: Any] {
       "currency": "USD",
       "symbol": "$"
     },
-    "status": "pledged"
+    "status": "pledged",
+    "order": {
+      "__typename": "Order",
+      "id": "1",
+      "checkoutState": "not_started",
+      "currency": "USD",
+      "total": 0,
+    }
   }
   """
 

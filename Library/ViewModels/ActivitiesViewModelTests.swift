@@ -7,6 +7,7 @@ import XCTest
 final class ActivitiesViewModelTests: TestCase {
   fileprivate let vm: ActivitiesViewModelType! = ActivitiesViewModel()
 
+  fileprivate let activities = TestObserver<[Activity], Never>()
   fileprivate let activitiesPresent = TestObserver<Bool, Never>()
   fileprivate let clearBadgeValue = TestObserver<(), Never>()
   fileprivate let erroredBackings = TestObserver<[ProjectAndBackingEnvelope], Never>()
@@ -32,6 +33,7 @@ final class ActivitiesViewModelTests: TestCase {
   override func setUp() {
     super.setUp()
 
+    self.vm.outputs.activities.observe(self.activities.observer)
     self.vm.outputs.activities.map { !$0.isEmpty }.observe(self.activitiesPresent.observer)
     self.vm.outputs.clearBadgeValue.observe(self.clearBadgeValue.observer)
     self.vm.outputs.erroredBackings.observe(self.erroredBackings.observer)
@@ -221,6 +223,31 @@ final class ActivitiesViewModelTests: TestCase {
     }
   }
 
+  func testShippedActivities() {
+    let mockConfigClient = MockRemoteConfigClient()
+    mockConfigClient.features = [
+      RemoteConfigFeature.rewardShipmentTracking.rawValue: true
+    ]
+
+    withEnvironment(
+      apiService: MockService(fetchActivitiesResponse: [
+        self.activity1,
+        self.activity2,
+        self.shippedActivity
+      ]),
+      currentUser: .template,
+      remoteConfigClient: mockConfigClient
+    ) {
+      self.vm.inputs.viewDidLoad()
+      self.vm.inputs.userSessionStarted()
+      self.vm.inputs.viewWillAppear(animated: false)
+      self.scheduler.advance()
+
+      self.activitiesPresent.assertValues([true], "Activities loaded.")
+      self.activities.assertValues([[self.shippedActivity, self.activity2, self.activity1]])
+    }
+  }
+
   func testClearBadgeValueOnRefreshActivities() {
     self.updateUserInEnvironment.assertValues([])
     self.clearBadgeValue.assertValueCount(0)
@@ -378,7 +405,7 @@ final class ActivitiesViewModelTests: TestCase {
     self.goToManagePledgeBackingParam.assertValues([.id(env.backing.id)])
   }
 
-  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUserAndErroredBackings() {
+  func testUpdateUserInEnvironmentOnManagePledgeViewDidFinish_DidReturnUser() {
     let user = User.template
 
     let env = ErroredBackingsEnvelope(projectsAndBackings: [
@@ -403,7 +430,7 @@ final class ActivitiesViewModelTests: TestCase {
       self.scheduler.advance()
 
       self.updateUserInEnvironment.assertValues([user])
-      self.erroredBackings.assertValues([env.projectsAndBackings])
+      self.erroredBackings.assertValues([])
     }
   }
 
@@ -453,4 +480,9 @@ final class ActivitiesViewModelTests: TestCase {
   fileprivate let activity1 = .template |> Activity.lens.id .~ 1
   fileprivate let activity2 = .template |> Activity.lens.id .~ 2
   fileprivate let activity3 = .template |> Activity.lens.id .~ 3
+  fileprivate let shippedActivity = .template
+    |> Activity.lens.id .~ 4
+    |> Activity.lens.category .~ .shipped
+    |> Activity.lens.trackingNumber .~ "test-tracking-number"
+    |> Activity.lens.trackingUrl .~ "https://example.com"
 }

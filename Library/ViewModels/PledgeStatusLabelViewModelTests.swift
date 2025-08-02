@@ -22,7 +22,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.canceled,
       backingState: Backing.Status.pledged,
@@ -42,7 +42,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.failed,
       backingState: Backing.Status.pledged,
@@ -62,7 +62,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.live,
       backingState: Backing.Status.canceled,
@@ -82,10 +82,30 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.collected,
+      paymentIncrements: nil,
+      project: nil
+    )
+
+    self.vm.inputs.configure(with: data)
+
+    self.labelTextString.assertValues([
+      "We collected your pledge for this project."
+    ])
+  }
+
+  func testBackingStatus_Dummy_Backer() {
+    let data = PledgeStatusLabelViewData(
+      currentUserIsCreatorOfProject: false,
+      needsConversion: false,
+      pledgeAmount: 0,
+      currencyCode: Project.Country.hk.currencyCode,
+      projectDeadline: 1_476_657_315,
+      projectState: Project.State.successful,
+      backingState: Backing.Status.dummy,
       paymentIncrements: nil,
       project: nil
     )
@@ -102,7 +122,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.dropped,
@@ -122,7 +142,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.errored,
@@ -142,7 +162,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.authenticationRequired,
@@ -161,7 +181,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.live,
       backingState: Backing.Status.preauth,
@@ -181,7 +201,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.pledged,
@@ -202,7 +222,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: false,
         needsConversion: true,
         pledgeAmount: 10,
-        projectCurrencyCountry: Project.Country.hk,
+        currencyCode: Project.Country.hk.currencyCode,
         projectDeadline: 1_476_657_315,
         projectState: Project.State.successful,
         backingState: Backing.Status.pledged,
@@ -221,7 +241,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
   func testBackingStatus_AllOtherStatuses_Backer() {
     let statuses = Backing.Status.allCases
       .filter {
-        ![.canceled, .collected, .dropped, .errored, .authenticationRequired, .pledged, .preauth]
+        ![.canceled, .collected, .dropped, .dummy, .errored, .authenticationRequired, .pledged, .preauth]
           .contains($0)
       }
 
@@ -230,7 +250,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: false,
         needsConversion: false,
         pledgeAmount: 10,
-        projectCurrencyCountry: Project.Country.hk,
+        currencyCode: Project.Country.hk.currencyCode,
         projectDeadline: 1_476_657_315,
         projectState: Project.State.successful,
         backingState: backingState,
@@ -249,7 +269,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.canceled,
       backingState: Backing.Status.pledged,
@@ -269,7 +289,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.failed,
       backingState: Backing.Status.pledged,
@@ -289,7 +309,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.live,
       backingState: Backing.Status.canceled,
@@ -309,7 +329,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.collected,
@@ -329,7 +349,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.dropped,
@@ -349,7 +369,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.errored,
@@ -369,7 +389,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.live,
       backingState: Backing.Status.pledged,
@@ -390,7 +410,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: true,
         needsConversion: true,
         pledgeAmount: 10,
-        projectCurrencyCountry: Project.Country.hk,
+        currencyCode: Project.Country.hk.currencyCode,
         projectDeadline: 1_476_657_315,
         projectState: Project.State.successful,
         backingState: Backing.Status.pledged,
@@ -411,7 +431,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: true,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.hk,
+      currencyCode: Project.Country.hk.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.preauth,
@@ -429,7 +449,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
   func testBackingStatus_AllOtherStatuses_Creator() {
     let statuses = Backing.Status.allCases
       .filter {
-        ![.canceled, .collected, .dropped, .errored, .authenticationRequired, .pledged, .preauth]
+        ![.canceled, .collected, .dropped, .dummy, .errored, .authenticationRequired, .pledged, .preauth]
           .contains($0)
       }
 
@@ -438,7 +458,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
         currentUserIsCreatorOfProject: true,
         needsConversion: false,
         pledgeAmount: 10,
-        projectCurrencyCountry: Project.Country.hk,
+        currencyCode: Project.Country.hk.currencyCode,
         projectDeadline: 1_476_657_315,
         projectState: Project.State.successful,
         backingState: backingState,
@@ -457,7 +477,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.us,
+      currencyCode: Project.Country.us.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.live,
       backingState: Backing.Status.pledged,
@@ -477,7 +497,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.us,
+      currencyCode: Project.Country.us.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.pledged,
@@ -497,7 +517,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.us,
+      currencyCode: Project.Country.us.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.errored,
@@ -517,7 +537,7 @@ final class PledgeStatusLabelViewModelTests: TestCase {
       currentUserIsCreatorOfProject: false,
       needsConversion: false,
       pledgeAmount: 10,
-      projectCurrencyCountry: Project.Country.us,
+      currencyCode: Project.Country.us.currencyCode,
       projectDeadline: 1_476_657_315,
       projectState: Project.State.successful,
       backingState: Backing.Status.authenticationRequired,

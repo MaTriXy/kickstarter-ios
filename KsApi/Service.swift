@@ -1,6 +1,7 @@
 import Apollo
 import Combine
 import Foundation
+import GraphAPI
 import Prelude
 import ReactiveExtensions
 import ReactiveSwift
@@ -85,6 +86,10 @@ public struct Service: ServiceType {
     return request(Route.addImage(fileUrl: fileURL, toDraft: draft))
   }
 
+  public func fetch<Q: GraphQLQuery>(query: Q) -> SignalProducer<Q.Data, ErrorEnvelope> {
+    GraphQL.shared.client.fetch(query: query)
+  }
+
   public func addNewCreditCard(input: CreatePaymentSourceInput)
     -> SignalProducer<CreatePaymentSourceEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
@@ -103,6 +108,18 @@ public struct Service: ServiceType {
           .CreatePaymentSourceMutation(input: GraphAPI.CreatePaymentSourceInput.from(input))
       )
       .flatMap(CreatePaymentSourceEnvelope.producer(from:))
+  }
+
+  public func addUserToSecretRewardGroup(input: AddUserToSecretRewardGroupInput)
+    -> SignalProducer<EmptyResponseEnvelope, ErrorEnvelope> {
+    return GraphQL.shared.client
+      .perform(
+        mutation: GraphAPI
+          .AddUserToSecretRewardGroupMutation(input: GraphAPI.AddUserToSecretRewardGroupInput.from(input))
+      )
+      .flatMap { _ in
+        SignalProducer(value: EmptyResponseEnvelope())
+      }
   }
 
   public func triggerThirdPartyEventInput(input: TriggerThirdPartyEventInput)
@@ -124,7 +141,8 @@ public struct Service: ServiceType {
     return GraphQL.shared.client
       .fetch(query: GraphAPI.BuildPaymentPlanQuery(
         slug: projectSlug,
-        amount: pledgeAmount
+        amount: pledgeAmount,
+        includeRefundedAmount: false
       ))
   }
 
@@ -192,10 +210,10 @@ public struct Service: ServiceType {
         input: GraphAPI
           .CreateCheckoutInput(
             projectId: input.projectId,
-            amount: input.amount,
-            locationId: input.locationId,
-            rewardIds: input.rewardIds,
-            refParam: input.refParam
+            amount: GraphQLNullable.someOrNil(input.amount),
+            locationId: GraphQLNullable.someOrNil(input.locationId),
+            rewardIds: GraphQLNullable.someOrNil(input.rewardIds),
+            refParam: GraphQLNullable.someOrNil(input.refParam)
           )
       ))
       .flatMap(CreateCheckoutEnvelope.producer(from:))
@@ -234,9 +252,9 @@ public struct Service: ServiceType {
           .CreatePaymentIntentMutation(input: GraphAPI.CreatePaymentIntentInput(
             projectId: input.projectId,
             amount: input.amountDollars,
-            paymentIntentContext: input.paymentIntentContext,
-            digitalMarketingAttributed: input.digitalMarketingAttributed,
-            checkoutId: input.checkoutId
+            paymentIntentContext: GraphQLEnum.caseOrNil(input.paymentIntentContext),
+            digitalMarketingAttributed: GraphQLNullable.someOrNil(input.digitalMarketingAttributed),
+            checkoutId: GraphQLNullable.someOrNil(input.checkoutId)
           ))
       )
       .flatMap(PaymentIntentEnvelope.envelopeProducer(from:))
@@ -313,6 +331,7 @@ public struct Service: ServiceType {
       .failure,
       .follow,
       .launch,
+      .shipped,
       .success,
       .update
     ]
@@ -333,15 +352,13 @@ public struct Service: ServiceType {
   public func fetchProjectComments(
     slug: String,
     cursor: String?,
-    limit: Int?,
-    withStoredCards: Bool
+    limit: Int?
   ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
       .fetch(query: GraphAPI.FetchProjectCommentsQuery(
         slug: slug,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: GraphQLNullable.someOrNil(limit)
       ))
       .flatMap(CommentsEnvelope.envelopeProducer(from:))
   }
@@ -349,15 +366,13 @@ public struct Service: ServiceType {
   public func fetchUpdateComments(
     id: String,
     cursor: String?,
-    limit: Int?,
-    withStoredCards: Bool
+    limit: Int?
   ) -> SignalProducer<CommentsEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
       .fetch(query: GraphAPI.FetchUpdateCommentsQuery(
         postId: id,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: GraphQLNullable.someOrNil(limit)
       ))
       .flatMap(CommentsEnvelope.envelopeProducer(from:))
   }
@@ -365,16 +380,14 @@ public struct Service: ServiceType {
   public func fetchCommentReplies(
     id: String,
     cursor: String?,
-    limit: Int,
-    withStoredCards: Bool
+    limit: Int
   )
     -> SignalProducer<CommentRepliesEnvelope, ErrorEnvelope> {
     return GraphQL.shared.client
       .fetch(query: GraphAPI.FetchCommentRepliesQuery(
         commentId: id,
-        cursor: cursor,
-        limit: limit,
-        withStoredCards: withStoredCards
+        cursor: GraphQLNullable.someOrNil(cursor),
+        limit: limit
       ))
       .flatMap(CommentRepliesEnvelope.envelopeProducer(from:))
   }
@@ -390,6 +403,12 @@ public struct Service: ServiceType {
 
   public func fetchDiscovery(params: DiscoveryParams)
     -> SignalProducer<DiscoveryEnvelope, ErrorEnvelope> {
+    if !params.validForAPIV1() {
+      assert(
+        false,
+        "Using a field which was added for GraphQL support in API V1. This param may have unexpected effects on an API V1 call."
+      )
+    }
     return request(.discover(params))
   }
 
@@ -485,10 +504,11 @@ public struct Service: ServiceType {
       .fetch(
         query: GraphAPI
           .FetchUserBackingsQuery(
-            status: status,
+            status: GraphQLEnum.case(status),
             withStoredCards: false,
             includeShippingRules: true,
-            includeLocalPickup: false
+            includeLocalPickup: false,
+            includeRefundedAmount: false
           )
       )
       .flatMap(ErroredBackingsEnvelope.producer(from:))
@@ -503,7 +523,37 @@ public struct Service: ServiceType {
             id: "\(id)",
             withStoredCards: withStoredCards,
             includeShippingRules: true,
-            includeLocalPickup: true
+            includeLocalPickup: true,
+            includeRefundedAmount: false
+          )
+      )
+      .flatMap(ProjectAndBackingEnvelope.envelopeProducer(from:))
+  }
+
+  /// Fetches backing details including `refundedAmount` in the `paymentIncrements`.
+  ///
+  /// Use this method exclusively in flows that require displaying refund information,
+  /// such as the `ManagePledge` flow where the "Payment Scheduled" component
+  /// needs to reflect refunded increments.
+  ///
+  /// Fetching `refundedAmount` adds significant load to the backend.
+  /// Per the Payments team recommendation, this field should only be queried
+  /// when absolutely necessary.
+  ///
+  /// - Parameters:
+  ///   - id: The backing ID.
+  ///   - withStoredCards: Whether to include stored cards in the result.
+  public func fetchBackingWithIncrementsRefundedAmount(id: Int, withStoredCards: Bool)
+    -> SignalProducer<ProjectAndBackingEnvelope, ErrorEnvelope> {
+    return GraphQL.shared.client
+      .fetch(
+        query: GraphAPI
+          .FetchBackingQuery(
+            id: "\(id)",
+            withStoredCards: withStoredCards,
+            includeShippingRules: true,
+            includeLocalPickup: true,
+            includeRefundedAmount: true
           )
       )
       .flatMap(ProjectAndBackingEnvelope.envelopeProducer(from:))
@@ -577,12 +627,28 @@ public struct Service: ServiceType {
       .FetchProjectRewardsByIdQuery(
         projectId: projectId,
         includeShippingRules: true,
-        includeLocalPickup: true
+        includeLocalPickup: true,
+        includePledgeOverTime: false
       )
 
     return GraphQL.shared.client
       .fetch(query: query)
       .flatMap(Project.projectRewardsProducer(from:))
+  }
+
+  public func fetchProjectRewardsAndPledgeOverTimeData(projectId: Int)
+    -> SignalProducer<RewardsAndPledgeOverTimeEnvelope, ErrorEnvelope> {
+    let query = GraphAPI
+      .FetchProjectRewardsByIdQuery(
+        projectId: projectId,
+        includeShippingRules: true,
+        includeLocalPickup: true,
+        includePledgeOverTime: true
+      )
+
+    return GraphQL.shared.client
+      .fetch(query: query)
+      .flatMap(Project.projectRewardsAndPledgeOverTimeDataProducer(from:))
   }
 
   public func fetchProjectFriends(param: Param) -> SignalProducer<[User], ErrorEnvelope> {
@@ -651,7 +717,7 @@ public struct Service: ServiceType {
     let query = GraphAPI.FetchAddOnsQuery(
       projectSlug: slug,
       shippingEnabled: shippingEnabled,
-      locationId: locationId,
+      locationId: GraphQLNullable.someOrNil(locationId),
       withStoredCards: false,
       includeShippingRules: true,
       includeLocalPickup: true
@@ -666,7 +732,10 @@ public struct Service: ServiceType {
     cursor: String? = nil,
     limit: Int? = nil
   ) -> SignalProducer<FetchProjectsEnvelope, ErrorEnvelope> {
-    let query = GraphAPI.FetchMyBackedProjectsQuery(first: limit, after: cursor)
+    let query = GraphAPI.FetchMyBackedProjectsQuery(
+      first: GraphQLNullable.someOrNil(limit),
+      after: GraphQLNullable.someOrNil(cursor)
+    )
 
     return GraphQL.shared.client
       .fetch(query: query)
@@ -677,7 +746,10 @@ public struct Service: ServiceType {
     cursor: String? = nil,
     limit: Int? = nil
   ) -> SignalProducer<FetchProjectsEnvelope, ErrorEnvelope> {
-    let query = GraphAPI.FetchMySavedProjectsQuery(first: limit, after: cursor)
+    let query = GraphAPI.FetchMySavedProjectsQuery(
+      first: GraphQLNullable.someOrNil(limit),
+      after: GraphQLNullable.someOrNil(cursor)
+    )
 
     return GraphQL.shared.client
       .fetch(query: query)
@@ -740,7 +812,7 @@ public struct Service: ServiceType {
     return request(.followFriend(userId: id))
   }
 
-  public func incrementVideoCompletion(forProject project: Project) ->
+  public func incrementVideoCompletion(for project: any HasProjectWebURL) ->
     SignalProducer<VoidEnvelope, ErrorEnvelope> {
     let producer = request(.incrementVideoCompletion(project: project))
       as SignalProducer<VoidEnvelope, ErrorEnvelope>
@@ -754,7 +826,7 @@ public struct Service: ServiceType {
       }
   }
 
-  public func incrementVideoStart(forProject project: Project) ->
+  public func incrementVideoStart(forProject project: any HasProjectWebURL) ->
     SignalProducer<VoidEnvelope, ErrorEnvelope> {
     let producer = request(.incrementVideoStart(project: project))
       as SignalProducer<VoidEnvelope, ErrorEnvelope>
@@ -930,7 +1002,10 @@ public struct Service: ServiceType {
     limit: Int? = nil
   ) -> AnyPublisher<GraphAPI.FetchPledgedProjectsQuery.Data, ErrorEnvelope> {
     GraphQL.shared.client
-      .fetch(query: GraphAPI.FetchPledgedProjectsQuery(first: limit, after: cursor))
+      .fetch(query: GraphAPI.FetchPledgedProjectsQuery(
+        first: GraphQLNullable.someOrNil(limit),
+        after: GraphQLNullable.someOrNil(cursor)
+      ))
       .eraseToAnyPublisher()
   }
 }

@@ -211,6 +211,11 @@ private func pledgeCTA(project: Project, backing: Backing?) -> PledgeStateCTATyp
     return .prelaunch(saved: projectIsSaved, watchCount: project.watchesCount ?? 0)
   }
 
+  if backing?.status == .dummy ||
+    (featureNetNewBackersGoToPMEnabled() && project.pledgeManagementAvailable) {
+    return PledgeStateCTAType.pledgeManager
+  }
+
   let isInPostCampaign = featurePostCampaignPledgeEnabled() && project.isInPostCampaignPledgingPhase
 
   guard let projectBacking = backing, project.personalization.isBacking == .some(true) else {
@@ -261,11 +266,10 @@ private func subtitle(project: Project, pledgeState: PledgeStateCTAType) -> Stri
 private func formattedPledge(amount: Double, project: Project) -> String {
   let numberOfDecimalPlaces = amount.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
   let formattedAmount = String(format: "%.\(numberOfDecimalPlaces)f", amount)
-  let projectCurrencyCountry = projectCountry(forCurrency: project.stats.currency) ?? project.country
 
   return Format.formattedCurrency(
     formattedAmount,
-    country: projectCurrencyCountry,
+    currencyCode: project.statsCurrency,
     omitCurrencyCode: project.stats.omitUSCurrencyCode
   )
 }

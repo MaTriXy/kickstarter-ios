@@ -8,14 +8,11 @@ import UIKit
 final class PledgePaymentPlansViewControllerTest: TestCase {
   override func setUp() {
     super.setUp()
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
-
     super.tearDown()
   }
 
@@ -123,13 +120,13 @@ private func testPledgePaymentIncrement() -> [PledgePaymentIncrement] {
     timeStamp += 30 * 24 * 60 * 60
     increments.append(PledgePaymentIncrement(
       amount: PledgePaymentIncrementAmount(
-        amount: 250.0,
         currency: "USD",
         amountFormattedInProjectNativeCurrency: "$250.00"
       ),
       scheduledCollection: timeStamp,
       state: .unattempted,
-      stateReason: .requiresAction
+      stateReason: .requiresAction,
+      refundedAmount: nil
     ))
   }
 

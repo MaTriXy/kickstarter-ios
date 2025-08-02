@@ -10,15 +10,11 @@ class ThanksViewControllerTests: TestCase {
 
   override func setUp() {
     super.setUp()
-
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
-
     super.tearDown()
   }
 
@@ -31,7 +27,7 @@ class ThanksViewControllerTests: TestCase {
       fetchDiscoveryResponse: discoveryEnvelope
     )
 
-    combos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
+    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch, Device.phone5_8inch, Device.pad]).forEach {
       language, device in
       withEnvironment(apiService: mockService, language: language) {
         let project = Project.cosmicSurgery

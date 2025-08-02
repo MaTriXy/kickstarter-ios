@@ -3,7 +3,6 @@ import KsApi
 
 public func mockPaymentIncrements() -> [PledgePaymentIncrement] {
   let amount = PledgePaymentIncrementAmount(
-    amount: 250.0,
     currency: "USD",
     amountFormattedInProjectNativeCurrency: "$250.00"
   )
@@ -13,31 +12,43 @@ public func mockPaymentIncrements() -> [PledgePaymentIncrement] {
       amount: amount,
       scheduledCollection: scheduledCollection,
       state: .collected,
-      stateReason: nil
+      stateReason: nil,
+      refundedAmount: nil
     ),
     PledgePaymentIncrement(
       amount: amount,
       scheduledCollection: scheduledCollection,
       state: .unattempted,
-      stateReason: nil
+      stateReason: nil,
+      refundedAmount: nil
     ),
     PledgePaymentIncrement(
       amount: amount,
       scheduledCollection: scheduledCollection,
       state: .cancelled,
-      stateReason: nil
+      stateReason: nil,
+      refundedAmount: nil
     ),
     PledgePaymentIncrement(
       amount: amount,
       scheduledCollection: scheduledCollection,
       state: .errored,
-      stateReason: nil
+      stateReason: nil,
+      refundedAmount: nil
     ),
     PledgePaymentIncrement(
       amount: amount,
       scheduledCollection: scheduledCollection,
       state: .errored,
-      stateReason: .requiresAction
+      stateReason: .requiresAction,
+      refundedAmount: nil
+    ),
+    PledgePaymentIncrement(
+      amount: amount,
+      scheduledCollection: scheduledCollection,
+      state: .refunded,
+      stateReason: nil,
+      refundedAmount: nil
     )
   ]
 }

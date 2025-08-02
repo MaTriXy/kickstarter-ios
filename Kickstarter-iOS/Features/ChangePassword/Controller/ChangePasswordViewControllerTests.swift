@@ -8,18 +8,16 @@ import XCTest
 final class ChangePasswordViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-    AppEnvironment.pushEnvironment(mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
     super.tearDown()
   }
 
   func testChangePassword() {
-    combos(Language.allLanguages, Device.allCases).forEach { language, device in
+    orthogonalCombos(Language.allLanguages, Device.allCases).forEach { language, device in
       withEnvironment(language: language) {
         let controller = ChangePasswordViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: controller)

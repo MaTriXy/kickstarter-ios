@@ -16,12 +16,10 @@ private let you = User.template
 internal final class ActivitiesViewControllerTests: TestCase {
   override func setUp() {
     super.setUp()
-    AppEnvironment.pushEnvironment(currentUser: you, mainBundle: Bundle.framework)
     UIView.setAnimationsEnabled(false)
   }
 
   override func tearDown() {
-    AppEnvironment.popEnvironment()
     UIView.setAnimationsEnabled(true)
     super.tearDown()
   }
@@ -181,38 +179,6 @@ internal final class ActivitiesViewControllerTests: TestCase {
         currentUser: you |> \.facebookConnected .~ true |> \.needsFreshFacebookToken .~ true,
         language: language,
         userDefaults: MockKeyValueStore()
-      ) {
-        let vc = ActivitiesViewController.instantiate()
-        let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)
-        parent.view.frame.size.height = 900
-
-        self.scheduler.run()
-
-        assertSnapshot(matching: parent.view, as: .image, named: "lang_\(language)_device_\(device)")
-      }
-    }
-  }
-
-  func testErroredBackings() {
-    let date = AppEnvironment.current.calendar.date(byAdding: DateComponents(day: 4), to: MockDate().date)
-
-    let backing = Backing.template
-      |> Backing.lens.status .~ .errored
-
-    let project = Project.template
-      |> \.name .~ "Awesome tabletop collection"
-      |> Project.lens.personalization.backing .~ backing
-      |> \.dates.finalCollectionDate .~ date?.timeIntervalSince1970
-
-    let projectAndBacking = ProjectAndBackingEnvelope(project: project, backing: backing)
-
-    let env = ErroredBackingsEnvelope(projectsAndBackings: [projectAndBacking, projectAndBacking])
-
-    orthogonalCombos(Language.allLanguages, [Device.phone4_7inch]).forEach { language, device in
-      withEnvironment(
-        apiService: MockService(fetchErroredUserBackingsResult: .success(env)),
-        currentUser: .template |> \.facebookConnected .~ true |> \.needsFreshFacebookToken .~ false,
-        language: language
       ) {
         let vc = ActivitiesViewController.instantiate()
         let (parent, _) = traitControllers(device: device, orientation: .portrait, child: vc)

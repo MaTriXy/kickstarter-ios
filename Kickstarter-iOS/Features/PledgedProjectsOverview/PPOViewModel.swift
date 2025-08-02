@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import GraphAPI
 import KsApi
 import Library
 import UIKit
@@ -25,6 +26,7 @@ protocol PPOViewModelInputs {
     onProgress: @escaping (PPOActionState) -> Void
   )
   func openSurvey(from: PPOProjectCardModel)
+  func managePledge(from: PPOProjectCardModel)
   func viewBackingDetails(from: PPOProjectCardModel)
   func editAddress(from: PPOProjectCardModel)
   func confirmAddress(from: PPOProjectCardModel, address: String, addressId: String)
@@ -41,14 +43,22 @@ enum PPONavigationEvent: Equatable {
   case fixPaymentMethod(projectId: Int, backingId: Int)
   case fix3DSChallenge(clientSecret: String, onProgress: (PPOActionState) -> Void)
   case survey(url: String)
+  case managePledge(url: String)
   case backingDetails(url: String)
   case editAddress(url: String)
-  case confirmAddress(backingId: String, addressId: String, address: String)
+  case confirmAddress(
+    backingId: String,
+    addressId: String,
+    address: String,
+    onProgress: (PPOActionState) -> Void
+  )
   case contactCreator(messageSubject: MessageSubject)
 
   static func == (lhs: PPONavigationEvent, rhs: PPONavigationEvent) -> Bool {
     switch (lhs, rhs) {
     case let (.survey(lhsUrl), .survey(rhsUrl)):
+      return lhsUrl == rhsUrl
+    case let (.managePledge(lhsUrl), .managePledge(rhsUrl)):
       return lhsUrl == rhsUrl
     case let (.backingDetails(lhsUrl), .backingDetails(rhsUrl)):
       return lhsUrl == rhsUrl
@@ -62,8 +72,8 @@ enum PPONavigationEvent: Equatable {
     ):
       return lhsSecret == rhsSecret
     case let (
-      .confirmAddress(lhsBackingId, lhsAddressId, lhsAddress),
-      .confirmAddress(rhsBackingId, rhsAddressId, rhsAddress)
+      .confirmAddress(lhsBackingId, lhsAddressId, lhsAddress, _),
+      .confirmAddress(rhsBackingId, rhsAddressId, rhsAddress, _)
     ):
       return lhsBackingId == rhsBackingId && lhsAddressId == rhsAddressId && lhsAddress == rhsAddress
     case let (
@@ -107,6 +117,12 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
           return false
         }
       })
+      // SwiftUI List jumps around if reloading frequently. This code path prevents
+      // unnecessary reloads if the data has loaded. If the values are the same and
+      // both states have been loaded, then we can drop this change.
+      .removeDuplicates(by: { left, right in
+        left.hasLoaded && right.hasLoaded && left.values == right.values
+      })
       .receive(on: RunLoop.main)
       .sink(receiveValue: { results in
         self.results = results
@@ -115,8 +131,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
     Publishers.Merge(
       self.viewDidAppearSubject
-        .withEmptyValues()
-        .first(),
+        .withEmptyValues(),
       self.pullToRefreshSubject
     )
     .sink { () in
@@ -131,35 +146,47 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
       .store(in: &self.cancellables)
 
     // Route navigation events
-    Publishers.Merge8(
-      self.openBackedProjectsSubject.map { PPONavigationEvent.backedProjects },
-      self.openSurveySubject.map { viewModel in PPONavigationEvent.survey(url: viewModel.backingDetailsUrl) },
+    Publishers.MergeMany([
+      self.openBackedProjectsSubject
+        .map { PPONavigationEvent.backedProjects }
+        .eraseToAnyPublisher(),
+      self.openSurveySubject
+        .map { viewModel in PPONavigationEvent.survey(url: viewModel.backingDetailsUrl) }
+        .eraseToAnyPublisher(),
+      self.managePledgeSubject
+        .map { viewModel in PPONavigationEvent.managePledge(url: viewModel.backingDetailsUrl) }
+        .eraseToAnyPublisher(),
       self.viewBackingDetailsSubject
-        .map { viewModel in PPONavigationEvent.survey(url: viewModel.backingDetailsUrl) },
+        .map { viewModel in PPONavigationEvent.survey(url: viewModel.backingDetailsUrl) }
+        .eraseToAnyPublisher(),
       self.editAddressSubject
-        .map { viewModel in PPONavigationEvent.editAddress(url: viewModel.backingDetailsUrl) },
+        .map { viewModel in PPONavigationEvent.editAddress(url: viewModel.backingDetailsUrl) }
+        .eraseToAnyPublisher(),
       self.confirmAddressSubject.map { viewModel, address, addressId in
         PPONavigationEvent.confirmAddress(
           backingId: viewModel.backingGraphId,
           addressId: addressId,
-          address: address
+          address: address,
+          onProgress: { [weak self] state in
+            self?.confirmAddressProgressSubject.send((viewModel, state))
+          }
         )
-      },
+      }.eraseToAnyPublisher(),
       self.contactCreatorSubject.map { viewModel in
         let messageSubject = MessageSubject.project(id: viewModel.projectId, name: viewModel.projectName)
         return PPONavigationEvent.contactCreator(messageSubject: messageSubject)
-      },
+      }.eraseToAnyPublisher(),
       self.fixPaymentMethodSubject.map { model in PPONavigationEvent.fixPaymentMethod(
         projectId: model.projectId,
         backingId: model.backingId
-      ) },
+      ) }.eraseToAnyPublisher(),
       self.fix3DSChallengeSubject.map { _, clientSecret, onProgress in
         PPONavigationEvent.fix3DSChallenge(
           clientSecret: clientSecret,
           onProgress: onProgress
         )
-      }
-    )
+      }.eraseToAnyPublisher()
+    ])
     .subscribe(self.navigationEventSubject)
     .store(in: &self.cancellables)
 
@@ -171,7 +198,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
     // Analytics: When view appears, the next time it loads, send a PPO dashboard open
     self.viewDidAppearSubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { _, properties in
         AppEnvironment.current.ksrAnalytics.trackPPODashboardOpens(properties: properties)
       }
@@ -179,7 +206,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
     // Analytics: Tap messaging creator
     self.contactCreatorSubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { card, overallProperties in
         AppEnvironment.current.ksrAnalytics.trackPPOMessagingCreator(
           from: card.projectAnalytics,
@@ -190,7 +217,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
     // Analytics: Fixing payment failure
     self.fixPaymentMethodSubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { card, overallProperties in
         AppEnvironment.current.ksrAnalytics.trackPPOFixingPaymentFailure(
           project: card.projectAnalytics,
@@ -201,7 +228,7 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
 
     // Analytics: Opening survey
     self.openSurveySubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { card, overallProperties in
         AppEnvironment.current.ksrAnalytics.trackPPOOpeningSurvey(
           project: card.projectAnalytics,
@@ -210,9 +237,20 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
       }
       .store(in: &self.cancellables)
 
+    // Analytics: Open pledge manager
+    self.managePledgeSubject
+      .withFirst(from: latestLoadedResults)
+      .sink { card, overallProperties in
+        AppEnvironment.current.ksrAnalytics.trackPPOManagePledge(
+          project: card.projectAnalytics,
+          properties: overallProperties
+        )
+      }
+      .store(in: &self.cancellables)
+
     // Analytics: Initiate confirming address
     self.confirmAddressSubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { cardProperties, overallProperties in
         let (card, _, _) = cardProperties
         AppEnvironment.current.ksrAnalytics.trackPPOInitiateConfirmingAddress(
@@ -222,9 +260,22 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
       }
       .store(in: &self.cancellables)
 
+    // Analytics: Finish confirming address
+    self.confirmAddressProgressSubject
+      .filter { $0.1 == .confirmed }
+      .map { $0.0 } // we just need the card
+      .withFirst(from: latestLoadedResults)
+      .sink { card, overallProperties in
+        AppEnvironment.current.ksrAnalytics.trackPPOSubmitAddressConfirmation(
+          project: card.projectAnalytics,
+          properties: overallProperties
+        )
+      }
+      .store(in: &self.cancellables)
+
     // Analytics: Edit address
     self.editAddressSubject
-      .combineLatest(latestLoadedResults)
+      .withFirst(from: latestLoadedResults)
       .sink { card, overallProperties in
         AppEnvironment.current.ksrAnalytics.trackPPOEditAddress(
           project: card.projectAnalytics,
@@ -272,6 +323,10 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
     self.openSurveySubject.send(from)
   }
 
+  func managePledge(from: PPOProjectCardModel) {
+    self.managePledgeSubject.send(from)
+  }
+
   func viewBackingDetails(from: PPOProjectCardModel) {
     self.viewBackingDetailsSubject.send(from)
   }
@@ -310,9 +365,14 @@ final class PPOViewModel: ObservableObject, PPOViewModelInputs, PPOViewModelOutp
     Never
   >()
   private let openSurveySubject = PassthroughSubject<PPOProjectCardModel, Never>()
+  private let managePledgeSubject = PassthroughSubject<PPOProjectCardModel, Never>()
   private let viewBackingDetailsSubject = PassthroughSubject<PPOProjectCardModel, Never>()
   private let editAddressSubject = PassthroughSubject<PPOProjectCardModel, Never>()
   private let confirmAddressSubject = PassthroughSubject<(PPOProjectCardModel, String, String), Never>()
+  private let confirmAddressProgressSubject = PassthroughSubject<
+    (PPOProjectCardModel, PPOActionState),
+    Never
+  >()
   private let contactCreatorSubject = PassthroughSubject<PPOProjectCardModel, Never>()
   private var navigationEventSubject = PassthroughSubject<PPONavigationEvent, Never>()
 
@@ -329,6 +389,7 @@ extension Sequence where Element == PPOProjectCardViewModel {
     var cardAuthRequiredCount: Int = 0
     var surveyAvailableCount: Int = 0
     var addressLocksSoonCount: Int = 0
+    var pledgeManagementCount: Int = 0
 
     for viewModel in self {
       switch viewModel.card.tierType {
@@ -340,16 +401,32 @@ extension Sequence where Element == PPOProjectCardViewModel {
         surveyAvailableCount += 1
       case .confirmAddress:
         addressLocksSoonCount += 1
+      case .pledgeManagement:
+        pledgeManagementCount += 1
       }
     }
 
     return KSRAnalytics.PledgedProjectOverviewProperties(
       addressLocksSoonCount: addressLocksSoonCount,
       surveyAvailableCount: surveyAvailableCount,
+      pledgeManagementCount: pledgeManagementCount,
       paymentFailedCount: paymentFailedCount,
       cardAuthRequiredCount: cardAuthRequiredCount,
       total: total,
       page: page
     )
+  }
+}
+
+extension Publisher {
+  /// Combines this publisher with the first value emitted by another publisher.
+  /// - Warning: This is not a direct replacement for `withLatestFrom` from other ReactiveX libraries.
+  /// - Parameter other: The publisher to grab the first value from
+  /// - Returns: A publisher that emits tuples of values from this publisher paired with the first value from the other publisher
+  func withFirst<B>(from other: B) -> AnyPublisher<(Self.Output, B.Output), Self.Failure> where B: Publisher,
+    B.Failure == Self.Failure {
+    return self.flatMap { foo in
+      other.first().map { (foo, $0) }
+    }.eraseToAnyPublisher()
   }
 }
